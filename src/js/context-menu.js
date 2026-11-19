@@ -13,6 +13,7 @@ const map = globalThis.MuraMarks && globalThis.MuraMarks.map;
 const app = $('qaApp'), mapEl = $('qaMap');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const IC = {
+  route: '<circle cx="6" cy="18" r="2.2"/><path d="M18 3.5a3.5 3.5 0 0 1 3.5 3.5c0 2.6-3.5 6-3.5 6s-3.5-3.4-3.5-6A3.5 3.5 0 0 1 18 3.5z"/><path d="M8 17.5c4.5-.5 2-5.5 6.5-6"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
   paste: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2.5h6V4"/><path d="M12 9v7M9 13l3 3 3-3"/>',
   flag: '<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/>',
@@ -141,6 +142,9 @@ if (map) map.on('contextmenu', async e => {
     { label: 'Осы жерге белгі қою', icon: IC.flag, run: () => { globalThis.MuraSvc?.set('marks'); globalThis.__marks?.openDialog({ lat: p.lat, lon: p.lon }); } },
     { label: 'Осы жерге шекара нүктесін қосу', icon: IC.pin, run: () => addBoundaryPoint(p) },
     'sep',
+    { label: 'Осы жерден жол табу', hint: 'маршруттар желісі бойынша', icon: IC.route, run: () => globalThis.MuraRoutes?.findFrom(p) },
+    { label: 'Осы жерге жол табу', hint: 'маршруттар желісі бойынша', icon: IC.route, run: () => globalThis.MuraRoutes?.findTo(p) },
+    'sep',
     ...gmapsItems(p),
   ];
   if (sel) items.push('sep', { label: 'Көшіру', hint: sel.length > 40 ? sel.slice(0, 40) + '…' : sel, icon: IC.copy, run: () => clipWrite(sel) });
@@ -169,6 +173,7 @@ function forMark(m, ev) {
     { label: 'Атауы мен координатасын көшіру', icon: IC.copy, run: () => clipWrite(m.name + '\t' + m.lat.toFixed(7) + '\t' + m.lon.toFixed(7)) },
     'sep',
     { label: 'Өңдеу', icon: IC.edit, run: () => globalThis.__marks?.openDialog(m) },
+    { label: 'Осы ескерткішке жол табу', hint: 'маршруттар желісі бойынша', icon: IC.route, run: () => globalThis.MuraRoutes?.findTo({ markId: m.id, lat: m.lat, lon: m.lon }) },
     { label: 'Қорғау аймағын белгілеу', icon: IC.zone, run: () => globalThis.MuraZone?.startFromMark(m) },
     'sep',
     ...gmapsItems(m),

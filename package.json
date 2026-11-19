@@ -16,7 +16,8 @@
     "release:win": "electron-builder --win --publish always",
     "release:linux": "electron-builder --linux --publish always",
     "smoke": "electron scripts/smoke.js",
-    "smoke:marks": "electron scripts/smoke-marks.js"
+    "smoke:marks": "electron scripts/smoke-marks.js",
+    "smoke:routes": "electron scripts/smoke-routes.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"

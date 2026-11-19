@@ -45,6 +45,8 @@ body.mura .mura-svcrow .qa-tright { gap: 2px; }
 body.mura .mura-2rows .qa-tmain { padding: 4px 8px; min-height: 42px; }
 body.mura .mura-2rows .qa-tmain > .qa-tgroup.mura-first { margin-left: 0; padding-left: 0; border-left: 0; }
 body.mura .mura-off { display: none !important; }
+/* Картаның шартты белгілері: қорғау аймағының сызықтары мен нүкте саны — тек сол қызметте */
+body.mura .qa-app:not([data-svc="zone"]) #qaLegend > span:not(.mk-leg) { display: none; }
 @media (hover: hover) and (pointer: fine) {
   body.mura .mura-common .qa-tbtn[data-tip]::after { left: auto; right: 0; transform: none; }
   body.mura .mura-2rows .qa-tmain > .qa-tgroup.mura-first .qa-tbtn:first-child::after { left: 0; transform: none; }

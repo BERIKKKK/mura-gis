@@ -1,12 +1,12 @@
 /* Mura GIS: екі қатарлы құралдар жолағы — «қызмет → тиісті құралдар».
-   • Жоғарғы қатар: қызметтер (Белгілер, Қорғау аймағы) және барлық қызметке ортақ құралдар
+   • Жоғарғы қатар: қызметтер (Ескерткіштер, Маршруттар, Қорғау аймағы) және барлық қызметке ортақ құралдар
      (Сызғыш, бұрышты туралау, Сыйғызу, Толық экран, «⋯»).
    • Төменгі қатар (#qaTmain): тек таңдалған қызметтің батырмалары. Сыймаса — ui.js бұрынғыдай
      жазуларды жасырып, артығын «⋯» мәзіріне жинайды (тек көрініп тұрған қызметтің батырмаларын).
    • Қызмет ауысқанда: алдыңғы қызметтің режимі (Нүкте қою / Белгі қою) өшеді, оның панелі жабылады.
    • Қызмет өзі де ауысады: басқа қызметтің режимі не панелі ашылса (оң жақ мәзір, координата панелі,
      белгіден қорғау аймағын бастау т.б.), жолақ сол қызметке көшеді.
-   • Пернелер: 1 — Белгілер, 2 — Қорғау аймағы (мәтін өрісінде емес кезде). Соңғы қызмет есте сақталады.
+   • Пернелер: 1 — Ескерткіштер, 2 — Маршруттар, 3 — Қорғау аймағы (мәтін өрісінде емес кезде). Соңғы қызмет есте сақталады.
    Бұл файл marks-dom.js-тен кейін, qorgau/ui.js-тен БҰРЫН орындалады (DOM-ды ui.js батырмаларды санамай тұрып өзгертеміз).
    Жаңа қызмет қосу: SERVICES тізіміне жол және төменгі қатарға data-svc="…" тобы. */
 (function () {
@@ -17,9 +17,11 @@
 
   var KEY = 'mura.service';
   var SERVICES = [
-    { id: 'marks', label: 'Белгілер', tip: 'Ескерткіш белгілері: белгі қою, тізім, импорт, экспорт (1)',
+    { id: 'marks', label: 'Ескерткіштер', tip: 'Ескерткіштер: белгі қою, тізім, импорт, экспорт (1)',
       icon: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>' },
-    { id: 'zone', label: 'Қорғау аймағы', tip: 'Қорғау аймағы: шекара, есеп, сақталған аймақтар (2)',
+    { id: 'routes', label: 'Маршруттар', tip: 'Маршруттар: маршрут сызу, тізім, жол табу, GPX/KML импорты (2)',
+      icon: '<circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="5.5" r="2"/><path d="M7.3 17.2C11 15 9 10.5 12.5 9.5S16 7.5 16.9 7"/>' },
+    { id: 'zone', label: 'Қорғау аймағы', tip: 'Қорғау аймағы: шекара, есеп, сақталған аймақтар (3)',
       icon: '<path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z"/><path d="M12 7.5l3.9 2.25v4.5L12 16.5l-3.9-2.25v-4.5z"/>' },
   ];
   var svg = function (p) { return '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; };
@@ -95,6 +97,8 @@
     if (svc === 'zone') {
       if (pressed('qaAddMode')) $('qaAddMode').click();
       if (ui && ui.panel && ui.panel()) ui.closePanel();
+    } else if (svc === 'routes') {
+      if (globalThis.MuraRoutes) { globalThis.MuraRoutes.stop(); globalThis.MuraRoutes.closePanel(); }
     } else if (svc === 'marks') {
       if (pressed('mkMode')) $('mkMode').click();
       if (globalThis.__marks && globalThis.__marks.closePanel) globalThis.__marks.closePanel();
@@ -114,6 +118,7 @@
       if (!off) first = false;
     });
     bar.dataset.svc = cur;
+    app.dataset.svc = cur;
     paintMore();
   }
   /** Қызметті таңдау: алдыңғы қызметтің режимі мен панелі жабылады. */
@@ -154,6 +159,8 @@
   follow('qaAddMode', 'zone', 'aria-pressed');
   follow('mkMode', 'marks', 'aria-pressed');
   follow('mkPanel', 'marks', 'hidden');
+  follow('rtDraw', 'routes', 'aria-pressed');
+  follow('rtPanel', 'routes', 'hidden');
   ['qaPanelInfo', 'qaPanelSaved', 'qaPanelPts'].forEach(function (id) { follow(id, 'zone', 'hidden'); });
   // Координата панелі: «Қосу» — шекара нүктесі, «Белгі» — ескерткіш белгісі (басу өз әрекетін орындайды)
   var inAdd = $('qaInAdd'), inMark = $('mkFromCoord');

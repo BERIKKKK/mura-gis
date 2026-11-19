@@ -30,7 +30,7 @@
   grp.setAttribute('aria-label', 'Ескерткіш белгілері');
   grp.innerHTML =
     '<button type="button" class="qa-tbtn" id="mkMode" data-prio="0" aria-pressed="false" aria-label="Белгі қою" data-tip="Белгі қою: картаны басып ескерткішті белгілеңіз">' + ic(IC.flag) + '<span class="qa-tl">Белгі қою</span></button>' +
-    '<button type="button" class="qa-tbtn" id="mkListBtn" data-prio="2" aria-controls="mkPanel" aria-expanded="false" aria-label="Белгілер тізімі" data-tip="Ескерткіш белгілері: тізім, экспорт (GeoJSON, DOCX, PDF)">' + ic(IC.list) + '<span class="qa-tl">Белгілер</span><span class="qa-total mk-total" id="mkCount">0</span></button>';
+    '<button type="button" class="qa-tbtn" id="mkListBtn" data-prio="2" aria-controls="mkPanel" aria-expanded="false" aria-label="Ескерткіштер" data-tip="Ескерткіштер: тізім, экспорт (GeoJSON, DOCX, PDF)">' + ic(IC.list) + '<span class="qa-tl">Ескерткіштер</span><span class="qa-total mk-total" id="mkCount">0</span></button>';
   tmain.insertBefore(grp, tmain.firstChild);
 
   /* ---------- Координата панелі: енгізілген координатаны белгі ретінде қосу ---------- */
@@ -49,9 +49,9 @@
   if (cnt) {
     var s = document.createElement('span');
     s.className = 'mk-leg';
-    s.title = 'Ескерткіш белгілері, түсі — санаты: халықаралық, республикалық, жергілікті маңызы бар, анықталмаған';
+    s.title = 'Ескерткіштер, түсі — санаты: халықаралық, республикалық, жергілікті маңызы бар, анықталмаған';
     s.innerHTML = '<i class="mk-leg-pin" style="background:#8E3FC4;box-shadow:0 0 0 1px #3E1460"></i><i class="mk-leg-pin" style="background:#E0202E;box-shadow:0 0 0 1px #6B0710"></i>' +
-      '<i class="mk-leg-pin" style="background:#F28C00;box-shadow:0 0 0 1px #7A4100"></i><i class="mk-leg-pin" style="background:#8E8A80;box-shadow:0 0 0 1px #45413A"></i>Белгілер';
+      '<i class="mk-leg-pin" style="background:#F28C00;box-shadow:0 0 0 1px #7A4100"></i><i class="mk-leg-pin" style="background:#8E8A80;box-shadow:0 0 0 1px #45413A"></i>Ескерткіштер';
     cnt.parentNode.insertBefore(s, cnt);
   }
 
@@ -64,9 +64,9 @@
   d.setAttribute('aria-labelledby', 'mkPanelT');
   d.hidden = true;
   d.innerHTML =
-    '<header class="qa-dh"><h2 id="mkPanelT">' + ic(IC.flag) + 'Ескерткіш белгілері</h2><button type="button" class="qa-ib" data-mkclose aria-label="Жабу" title="Жабу">' + ic(IC.close) + '</button></header>' +
+    '<header class="qa-dh"><h2 id="mkPanelT">' + ic(IC.flag) + 'Ескерткіштер</h2><button type="button" class="qa-ib" data-mkclose aria-label="Жабу" title="Жабу">' + ic(IC.close) + '</button></header>' +
     '<div class="mk-tabs" role="tablist">' +
-      '<button type="button" role="tab" id="mkTabMarksB" data-mktab="marks" aria-selected="true">Белгілер <span class="mk-tabn" id="mkTabN">0</span></button>' +
+      '<button type="button" role="tab" id="mkTabMarksB" data-mktab="marks" aria-selected="true">Ескерткіштер <span class="mk-tabn" id="mkTabN">0</span></button>' +
       '<button type="button" role="tab" id="mkTabImpB" data-mktab="imp" aria-selected="false" title="KML, KMZ, GPX файлдарынан импортталған, әлі сәйкестендірілмеген нүктелер">Импортталғандар <span class="mk-tabn" id="mkTabI">0</span></button>' +
     '</div>' +
     '<div class="qa-db" id="mkTabMarks">' +

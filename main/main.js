@@ -1,12 +1,13 @@
 /* Mura GIS — негізгі процесс.
    Интерфейс src/ ішінен mura://app/ мекенжайымен беріледі (тұрақты origin: localStorage, fetch, CORS дұрыс жұмыс істейді).
-   mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
+   mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js); mura://app/routes — маршруттар (main/routes.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
 const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, clipboard } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { Store } = require('./store');
 const { MarksStore } = require('./marks');
+const { RoutesStore } = require('./routes');
 const updates = require('./updates');
 
 const SRC = path.join(__dirname, '..', 'src');
@@ -22,6 +23,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 let win = null;
 let store = null;
 let marks = null;
+let routes = null;
 
 ipcMain.on('mura:version', e => { e.returnValue = app.getVersion(); });
 
@@ -194,6 +196,7 @@ app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(
 app.whenReady().then(() => {
   store = new Store(path.join(app.getPath('userData'), 'data'));
   marks = new MarksStore(store.dir);
+  routes = new RoutesStore(store.dir);
   try { store.seedSample(); } catch (e) { console.error('Үлгі жазба қосылмады:', e.message); }
 
   protocol.handle('mura', req => {
@@ -201,6 +204,7 @@ app.whenReady().then(() => {
     if (u.host !== 'app') return new Response('Not found', { status: 404 });
     if (u.pathname === '/api') return store.handle(req);
     if (u.pathname === '/marks') return marks.handle(req);
+    if (u.pathname === '/routes') return routes.handle(req);
     return serveFile(u.pathname);
   });
 
