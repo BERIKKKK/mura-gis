@@ -84,17 +84,26 @@ async function run(win) {
     out.toolbar = [...document.querySelectorAll('#qaTmain .qa-tgroup')].map(g => [...g.querySelectorAll('.qa-tbtn')].map(b => b.id.replace(/^(qa|mk)/, '')).join(',')).join(' | ');
     out.savedLabel = document.querySelector('#qaOpenSaved .qa-tl').textContent + ' / ' + document.getElementById('qaPanelSavedT').textContent;
     out.finish0 = document.getElementById('qaFinish').disabled;
+    out.saveHidden = getComputedStyle(document.getElementById('qaSave')).display;
+    await M.api('save', { data: JSON.stringify({ name: 'Ішкі тест кешені', oblast: 'Ақтөбе облысы', district: 'Қарғалы ауданы', period: 'орта ғасырлар', place: 'Үлгі орны', type: 'ensemble', category: 'local', status: 'state', lat: 50.4123, lon: 57.0412 }) });
     document.getElementById('qaSample').click(); await wait(1200);
+    document.getElementById('qaName').value = ''; document.getElementById('qaName').dispatchEvent(new Event('input'));
     out.finish1 = document.getElementById('qaFinish').disabled;
     document.getElementById('qaFinish').click(); await wait(200);
     const zd = document.querySelector('.zd-dlg');
     out.zdFields = !!(zd && zd.contains(document.getElementById('qaName')) && zd.contains(document.getElementById('qaD1')) && zd.contains(document.getElementById('qaRes')));
+    out.zdAuto = (document.getElementById('zdMark') || {}).selectedOptions?.[0]?.textContent + ' → ' + document.getElementById('qaName').value + ' / ' + document.getElementById('qaType').value + ' / ' + document.getElementById('qaD1').value + ' м / ' + document.getElementById('qaPeriod').value;
     out.zdAddOff = document.getElementById('qaAddMode').getAttribute('aria-pressed');
     document.getElementById('qaName').value = ''; zd.requestSubmit(); await wait(100);
     out.zdNoName = document.getElementById('zdErr').textContent;
     document.getElementById('qaName').value = 'Аяқтау тесті қорымы'; document.getElementById('qaName').dispatchEvent(new Event('input'));
     zd.requestSubmit(); await wait(1500);
     out.zdAfter = 'dialog ' + !!document.querySelector('.zd-dlg') + ', loaded ' + __qa.state.loadedName + ', panelBack ' + document.getElementById('qaPanelInfo').contains(document.getElementById('qaName')) + ', saved ' + document.getElementById('qaSavedCount').textContent;
+    // Белгіден жаңа қорғау аймағын бастау: тазалауды растап, мәліметтер белгіден толтырылады
+    const mk = M.items.find(m => m.name.startsWith('Абат'));
+    const pz = MuraZone.startFromMark(mk); await wait(300);
+    document.querySelector('.qa-dlg-back [data-v="1"]')?.click(); await pz; await wait(300);
+    out.fromMark = __qa.state.pts.length + ' pts, name ' + document.getElementById('qaName').value + ' / ' + document.getElementById('qaDistrict').value + ' / ' + document.getElementById('qaType').value + ', add ' + document.getElementById('qaAddMode').getAttribute('aria-pressed');
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());

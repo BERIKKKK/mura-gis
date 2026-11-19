@@ -203,7 +203,7 @@ function openDialog(m, o = {}) {
       '<div class="qa-f"><label for="mkNote">Ескертпе</label><textarea id="mkNote" name="note" maxlength="3000" rows="2">' + esc(v.note) + '</textarea></div>' +
       '<p class="mk-err" id="mkErr" role="alert" hidden></p>' +
       '<div class="qa-dlg-btns">' +
-        (isNew ? '' : '<button type="button" class="lnk lnk--danger mk-del" id="mkDel">Өшіру</button><button type="button" class="lnk" id="mkGo">Картадан көрсету</button>') +
+        (isNew ? '' : '<button type="button" class="lnk lnk--danger mk-del" id="mkDel">Өшіру</button><button type="button" class="lnk" id="mkGo">Картадан көрсету</button><button type="button" class="lnk" id="mkZone" title="Осы ескерткіштің қорғау аймағын белгілеу">Қорғау аймағы</button>') +
         '<span class="mk-sp"></span>' +
         '<button type="button" class="btn btn--ghost btn--sm" id="mkCancel">Бас тарту</button>' +
         '<button type="submit" class="btn btn--primary btn--sm">' + (isNew ? 'Белгіні сақтау' : 'Сақтау') + '</button>' +
@@ -268,6 +268,7 @@ function openDialog(m, o = {}) {
   back.querySelector('#mkCancel').addEventListener('click', closeDialog);
   back.querySelector('#mkDel')?.addEventListener('click', () => removeMark(m));
   back.querySelector('#mkGo')?.addEventListener('click', () => { closeDialog(); flyTo(m); });
+  back.querySelector('#mkZone')?.addEventListener('click', () => { closeDialog(); globalThis.MuraZone?.startFromMark(m); });
   back.addEventListener('mousedown', e => { if (e.target === back) back.dataset.down = '1'; });
   back.addEventListener('click', e => { if (e.target === back && back.dataset.down) closeDialog(); delete back.dataset.down; });
   const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(); } };
@@ -412,6 +413,7 @@ function render() {
       (m.place ? '<p class="qa-sc-desc">' + esc(m.place) + '</p>' : '') +
       '<div class="qa-sc-meta mk-cc">' + esc(coordLines(m).join(', ')) + '</div>' +
       '<div class="qa-sc-act"><button type="button" class="lnk" data-act="edit">Өңдеу</button><button type="button" class="lnk" data-act="go">Картадан көрсету</button>' +
+      '<button type="button" class="lnk" data-act="zone" title="Осы ескерткіштің қорғау аймағын белгілеу: мәліметтері белгіден алынады">Қорғау аймағы</button>' +
       '<button type="button" class="lnk lnk--danger" data-act="del">Өшіру</button></div></div></div>';
   }
   box.innerHTML = html;
@@ -424,6 +426,7 @@ $('mkList').addEventListener('click', e => {
   if (b.dataset.act === 'go') flyTo(m);
   else if (b.dataset.act === 'edit') openDialog(m);
   else if (b.dataset.act === 'del') removeMark(m);
+  else if (b.dataset.act === 'zone') globalThis.MuraZone?.startFromMark(m);
 });
 
 /* ======================= Экспорт ======================= */

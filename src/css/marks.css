@@ -75,3 +75,5 @@ body.mura .qa-map .leaflet-bottom.leaflet-right .qa-legend { margin-bottom: 6px;
 .zd-dlg input, .zd-dlg select, .zd-dlg textarea { background: rgba(255, 255, 255, .9); }
 .zd-dlg .qa-tablewrap { margin-bottom: 12px; }
 .zd-dlg .qa-dlg-btns { position: sticky; bottom: -14px; margin: 0 -18px -14px; padding: 10px 18px 14px; background: #fbf9f4; border-top: 1px solid rgba(34, 29, 22, .10); }
+.zd-mark { padding-bottom: 4px; }
+.zd-mark select { width: 100%; }
