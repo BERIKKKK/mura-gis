@@ -59,3 +59,10 @@ body.mura .mk-group .qa-total { margin-left: 4px; }
 .mk-chead { display: flex; align-items: center; gap: 7px; margin: 10px 0 0; font-size: 13px; font-weight: 700; color: var(--ink); }
 .mk-chead i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid; box-sizing: border-box; }
 .mk-multi { color: var(--steppe); }
+
+/* ---------- Оң жақ төменгі бұрыш: атрибуция (Leaflet | ©…) картаның төменгі жиегіне, шартты белгілер — оның үстіне ---------- */
+/* Координата панелі жасырулы болса не терезе кең болса (панель оң жаққа жетпейді) — бұрыш төмен түседі */
+body.mura .qa-app:has(#qaCoordBar[hidden]) .qa-map .leaflet-bottom.leaflet-right { bottom: 0; }
+@media (min-width: 1300px) { body.mura .qa-map .leaflet-bottom.leaflet-right { bottom: 0; } }
+body.mura .qa-map .leaflet-bottom.leaflet-right .leaflet-control-attribution { margin: 0; }
+body.mura .qa-map .leaflet-bottom.leaflet-right .qa-legend { margin-bottom: 6px; }

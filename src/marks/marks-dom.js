@@ -22,7 +22,7 @@
   };
   window.MuraMarks.icon = ic;
 
-  /* ---------- Құралдар жолағы: «Шекара» тобынан кейін — «Белгілер» тобы ---------- */
+  /* ---------- Құралдар жолағы: ең басында — «Белгілер» тобы, одан кейін қорғау аймағының құралдары ---------- */
   var grp = document.createElement('div');
   grp.className = 'qa-tgroup mk-group';
   grp.setAttribute('role', 'group');
@@ -30,8 +30,7 @@
   grp.innerHTML =
     '<button type="button" class="qa-tbtn" id="mkMode" data-prio="0" aria-pressed="false" aria-label="Белгі қою" data-tip="Белгі қою: картаны басып ескерткішті белгілеңіз">' + ic(IC.flag) + '<span class="qa-tl">Белгі қою</span></button>' +
     '<button type="button" class="qa-tbtn" id="mkListBtn" data-prio="2" aria-controls="mkPanel" aria-expanded="false" aria-label="Белгілер тізімі" data-tip="Ескерткіш белгілері: тізім, экспорт (GeoJSON, DOCX, PDF)">' + ic(IC.list) + '<span class="qa-tl">Белгілер</span><span class="qa-total mk-total" id="mkCount">0</span></button>';
-  var first = tmain.querySelector('.qa-tgroup');
-  tmain.insertBefore(grp, first ? first.nextSibling : null);
+  tmain.insertBefore(grp, tmain.firstChild);
 
   /* ---------- Координата панелі: енгізілген координатаны белгі ретінде қосу ---------- */
   var clr = $('qaInClear');
@@ -50,8 +49,8 @@
     var s = document.createElement('span');
     s.className = 'mk-leg';
     s.title = 'Ескерткіш белгілері, түсі — санаты: халықаралық, республикалық, жергілікті маңызы бар, анықталмаған';
-    s.innerHTML = '<i class="mk-leg-pin" style="background:#C99A1E;box-shadow:0 0 0 1px #5C4304"></i><i class="mk-leg-pin" style="background:#C0392B;box-shadow:0 0 0 1px #5E1610"></i>' +
-      '<i class="mk-leg-pin" style="background:#A9683F;box-shadow:0 0 0 1px #542A17"></i><i class="mk-leg-pin" style="background:#8E8A80;box-shadow:0 0 0 1px #45413A"></i>Белгілер';
+    s.innerHTML = '<i class="mk-leg-pin" style="background:#8E3FC4;box-shadow:0 0 0 1px #3E1460"></i><i class="mk-leg-pin" style="background:#E0202E;box-shadow:0 0 0 1px #6B0710"></i>' +
+      '<i class="mk-leg-pin" style="background:#F28C00;box-shadow:0 0 0 1px #7A4100"></i><i class="mk-leg-pin" style="background:#8E8A80;box-shadow:0 0 0 1px #45413A"></i>Белгілер';
     cnt.parentNode.insertBefore(s, cnt);
   }
 
