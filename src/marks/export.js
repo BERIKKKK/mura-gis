@@ -2,7 +2,9 @@
    Кесте үлгісі — облыс әкімдігі қаулысына қосымша «… тарих және мәдениет ескерткіштерінің мемлекеттік тізімі»
    (мыс. Түркістан облысы әкімдігінің 2020 ж. 17 қыркүйектегі № 188 қаулысы, НҚА тізілімінде № 5804):
      № р/с | Ескерткіштің атауы | Ескерткіштің түрі | Ескерткіштің географиялық координаттары | Ескерткіштің орналасқан жері
-   бағандар нөмірі (1…5), аудандар — бүкіл ені бойынша тақырып жолы, нөмірлеу — құжат бойынша үздіксіз.
+   бағандар нөмірі (1…5), аудандар — бүкіл ені бойынша тақырып жолы.
+   Санаттар (6-бап) бөлек кестелерге бөлінеді: халықаралық → республикалық → жергілікті маңызы бар → анықталмаған,
+   әр кестенің өз атауы бар және нөмірлеу әр кестеде 1-ден басталады.
    Қаулының өз мәтіні қосылмайды — тек кесте. */
 import { sortMarks } from './sort.js';
 
@@ -15,19 +17,20 @@ export const TYPES = [
   { v: 'sacred', label: 'Киелі объектілер', short: 'киелі объектілер' },
   { v: 'art', label: 'Монументтік өнер құрылыстары', short: 'монументтік өнер' },
 ];
-/** 6-бап: тарих және мәдениет ескерткіштерінің санаттары. */
+/** 6-бап: тарих және мәдениет ескерткіштерінің санаттары. fill / outline — картадағы белгінің түсі (әр санаттың өз түсі).
+    Тізімдегі рет — сұрыптау мен экспорттағы рет (маңыздылығы бойынша). */
 export const CATEGORIES = [
-  { v: 'local', label: 'Жергілікті маңызы бар', adj: 'жергілікті маңызы бар' },
-  { v: 'rep', label: 'Республикалық маңызы бар', adj: 'республикалық маңызы бар' },
-  { v: 'intl', label: 'Халықаралық маңызы бар', adj: 'халықаралық маңызы бар' },
-  { v: '', label: 'Анықталмаған', adj: '' },
+  { v: 'local', label: 'Жергілікті маңызы бар', adj: 'жергілікті маңызы бар', fill: '#A9683F', outline: '#542A17', order: 2 },
+  { v: 'rep', label: 'Республикалық маңызы бар', adj: 'республикалық маңызы бар', fill: '#C0392B', outline: '#5E1610', order: 1 },
+  { v: 'intl', label: 'Халықаралық маңызы бар', adj: 'халықаралық маңызы бар', fill: '#C99A1E', outline: '#5C4304', order: 0 },
+  { v: '', label: 'Анықталмаған', adj: '', fill: '#8E8A80', outline: '#45413A', order: 3 },
 ];
-/** 3, 4, 5-баптар: объектінің құқықтық мәртебесі. fill / outline — картадағы белгінің түсі (әр мәртебенің өз түсі). */
+/** 3, 4, 5-баптар: объектінің құқықтық мәртебесі. */
 export const STATUSES = [
-  { v: 'state', label: 'Тарих және мәдениет ескерткіші (Мемлекеттік тізімге енгізілген)', short: 'Мемлекеттік тізімде', fill: '#A9683F', outline: '#542A17' },
-  { v: 'prelim', label: 'Алдын ала есепке алу тізіміне енгізілген объект', short: 'Алдын ала есепке алу тізімінде', fill: '#3B78B8', outline: '#173A61' },
-  { v: 'archreg', label: 'Археологиялық жұмыстар барысында анықталған объект (тізілімде)', short: 'Археологиялық жұмыстар тізілімінде', fill: '#3C9156', outline: '#17482A' },
-  { v: 'excluded', label: 'Мәртебесінен айырылған (Мемлекеттік тізімнен алып тасталған)', short: 'Тізімнен алып тасталған', fill: '#9A958A', outline: '#4A463E' },
+  { v: 'state', label: 'Тарих және мәдениет ескерткіші (Мемлекеттік тізімге енгізілген)', short: 'Мемлекеттік тізімде' },
+  { v: 'prelim', label: 'Алдын ала есепке алу тізіміне енгізілген объект', short: 'Алдын ала есепке алу тізімінде' },
+  { v: 'archreg', label: 'Археологиялық жұмыстар барысында анықталған объект (тізілімде)', short: 'Археологиялық жұмыстар тізілімінде' },
+  { v: 'excluded', label: 'Мәртебесінен айырылған (Мемлекеттік тізімнен алып тасталған)', short: 'Тізімнен алып тасталған' },
 ];
 /** 5-бап түрлерінің шартты белгілері (src/marks/symbols/*.svg — QGIS параметрлі SVG). */
 export const SYMBOL_FILE = { archeo: 'archaeology', arch: 'architectural', ensemble: 'ensemble', sacred: 'sacred', art: 'monumental' };
@@ -71,6 +74,22 @@ export function groups(marks) {
     }
     g.items.push({ n: ++n, m });
   }
+  return out;
+}
+
+/**
+ * Экспорт бөлімдері — санат бойынша: [{ cat, title, marks }], рет: халықаралық → республикалық → жергілікті → анықталмаған.
+ * title — тек бір санат болғанда қолданылады (пайдаланушы өзгерткен атау); бірнеше санатта әр бөлімнің атауы өзі құрастырылады.
+ */
+export function sections(marks, title, genitive) {
+  const by = new Map();
+  for (const m of sortMarks(marks)) {
+    const c = categoryOf(m.category).v;
+    if (!by.has(c)) by.set(c, []);
+    by.get(c).push(m);
+  }
+  const out = [...by.entries()].map(([cat, list]) => ({ cat, marks: list, title: defaultTitle(list, genitive) }));
+  if (out.length === 1 && title) out[0].title = title;
   return out;
 }
 
@@ -151,7 +170,7 @@ function cell(text, w, o = {}) {
 }
 const row = (cells, o = {}) => '<w:tr><w:trPr><w:cantSplit/>' + (o.header ? '<w:tblHeader/>' : '') + '</w:trPr>' + cells.join('') + '</w:tr>';
 
-export function docxBody(marks, title) {
+function docxTable(marks) {
   const G = groups(marks);
   const borders = '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(k => '<w:' + k + ' w:val="single" w:sz="4" w:space="0" w:color="000000"/>').join('') + '</w:tblBorders>';
   let rows = row(HEAD.map((h, i) => cell(h, COLS[i], { b: true, align: 'center', sz: 22 })), { header: true }) +
@@ -169,16 +188,20 @@ export function docxBody(marks, title) {
       ]);
     }
   }
-  return para(run(cap(title), { b: true }), 'center', 240) +
-    '<w:tbl><w:tblPr><w:tblW w:w="' + CONTENT_W + '" w:type="dxa"/>' + borders + '<w:tblLayout w:type="fixed"/>' +
+  return '<w:tbl><w:tblPr><w:tblW w:w="' + CONTENT_W + '" w:type="dxa"/>' + borders + '<w:tblLayout w:type="fixed"/>' +
     '<w:tblCellMar><w:left w:w="70" w:type="dxa"/><w:right w:w="70" w:type="dxa"/></w:tblCellMar></w:tblPr>' +
-    '<w:tblGrid>' + COLS.map(w => '<w:gridCol w:w="' + w + '"/>').join('') + '</w:tblGrid>' + rows + '</w:tbl>' + para('');
+    '<w:tblGrid>' + COLS.map(w => '<w:gridCol w:w="' + w + '"/>').join('') + '</w:tblGrid>' + rows + '</w:tbl>';
+}
+const titlePara = (t, pageBreak) => '<w:p><w:pPr>' + (pageBreak ? '<w:pageBreakBefore/>' : '') + '<w:spacing w:before="0" w:after="240" w:line="240" w:lineRule="auto"/><w:jc w:val="center"/></w:pPr>' + run(cap(t), { b: true }) + '</w:p>';
+/** Әр санат — өз атауы бар бөлек кесте, келесі санат жаңа беттен басталады. */
+export function docxBody(secs) {
+  return secs.map((s, i) => titlePara(s.title, i > 0) + docxTable(s.marks)).join('') + para('');
 }
 
-export function docxBlob(marks, title, fflate) {
+export function docxBlob(secs, title, fflate) {
   const H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
   const doc = H + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>' +
-    docxBody(marks, title) +
+    docxBody(secs) +
     '<w:sectPr><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="851" w:bottom="1134" w:left="1701" w:header="709" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>';
   const footer = H + '<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:pPr><w:jc w:val="center"/></w:pPr>' +
     '<w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>' +
@@ -216,7 +239,7 @@ export function docxBlob(marks, title, fflate) {
 /* ---------- PDF үшін HTML (main/main.js → printToPDF) ---------- */
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const br = s => esc(s).replace(/\n/g, '<br>');
-export function pdfHtml(marks, title) {
+function pdfTable(marks) {
   const G = groups(marks);
   const w = COLS.map(c => (c / CONTENT_W * 100).toFixed(2) + '%');
   let body = '';
@@ -228,6 +251,12 @@ export function pdfHtml(marks, title) {
         '<td class="c nw">' + coordLines(m).map(esc).join('<br>') + '</td><td>' + br(String(m.place || '').trim()) + '</td></tr>';
     }
   }
+  return '<table><colgroup>' + w.map(x => '<col style="width:' + x + '">').join('') + '</colgroup>' +
+    '<thead><tr>' + HEAD.map(h => '<th>' + br(h) + '</th>').join('') + '</tr><tr class="num">' + HEAD.map((_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr></thead>' +
+    '<tbody>' + body + '</tbody></table>';
+}
+/** Әр санат — өз атауы бар бөлек кесте, келесі санат жаңа беттен басталады. */
+export function pdfHtml(secs, title) {
   return '<!doctype html><html lang="kk"><head><meta charset="utf-8"><title>' + esc(cap(title)) + '</title><style>' +
     '@page{size:A4;margin:20mm 15mm 18mm 30mm}' +
     'body{margin:0;font:12pt/1.25 "Times New Roman",Times,serif;color:#000}' +
@@ -238,7 +267,6 @@ export function pdfHtml(marks, title) {
     'thead{display:table-header-group}tr{break-inside:avoid}' +
     '.num th{font-weight:normal;font-size:10pt;padding:0 4pt}' +
     '.g td{font-weight:bold;text-align:center}.o td{background:#e6e6e6}.c{text-align:center}.nw{white-space:nowrap}' +
-    '</style></head><body><h1>' + esc(cap(title)) + '</h1><table><colgroup>' + w.map(x => '<col style="width:' + x + '">').join('') + '</colgroup>' +
-    '<thead><tr>' + HEAD.map(h => '<th>' + br(h) + '</th>').join('') + '</tr><tr class="num">' + HEAD.map((_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr></thead>' +
-    '<tbody>' + body + '</tbody></table></body></html>';
+    'section+section{break-before:page}' +
+    '</style></head><body>' + secs.map(s => '<section><h1>' + esc(cap(s.title)) + '</h1>' + pdfTable(s.marks) + '</section>').join('') + '</body></html>';
 }

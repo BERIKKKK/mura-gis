@@ -6,7 +6,7 @@
 
 /* ---------- Картадағы белгі: түрі — symbols/*.svg, түсі — мәртебесі (marks.js) ---------- */
 .mk-pin svg { display: block; overflow: visible; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .45)); }
-.mk-pin.is-excl svg { opacity: .85; }
+.mk-pin.is-excl svg, .mk-sym.is-excl svg { opacity: .55; }   /* тізімнен алып тасталған — бозғылт */
 .mk-tip { font: 600 12px/1.25 system-ui, 'Segoe UI', sans-serif; padding: 3px 7px; border-radius: 6px; }
 .mk-tip.is-perm { background: rgba(255, 255, 255, .9); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); border: 0; }
 
@@ -38,7 +38,7 @@ body.mura .mk-group .qa-total { margin-left: 4px; }
 
 /* ---------- Белгілер панелі ---------- */
 .mk-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 10px; }
-.mk-filters.has-ob { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mk-filters { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
 .mk-filters select[hidden] { display: none; }
 .mk-filters select { width: 100%; min-width: 0; padding: 4px 6px; font-size: 12.5px; }
 .mk-drawer .qa-selbar { flex-wrap: wrap; gap: 6px 14px; }
@@ -56,3 +56,6 @@ body.mura .mk-group .qa-total { margin-left: 4px; }
 .mk-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .mk-legend i { width: 11px; height: 11px; border-radius: 50%; border: 2px solid; box-sizing: border-box; }
 .mk-dlg h3 .mk-sym { margin: -4px 0; }
+.mk-chead { display: flex; align-items: center; gap: 7px; margin: 10px 0 0; font-size: 13px; font-weight: 700; color: var(--ink); }
+.mk-chead i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid; box-sizing: border-box; }
+.mk-multi { color: var(--steppe); }

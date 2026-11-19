@@ -7,7 +7,7 @@
    Интерфейс бөліктері — marks/marks-dom.js, экспорт — marks/export.js, сұрыптау — marks/sort.js. */
 import { parseOne, genitive } from '../qorgau/app.js';
 import { sortMarks, arabizeRoman, compareText } from './sort.js';
-import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, coordLines, nameCell } from './export.js';
+import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, sections, coordLines, nameCell } from './export.js';
 
 const $ = id => document.getElementById(id);
 const L = globalThis.L;
@@ -53,8 +53,8 @@ async function saveMark(m) {
 /* ======================= Карта қабаты ======================= */
 const layer = L.layerGroup();
 const markers = new Map();    // id → L.marker
-/* Шартты белгілер: түрі — symbols/*.svg (QGIS параметрлі SVG), түсі — мәртебесіне қарай.
-   QGIS-тің param(fill) / param(outline) мәндері мәртебе түсімен ауыстырылады, қалған param(…) — әдепкі мәнімен. */
+/* Шартты белгілер: түрі — symbols/*.svg (QGIS параметрлі SVG), түсі — санатына қарай (6-бап).
+   QGIS-тің param(fill) / param(outline) мәндері санат түсімен ауыстырылады, қалған param(…) — әдепкі мәнімен. */
 const SYM = {};
 await Promise.all(Object.entries(SYMBOL_FILE).map(async ([t, f]) => {
   try { SYM[t] = (await (await fetch(new URL('symbols/' + f + '.svg', import.meta.url))).text()).replace(/<!--[\s\S]*?-->/g, '').trim(); }
@@ -62,10 +62,10 @@ await Promise.all(Object.entries(SYMBOL_FILE).map(async ([t, f]) => {
 }));
 const symCache = new Map();
 /** Белгінің SVG-і: w — ені (px), биіктігі 64×80 пропорциясымен. */
-function symbolSvg(type, status, w = 30) {
-  const k = type + '|' + status + '|' + w;
+function symbolSvg(type, category, w = 30) {
+  const k = type + '|' + category + '|' + w;
   if (symCache.has(k)) return symCache.get(k);
-  const st = statusOf(status);
+  const st = categoryOf(category);
   let svg = SYM[type] || SYM.archeo || '';
   svg = svg.replace(/param\(fill\)\s*#[0-9a-f]{3,8}/gi, st.fill).replace(/param\(outline\)\s*#[0-9a-f]{3,8}/gi, st.outline).replace(/param\([\w-]+\)\s*/g, '')
     .replace(/<svg\b[^>]*>/, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 80" width="' + w + '" height="' + Math.round(w * 1.25) + '" aria-hidden="true">');
@@ -76,7 +76,7 @@ function pinIcon(m) {
   const w = 30, h = Math.round(w * 1.25);
   return L.divIcon({
     className: 'mk-pin' + (m.status === 'excluded' ? ' is-excl' : ''), iconSize: [w, h], iconAnchor: [w / 2, h - 1], tooltipAnchor: [0, -h + 4],
-    html: symbolSvg(m.type, m.status, w),
+    html: symbolSvg(m.type, m.category, w),
   });
 }
 function drawMarkers() {
@@ -229,16 +229,17 @@ function openDialog(m, o = {}) {
     if (r.err) { el.textContent = F.lat.value.trim() || F.lon.value.trim() ? r.err : 'Координатаны енгізіңіз (кез келген пішімде: 50.412345, 50°24′44,4″, 50 24 44.4)'; el.classList.toggle('qa-bad', !!(F.lat.value.trim() || F.lon.value.trim())); return r; }
     el.classList.remove('qa-bad');
     el.textContent = '= ' + coordLines(r).join(', ') + ' (WGS 84)';
-    if (temp) { temp.setLatLng([r.lat, r.lon]); temp.setIcon(pinIcon({ type: F.type.value, status: F.status.value })); }
+    if (temp) { temp.setLatLng([r.lat, r.lon]); temp.setIcon(pinIcon({ type: F.type.value, category: F.category.value, status: F.status.value })); }
     return r;
   }
   F.name.addEventListener('input', paintKey);
   if (REG) F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); });
   F.lat.addEventListener('input', paintCoord);
   F.lon.addEventListener('input', paintCoord);
-  const paintSym = () => { back.querySelector('#mkSym').innerHTML = symbolSvg(F.type.value, F.status.value, 26); };
+  const paintSym = () => { back.querySelector('#mkSym').innerHTML = symbolSvg(F.type.value, F.category.value, 26); };
   F.type.addEventListener('change', () => { paintCoord(); paintSym(); });
   F.status.addEventListener('change', () => { paintCoord(); paintSym(); });
+  F.category.addEventListener('change', () => { paintCoord(); paintSym(); });
   paintSym();
   paintKey(); paintCoord();
 
@@ -336,15 +337,17 @@ document.addEventListener('keydown', e => {
 const fillSel = (id, list) => { $(id).insertAdjacentHTML('beforeend', list.map(x => '<option value="' + esc(x.v) + '">' + esc(x.label) + '</option>').join('')); };
 fillSel('mkFType', TYPES);
 fillSel('mkFStatus', STATUSES);
-for (const id of ['mkQ', 'mkFOblast', 'mkFDistrict', 'mkFType', 'mkFStatus']) $(id).addEventListener(id === 'mkQ' ? 'input' : 'change', () => render());
+fillSel('mkFCat', CATEGORIES.slice().sort((a, b) => a.order - b.order).map(c => ({ v: c.v || '—', label: c.label })));
+for (const id of ['mkQ', 'mkFCat', 'mkFOblast', 'mkFDistrict', 'mkFType', 'mkFStatus']) $(id).addEventListener(id === 'mkQ' ? 'input' : 'change', () => render());
 $('mkShow').addEventListener('change', paintLayerVisibility);
 $('mkLabels').addEventListener('change', () => { store.set('mk-labels', $('mkLabels').checked ? '1' : '0'); drawMarkers(); });
 $('mkLabels').checked = store.get('mk-labels') === '1';
 
 function filtered() {
-  const fo = $('mkFOblast').value;
+  const fo = $('mkFOblast').value, fc = $('mkFCat').value;
   const q = $('mkQ').value.trim().toLocaleLowerCase('kk'), fd = $('mkFDistrict').value, ft = $('mkFType').value, fs = $('mkFStatus').value;
   return sortMarks(items.filter(m => {
+    if (fc && (m.category || '—') !== fc) return false;
     if (fo && (m.oblast || '') !== fo) return false;
     if (fd && (fd === '—' ? m.district : m.district !== fd)) return false;
     if (ft && m.type !== ft) return false;
@@ -356,7 +359,14 @@ function filtered() {
 
 let titleAuto = true;
 function paintTitle(list) {
-  if (titleAuto) $('mkTitle').value = defaultTitle(list.length ? list : items, genitive).replace(/^./, c => c.toUpperCase());
+  const secs = sections(list.length ? list : items, '', genitive);
+  const multi = secs.length > 1;
+  $('mkTitle').disabled = multi;
+  $('mkTitleMulti').hidden = !multi;
+  $('mkTitleMulti').textContent = multi ? 'Санаттар бойынша ' + secs.length + ' бөлек кесте, әрқайсысы жаңа беттен: ' + secs.map(x => '«' + x.title + '» (' + x.marks.length + ')').join('; ') + '.' : '';
+  if (multi) { $('mkTitle').value = ''; $('mkTitle').placeholder = 'Атаулары санат бойынша өзі құрастырылады'; return; }
+  $('mkTitle').placeholder = '';
+  if (titleAuto || !$('mkTitle').value) $('mkTitle').value = (secs[0] ? secs[0].title : '').replace(/^./, c => c.toUpperCase());
 }
 $('mkTitle').addEventListener('input', () => { titleAuto = false; });
 $('mkTitleAuto').addEventListener('click', () => { titleAuto = true; paintTitle(filtered()); });
@@ -387,11 +397,15 @@ function render() {
   if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай белгі табылмады.</div>'; return; }
   let html = '', lastD = null;
   const multiOb = new Set(list.map(m => m.oblast || '')).size > 1;
+  let lastC = null;
+  const multiC = new Set(list.map(m => categoryOf(m.category).v)).size > 1;
   for (const m of list) {
+    const c = categoryOf(m.category);
+    if (multiC && c.v !== lastC) { html += '<div class="mk-chead"><i style="background:' + c.fill + ';border-color:' + c.outline + '"></i>' + esc(c.label) + '</div>'; lastC = c.v; lastD = null; }
     const d = (multiOb && m.oblast ? m.oblast + ' · ' : '') + (m.district || (multiOb ? 'ауданы көрсетілмеген' : 'Ауданы көрсетілмеген'));
     if (d !== lastD) { html += '<div class="mk-dhead">' + esc(d) + '</div>'; lastD = d; }
     html += '<div class="qa-sc mk-card" data-id="' + esc(m.id) + '">' +
-      '<span class="mk-sym" title="' + esc(statusOf(m.status).short) + '">' + symbolSvg(m.type, m.status, 22) + '</span>' +
+      '<span class="mk-sym' + (m.status === 'excluded' ? ' is-excl' : '') + '" title="' + esc(categoryOf(m.category).label) + '">' + symbolSvg(m.type, m.category, 22) + '</span>' +
       '<div class="qa-sc-main"><button type="button" class="qa-sc-title" data-act="go" title="Картадан көрсету">' + esc(nameCell(m)) + '</button>' +
       '<div class="qa-sc-meta">' + esc(typeOf(m.type).label) + (categoryOf(m.category).adj ? ' · ' + esc(categoryOf(m.category).adj) : '') +
         ' · <span class="mk-st mk-st--' + esc(m.status) + '">' + esc(statusOf(m.status).short) + '</span></div>' +
@@ -430,6 +444,9 @@ function loadFflate() {
   });
 }
 const exportTitle = () => $('mkTitle').value.trim() || defaultTitle(filtered(), genitive);
+/** Экспорт бөлімдері: санат бойынша бөлек кестелер (бір санат болса — панельдегі атаумен). */
+const exportSections = (list = filtered()) => sections(list, $('mkTitle').disabled ? '' : $('mkTitle').value.trim(), genitive);
+const docTitle = secs => secs.length === 1 ? secs[0].title : 'Тарих және мәдениет ескерткіштерінің тізімі';
 const fileName = ext => 'eskertkishter_tizimi_' + new Date().toISOString().slice(0, 10) + '.' + ext;
 async function busy(label, fn) {
   const el = $('mkBusy');
@@ -437,10 +454,11 @@ async function busy(label, fn) {
   try { await fn(); el.textContent = ''; }
   catch (e) { el.textContent = ''; toast(e.message || String(e), true); }
 }
-async function buildDocx(list = filtered(), title = exportTitle()) { return docxBlob(list, title, await loadFflate()); }
-async function buildPdf(list = filtered(), title = exportTitle()) {
+async function buildDocx(list = filtered()) { const secs = exportSections(list); return docxBlob(secs, docTitle(secs), await loadFflate()); }
+async function buildPdf(list = filtered()) {
+  const secs = exportSections(list);
   if (!globalThis.mura || !globalThis.mura.pdf) throw new Error('PDF тек Mura GIS бағдарламасында жасалады.');
-  const bytes = await globalThis.mura.pdf(pdfHtml(list, title));
+  const bytes = await globalThis.mura.pdf(pdfHtml(secs, docTitle(secs)));
   return new Blob([bytes], { type: 'application/pdf' });
 }
 $('mkGeo').addEventListener('click', () => {
@@ -468,10 +486,10 @@ $('mkGeoFile').addEventListener('change', async e => {
 });
 
 /* Мәртебе түстерінің шартты белгісі (панельде) */
-$('mkLegend').innerHTML = STATUSES.map(st => '<span><i style="background:' + st.fill + ';border-color:' + st.outline + '"></i>' + esc(st.short) + '</span>').join('');
+$('mkLegend').innerHTML = CATEGORIES.slice().sort((a, b) => a.order - b.order).map(c => '<span><i style="background:' + c.fill + ';border-color:' + c.outline + '"></i>' + esc(c.label) + '</span>').join('');
 
 /* ======================= Іске қосу ======================= */
 paintLayerVisibility();
 api('list').catch(e => { toast('Белгілер жүктелмеді: ' + e.message, true); render(); });
 
-globalThis.__marks = { symbolSvg, get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };
+globalThis.__marks = { symbolSvg, exportSections, get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };

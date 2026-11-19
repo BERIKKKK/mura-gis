@@ -49,9 +49,9 @@
   if (cnt) {
     var s = document.createElement('span');
     s.className = 'mk-leg';
-    s.title = 'Ескерткіш белгілері: түсі — мәртебесі (Белгілер панеліндегі шартты белгілерді қараңыз)';
-    s.innerHTML = '<i class="mk-leg-pin" style="background:#A9683F;box-shadow:0 0 0 1px #542A17"></i><i class="mk-leg-pin" style="background:#3B78B8;box-shadow:0 0 0 1px #173A61"></i>' +
-      '<i class="mk-leg-pin" style="background:#3C9156;box-shadow:0 0 0 1px #17482A"></i><i class="mk-leg-pin" style="background:#9A958A;box-shadow:0 0 0 1px #4A463E"></i>Белгілер';
+    s.title = 'Ескерткіш белгілері, түсі — санаты: халықаралық, республикалық, жергілікті маңызы бар, анықталмаған';
+    s.innerHTML = '<i class="mk-leg-pin" style="background:#C99A1E;box-shadow:0 0 0 1px #5C4304"></i><i class="mk-leg-pin" style="background:#C0392B;box-shadow:0 0 0 1px #5E1610"></i>' +
+      '<i class="mk-leg-pin" style="background:#A9683F;box-shadow:0 0 0 1px #542A17"></i><i class="mk-leg-pin" style="background:#8E8A80;box-shadow:0 0 0 1px #45413A"></i>Белгілер';
     cnt.parentNode.insertBefore(s, cnt);
   }
 
@@ -67,8 +67,9 @@
     '<header class="qa-dh"><h2 id="mkPanelT">' + ic(IC.flag) + 'Ескерткіш белгілері</h2><button type="button" class="qa-ib" data-mkclose aria-label="Жабу" title="Жабу">' + ic(IC.close) + '</button></header>' +
     '<div class="qa-db">' +
       '<div class="qa-sfilter"><label class="qa-search">' + ic(IC.search, 16) + '<input type="search" id="mkQ" placeholder="Іздеу: атауы, жері…" aria-label="Белгілерден іздеу" autocomplete="off"></label></div>' +
-      '<div class="mk-legend" id="mkLegend" aria-label="Белгі түстері — мәртебесі бойынша"></div>' +
+      '<div class="mk-legend" id="mkLegend" aria-label="Белгі түстері — санаты бойынша"></div>' +
       '<div class="mk-filters" id="mkFilters">' +
+        '<select id="mkFCat" aria-label="Санаты бойынша сүзу"><option value="">Барлық санат</option></select>' +
         '<select id="mkFOblast" aria-label="Облыс бойынша сүзу" hidden><option value="">Барлық облыс</option></select>' +
         '<select id="mkFDistrict" aria-label="Аудан бойынша сүзу"><option value="">Барлық аудан</option></select>' +
         '<select id="mkFType" aria-label="Түрі бойынша сүзу"><option value="">Барлық түрі</option></select>' +
@@ -80,8 +81,9 @@
       '<section class="qa-sec mk-exp" aria-labelledby="mkExpT">' +
         '<h3 id="mkExpT">Ескерткіштер тізімін экспорттау</h3>' +
         '<div class="qa-f"><label for="mkTitle">Тізім атауы</label><textarea id="mkTitle" rows="2" maxlength="400"></textarea>' +
-          '<p class="qa-hint">Тізімге сүзгіден өткен белгілер кіреді: аудан, содан кейін атау бойынша сұрыпталады (рим цифрлары санмен салыстырылады: «Қабантау-ІV» → «Қабантау-V»). ' +
-          '<button type="button" class="lnk" id="mkTitleAuto" style="font-size:12px">Атауды қайта құрастыру</button></p></div>' +
+          '<p class="qa-hint">Тізімге сүзгіден өткен белгілер кіреді. Әр санат (халықаралық, республикалық, жергілікті маңызы бар) — бөлек кесте; ішінде облыс, аудан, содан кейін атау бойынша сұрыпталады (рим цифрлары санмен салыстырылады: «Қабантау-ІV» → «Қабантау-V»). ' +
+          '<button type="button" class="lnk" id="mkTitleAuto" style="font-size:12px">Атауды қайта құрастыру</button></p>' +
+          '<p class="qa-hint mk-multi" id="mkTitleMulti" hidden></p></div>' +
       '</section>' +
     '</div>' +
     '<footer class="qa-df">' +

@@ -29,9 +29,9 @@ async function run(win) {
       { name: 'Қабантау-ІҮ қорғаны', district: 'Мәртөк ауданы', lat: 50.712, lon: 56.512, place: 'Қарабұтақ ауылынан 3,2 км шығыста' },
       { name: 'Қабантау-ІІ қорғаны', district: 'Мәртөк ауданы', lat: 50.713, lon: 56.513 },
       { name: 'Қабантау-Х қорғаны', district: 'Мәртөк ауданы', lat: 50.714, lon: 56.514 },
-      { name: 'Абат-Байтақ кесенесі', district: 'Алға ауданы', lat: 50.1, lon: 57.2, type: 'arch', period: 'XIV ғасыр' },
+      { name: 'Абат-Байтақ кесенесі', district: 'Алға ауданы', lat: 50.1, lon: 57.2, type: 'arch', period: 'XIV ғасыр', category: 'intl' },
       { name: 'Ескерткіш белгі', district: '', lat: 50.3, lon: 57.1, type: 'art', status: 'prelim' },
-      { name: 'Райымбек батыр кесенесі', oblast: 'Алматы қаласы', district: 'Алмалы ауданы', lat: 43.25, lon: 76.93, type: 'sacred', status: 'archreg' },
+      { name: 'Райымбек батыр кесенесі', oblast: 'Алматы қаласы', district: 'Алмалы ауданы', lat: 43.25, lon: 76.93, type: 'sacred', status: 'archreg', category: 'rep' },
       { name: 'Тас мүсін', oblast: 'Алматы қаласы', district: 'Медеу ауданы', lat: 43.2, lon: 77.0, type: 'ensemble', status: 'excluded' },
     ];
     for (const m of add) await M.api('save', { data: JSON.stringify({ ...base, ...m }) });
@@ -42,6 +42,8 @@ async function run(win) {
     out.title = document.getElementById('mkTitle').value;
     out.pins = document.querySelectorAll('.mk-pin').length;
     out.pinColors = [...new Set([...document.querySelectorAll('.mk-pin svg path')].map(p => p.getAttribute('fill')).filter(c => /^#/.test(c||'')))].join(' ');
+    out.sections = M.exportSections().map(x => x.title + ' [' + x.marks.length + ']');
+    out.titleMulti = document.getElementById('mkTitle').disabled + ' ' + document.getElementById('mkTitleMulti').textContent.slice(0, 60);
     out.obFilter = !document.getElementById('mkFOblast').hidden;
     const ob = document.getElementById('qaOblast');
     out.regions = ob.tagName + ' ' + ob.options.length + ' / remembered ' + MuraRegions.remembered() + ' / districts ' + document.getElementById('qaDistrict').options.length;

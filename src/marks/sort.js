@@ -101,9 +101,13 @@ function kkCompare(a, b) {
 export const compareText = (a, b) => kkCompare(a, b);
 export const compareNames = (a, b) => kkCompare(nameKey(a), nameKey(b)) || (String(a ?? '') < String(b ?? '') ? -1 : String(a ?? '') > String(b ?? '') ? 1 : 0);
 
-/** Құжаттағы рет: облыс, аудан (ауданы жоқтар облыс ішінде соңында), содан кейін атау (рим цифрлары ескеріледі). */
+/** Санаттардың реті (6-бап): халықаралық → республикалық → жергілікті маңызы бар → анықталмаған. */
+export const CATEGORY_ORDER = { intl: 0, rep: 1, local: 2 };
+const catRank = c => (c in CATEGORY_ORDER ? CATEGORY_ORDER[c] : 3);
+
+/** Құжаттағы рет: санат, облыс, аудан (ауданы жоқтар облыс ішінде соңында), содан кейін атау (рим цифрлары ескеріледі). */
 export function sortMarks(list) {
   const blankLast = (x, y) => { x = String(x || '').trim(); y = String(y || '').trim(); return !x !== !y ? (x ? -1 : 1) : compareText(x, y); };
-  return list.slice().sort((a, b) =>
+  return list.slice().sort((a, b) => catRank(a.category) - catRank(b.category) ||
     blankLast(a.oblast, b.oblast) || blankLast(a.district, b.district) || compareNames(a.name, b.name) || compareText(a.period, b.period));
 }
