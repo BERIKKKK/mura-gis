@@ -1,5 +1,5 @@
-/* Mura GIS: жұмыс үстелі интерфейсі. Құралдың өз стильдері — css/maptool.css және index.html ішіндегі <style> (сайттан көшірілген);
-   мұнда сайттан айырмашылықтары: жоғарғы жолақ жоқ, құралдар жолағы терезеге бекітілген, панельдер шетке жабысқан, төменде күй жолағы. */
+/* Mura GIS: жұмыс үстелі интерфейсі. Құралдың негізгі стильдері — css/maptool.css және index.html ішіндегі <style>;
+   мұнда терезеге бейімдеу: жоғарғы жолақ жоқ, құралдар жолағы терезеге бекітілген, панельдер шетке жабысқан, төменде күй жолағы. */
 html, body { height: 100%; }
 body.mura { display: flex; flex-direction: column; overflow: hidden; background: var(--paper2); font-size: 14px; }
 body.mura .qa-app { flex: 1 1 auto; min-height: 0; }

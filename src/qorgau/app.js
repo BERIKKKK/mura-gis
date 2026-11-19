@@ -263,7 +263,7 @@ function dists() {
 /* ======================= Карта ======================= */
 const mapEl = $('qaMap');
 const map = L.map(mapEl, { scrollWheelZoom: true, doubleClickZoom: false }).setView([48.6, 58.2], 6);
-// Қабаттар (OpenStreetMap / Спутник / Топокарта) — сайттың ортақ «Карта қабаттары» мәзірі (assets/js/app.js).
+// Қабаттар (OpenStreetMap / Спутник / Топокарта) — «Карта қабаттары» мәзірі (js/basemaps.js).
 // Сызбаның фоны картада таңдалған қабатқа сәйкес: Спутник → Esri суреті, қалғандары → OpenStreetMap.
 const basemaps = globalThis.AqmBasemaps ? globalThis.AqmBasemaps.attach(map, mapEl) : null;
 if (!basemaps) L.tileLayer(OSM_URL, { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
@@ -854,7 +854,7 @@ function ringLL(pts, cw) {
   a.push(a[0].slice());
   return a;
 }
-const geoMeta = () => ({ generator: 'aktobenasledie — Қорғау аймағы', rules: 'ҚР МСМ 14.04.2020 № 86 бұйрығы, 7–9-тармақтар', crs: 'EPSG:4326 (WGS 84)', created: new Date().toISOString() });
+const geoMeta = () => ({ generator: 'Mura GIS — Қорғау аймағы', rules: 'ҚР МСМ 14.04.2020 № 86 бұйрығы, 7–9-тармақтар', crs: 'EPSG:4326 (WGS 84)', created: new Date().toISOString() });
 function geojson(Rx = R, I = info(), id = state.loadedId || null) {
   const H = haValues(Rx), full = $('qaGeoMode').value === 'full';
   const features = ZONES.map((z, i) => {

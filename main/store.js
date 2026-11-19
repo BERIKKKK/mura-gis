@@ -1,7 +1,7 @@
-/* Сақталған қорғау аймақтары — компьютердегі JSON файл (сайттағы data/admin/qorgau.json.php баламасы).
-   Құралдың клиенттік коды (src/qorgau/app.js) сайттағыдай POST сұранысын жібереді:
+/* Сақталған қорғау аймақтары — компьютердегі JSON файл.
+   Құралдың клиенттік коды (src/qorgau/app.js) POST сұранысын жібереді:
      mura://app/api?v=1&op=list|save|delete  (FormData: data / id)
-   Жауап пішімі сайттағы admin/modules/tools.php-пен бірдей: { ok, items, id, error }. */
+   Жауап пішімі: { ok, items, id, error }. */
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -79,7 +79,7 @@ class Store {
     this.write(items);
   }
 
-  /** Басқа файлдан (сайттан не басқа компьютерден) жазбаларды қосу; id бірдей болса — жаңасы қалады. */
+  /** Басқа файлдан (басқа компьютерден не экспорт файлынан) жазбаларды қосу; id бірдей болса — жаңасы қалады. */
   importFrom(file) {
     let j = JSON.parse(fs.readFileSync(file, 'utf8'));
     if (j && !Array.isArray(j) && Array.isArray(j.items)) j = j.items;
