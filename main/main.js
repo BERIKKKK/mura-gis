@@ -1,7 +1,7 @@
 /* Mura GIS — негізгі процесс.
    Интерфейс src/ ішінен mura://app/ мекенжайымен беріледі (тұрақты origin: localStorage, fetch, CORS дұрыс жұмыс істейді).
    mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
-const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, clipboard } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -24,6 +24,11 @@ let store = null;
 let marks = null;
 
 ipcMain.on('mura:version', e => { e.returnValue = app.getVersion(); });
+
+/* Алмасу буфері (картаның оң жақ мәзірі: координатаны көшіру / қою) — тек бағдарламаның өз бетінен */
+const fromApp = e => String(e.senderFrame && e.senderFrame.url || '').startsWith('mura://app/');
+ipcMain.handle('mura:clip-read', e => (fromApp(e) ? clipboard.readText() : ''));
+ipcMain.handle('mura:clip-write', (e, text) => { if (fromApp(e) && typeof text === 'string' && text.length < 1e6) clipboard.writeText(text); });
 
 /* Ескерткіштер тізімін PDF-ке айналдыру: бет дайын HTML-ді жібереді, ол жасырын терезеде (JavaScript-сіз)
    ашылып, Chromium-ның өз баспа қозғалтқышымен A4 PDF болады. Файлды сақтау — беттің өзінде (жүктеу терезесі). */
@@ -69,6 +74,24 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) shell.openExternal(url);
     return { action: 'deny' };
+  });
+  // Тінтуірдің оң жақ батырмасы: мәтін өрістерінде — Қию / Көшіру / Қою / Барлығын белгілеу, белгіленген мәтінде — Көшіру.
+  // Картадағы мәзірді (координатаны көшіру, қою, осы жерге белгі…) беттің өзі көрсетеді (js/context-menu.js).
+  win.webContents.on('context-menu', (_e, p) => {
+    const f = p.editFlags || {};
+    let tpl = null;
+    if (p.isEditable) {
+      tpl = [
+        { label: 'Қию', role: 'cut', accelerator: 'CmdOrCtrl+X', enabled: !!f.canCut },
+        { label: 'Көшіру', role: 'copy', accelerator: 'CmdOrCtrl+C', enabled: !!f.canCopy },
+        { label: 'Қою', role: 'paste', accelerator: 'CmdOrCtrl+V', enabled: !!f.canPaste },
+        { type: 'separator' },
+        { label: 'Барлығын белгілеу', role: 'selectAll', accelerator: 'CmdOrCtrl+A', enabled: !!f.canSelectAll },
+      ];
+    } else if (p.selectionText && p.selectionText.trim()) {
+      tpl = [{ label: 'Көшіру', role: 'copy', accelerator: 'CmdOrCtrl+C' }];
+    }
+    if (tpl) Menu.buildFromTemplate(tpl).popup({ window: win });
   });
   win.webContents.on('will-navigate', (e, url) => {
     if (!url.startsWith('mura://app/')) { e.preventDefault(); if (/^https?:/i.test(url)) shell.openExternal(url); }

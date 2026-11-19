@@ -210,3 +210,39 @@ if (savedBox) new MutationObserver(() => {
   const e = savedBox.querySelector('.qa-empty');
   if (e && e.textContent.includes('«Сақтау»')) e.textContent = e.textContent.replace('«Сақтау»', '«Аяқтау»');
 }).observe(savedBox, { childList: true, subtree: true });
+
+/* «Қорғау аймақтары» тізімі: әр жазбада «Өңдеу» — жазбаны ашып, мәліметтер терезесін бірден көрсетеді
+   («Ашу» — тек картаға ашады: шекараны түзетіп, кейін «Аяқтау» басуға болады) */
+async function editRecord(id) {
+  const st = QA.state;
+  if (st.loadedId !== id) {
+    const open = savedBox && savedBox.querySelector('[data-open="' + CSS.escape(id) + '"]');
+    if (!open) return;
+    open.click();                                   // app.js: сақталмаған өзгерістер болса — өзі сұрайды
+    for (let i = 0; i < 1200 && st.loadedId !== id; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      if (st.loadedId !== id && i > 3 && !document.querySelector('.qa-dlg-back')) return;   // бас тартты
+    }
+    if (st.loadedId !== id) return;
+  }
+  globalThis.QAUI?.closePanel?.();
+  openDialog();
+}
+if (savedBox) {
+  const addEdit = () => {
+    for (const act of savedBox.querySelectorAll('.qa-sc-act')) {
+      if (act.querySelector('[data-zedit]')) continue;
+      const open = act.querySelector('[data-open]');
+      if (!open) continue;
+      if (!open.disabled) open.textContent = 'Ашу';
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'lnk'; b.dataset.zedit = open.getAttribute('data-open');
+      b.textContent = 'Өңдеу'; b.title = 'Мәліметтерді өңдеу (атауы, орналасқан жері, аймақ өлшемдері) және сақтау';
+      open.after(b);
+    }
+  };
+  new MutationObserver(addEdit).observe(savedBox, { childList: true, subtree: true });
+  addEdit();
+  savedBox.addEventListener('click', e => { const b = e.target.closest('[data-zedit]'); if (b) editRecord(b.dataset.zedit); });
+}
+globalThis.MuraZone.editRecord = editRecord;

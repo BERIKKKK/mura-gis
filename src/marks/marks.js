@@ -87,6 +87,7 @@ function drawMarkers() {
     const mk = L.marker([m.lat, m.lon], { icon: pinIcon(m), draggable: marking, keyboard: true, title: '', riseOnHover: true, autoPan: true });
     mk.bindTooltip(esc(m.name), { direction: 'top', permanent: labels, className: 'mk-tip' + (labels ? ' is-perm' : '') });
     mk.on('click', () => { if (!dragging) openDialog(m); });
+    mk.on('contextmenu', ev => { L.DomEvent.preventDefault(ev.originalEvent); globalThis.MuraCtx?.forMark(m, ev); });
     mk.on('dragstart', () => { dragging = true; });
     mk.on('dragend', async () => {
       setTimeout(() => { dragging = false; }, 50);

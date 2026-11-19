@@ -19,7 +19,7 @@ body.mura .mura-bar .qa-tbtn.qa-save { padding: 0 14px; }
 body.mura .mura-bar .qa-tright { gap: 4px; }
 /* Қорғау аймағы тек «Аяқтау» терезесінен сақталады — жолақтағы «Сақтау» мен «⋯ → Жаңа жазба ретінде сақтау» жасырылады
    (элементтер қалады: app.js пен терезе солар арқылы сақтайды) */
-body.mura #qaSave, body.mura #qaSaveNew { display: none !important; }
+body.mura #qaSave, body.mura #qaSaveNew, body.mura .mura-gone { display: none !important; }
 /* «Аяқтау» — шекара дайын болғанда белсенді (js/zone-dialog.js); сақталмаған өзгерістер болса — нүкте белгісі */
 body.mura .mura-bar .mura-finish.is-dirty { position: relative; }
 body.mura .mura-bar .mura-finish.is-dirty::after { content: ''; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--terr); }
@@ -82,3 +82,14 @@ body.mura .qa-app.is-fs, body.mura .qa-app:fullscreen { display: flex; flex-dire
 .mura-err { margin: 0 0 10px; color: var(--terr); font-weight: 600; font-size: 12.5px; }
 .mura-dlg-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 .bm-sw--gsh { background: repeating-linear-gradient(0deg, transparent 0 6px, rgba(40,60,160,.55) 6px 7px), repeating-linear-gradient(90deg, transparent 0 6px, rgba(40,60,160,.55) 6px 7px), repeating-radial-gradient(circle at 70% 30%, #f1ead2 0 3px, #c98a55 3px 4px); }
+
+/* ===== Оң жақ батырма мәзірі (js/context-menu.js) ===== */
+.mura-ctx { position: absolute; z-index: 3400; min-width: 250px; max-width: 360px; padding: 4px; background: var(--white); border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 10px 30px rgba(0, 0, 0, .22); font: 13px/1.3 system-ui, 'Segoe UI', sans-serif; }
+.mura-ctx-head { padding: 6px 10px 5px; font: 600 11.5px/1.3 ui-monospace, Consolas, monospace; color: var(--soft); border-bottom: 1px solid var(--line); margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mura-ctx button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 6px 10px; border: 0; border-radius: 6px; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+.mura-ctx button:hover:not([disabled]), .mura-ctx button:focus-visible { background: var(--paper2); outline: none; }
+.mura-ctx button[disabled] { color: #a8a194; cursor: default; }
+.mura-ctx button svg { flex: none; color: var(--soft); }
+.mura-ctx button span { min-width: 0; }
+.mura-ctx small { display: block; font: 11px/1.3 ui-monospace, Consolas, monospace; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mura-ctx-sep { height: 1px; margin: 3px 6px; background: var(--line); }

@@ -104,6 +104,26 @@ async function run(win) {
     const pz = MuraZone.startFromMark(mk); await wait(300);
     document.querySelector('.qa-dlg-back [data-v="1"]')?.click(); await pz; await wait(300);
     out.fromMark = __qa.state.pts.length + ' pts, name ' + document.getElementById('qaName').value + ' / ' + document.getElementById('qaDistrict').value + ' / ' + document.getElementById('qaType').value + ', add ' + document.getElementById('qaAddMode').getAttribute('aria-pressed');
+    out.infoHidden = getComputedStyle(document.getElementById('qaOpenInfo')).display;
+    // «Қорғау аймақтары» → «Өңдеу»: жазба ашылып, мәліметтер терезесі шығады
+    document.getElementById('qaOpenSaved').click(); await wait(300);
+    const ze = document.querySelector('[data-zedit]');
+    out.savedActs = ze ? [...ze.parentNode.querySelectorAll('button')].map(b => b.textContent).join(', ') : 'жоқ';
+    ze?.click(); await wait(800);
+    out.zedit = 'dialog ' + !!document.querySelector('.zd-dlg') + ', loaded ' + __qa.state.loadedName + ', title ' + (document.getElementById('zdT') || {}).textContent;
+    document.getElementById('zdCancel')?.click(); await wait(100);
+    // Оң жақ батырма: картада
+    const mp = MuraMarks.map, cc = mp.getCenter(), cp = mp.latLngToContainerPoint(cc), rr = document.getElementById('qaMap').getBoundingClientRect();
+    const fireCtx = () => mp.fire('contextmenu', { latlng: cc, containerPoint: cp, originalEvent: new MouseEvent('contextmenu', { clientX: rr.left + cp.x, clientY: rr.top + cp.y }) });
+    await mura.clipWrite('бос мәтін'); fireCtx(); await wait(300);
+    out.ctxItems = [...document.querySelectorAll('.mura-ctx button')].map(b => (b.disabled ? '×' : '') + b.querySelector('span').firstChild.textContent).join(' | ');
+    document.querySelector('.mura-ctx button[data-i="0"]').click(); await wait(200);
+    out.ctxCopied = await mura.clipRead();
+    await mura.clipWrite('50°24′44,4″ N, 57°02′28,4″ E'); fireCtx(); await wait(300);
+    const pb = document.querySelector('.mura-ctx button[data-i="2"]');
+    out.ctxPaste = (pb.disabled ? 'disabled' : 'enabled ' + pb.querySelector('small').textContent);
+    pb.click(); await wait(300);
+    out.ctxPasted = document.getElementById('qaInLat').value + ' / ' + document.getElementById('qaInLon').value;
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());
@@ -121,6 +141,9 @@ async function run(win) {
   await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); __marks.closePanel(); MuraZone.openDialog(); 0");
   await new Promise(res => setTimeout(res, 500));
   fs.writeFileSync(shot.replace(/.png$/, '-zone.png'), (await win.webContents.capturePage()).toPNG());
+  await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); (() => { const mp = MuraMarks.map, c = mp.getCenter(), p = mp.latLngToContainerPoint(c), r = document.getElementById('qaMap').getBoundingClientRect(); mp.fire('contextmenu', { latlng: c, containerPoint: p, originalEvent: new MouseEvent('contextmenu', { clientX: r.left + p.x, clientY: r.top + p.y }) }); })(); 0");
+  await new Promise(res => setTimeout(res, 500));
+  fs.writeFileSync(shot.replace(/.png$/, '-ctx.png'), (await win.webContents.capturePage()).toPNG());
   r.files = tmp;
   r.storeFile = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'marks.json'), 'utf8')).length + ' белгі';
   console.log(JSON.stringify(r, null, 1));

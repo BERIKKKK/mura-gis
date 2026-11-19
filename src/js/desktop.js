@@ -23,7 +23,7 @@
 
   /* ---------- Құралдар жолағы жұмыс реті бойынша ----------
      [Белгілер — marks/marks-dom.js қосады] → [Қорғау аймағы: шекара — Нүкте қою, Болдырмау, Ретке келтіру, Тіктөртбұрыш, Нүктелер, Аяқтау]
-     → [Қорғау аймағы: деректер — Мәліметтер, Қорғау аймақтары, Экспорт] → [Өлшеу] → [Көрініс: Сыйғызу, Толық экран] … ⋯, Сақтау */
+     → [Қорғау аймағы: деректер — Қорғау аймақтары, Экспорт] → [Өлшеу] → [Көрініс: Сыйғызу, Толық экран] … ⋯, Сақтау */
   var tmain = $('qaTmain');
   var gBorder = $('qaAddMode').closest('.qa-tgroup'), gData = $('qaPtsBtn').closest('.qa-tgroup'), gMeasure = $('qaRuler').closest('.qa-tgroup');
   gBorder.setAttribute('aria-label', 'Қорғау аймағы: шекара');
@@ -40,7 +40,7 @@
   fin.innerHTML = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8 12.3l2.7 2.7L16.2 9.4"/></svg><span class="qa-tl">Аяқтау</span>';
   gBorder.appendChild(fin);
   // «Мәліметтер» және «Қорғау аймақтары» (бұрынғы «Сақталған аймақтар») — қорғау аймағының деректер тобына, «Экспорттың» алдына
-  [['qaOpenInfo', 'Мәліметтер: ескерткіш, аймақ өлшемдері, нәтиже', 'Мәліметтер', '3'], ['qaOpenSaved', 'Қорғау аймақтары: сақталған жазбалар, біріктіру', 'Қорғау аймақтары', '3']].forEach(function (p) {
+  [['qaOpenSaved', 'Қорғау аймақтары: сақталған жазбалар, біріктіру', 'Қорғау аймақтары', '3']].forEach(function (p) {
     var b = $(p[0]);
     if (!b) return;
     b.className = 'qa-tbtn';
@@ -52,6 +52,10 @@
     if (lbl) { lbl.className = 'qa-tl'; lbl.textContent = p[2]; }
     gData.insertBefore(b, $('qaExportBtn'));
   });
+  // «Мәліметтер» батырмасы жоқ: мәліметтер «Аяқтау» терезесінде, өңдеу — «Қорғау аймақтары» тізімінен.
+  // Панельдің өзі қалады (экспорт: «Экспорт» батырмасы оны ашады) — батырма элементі жасырын түрде сақталады.
+  var info = $('qaOpenInfo');
+  if (info) { info.className = 'qa-tbtn mura-gone'; info.removeAttribute('title'); info.setAttribute('aria-label', 'Мәліметтер'); gData.appendChild(info); }
   tmain.insertBefore(gData, gMeasure);
   var st = $('qaPanelSavedT');
   if (st && st.lastChild && st.lastChild.nodeType === 3) st.lastChild.textContent = 'Қорғау аймақтары';
