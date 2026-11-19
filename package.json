@@ -27,7 +27,7 @@
     "leaflet": "1.9.4"
   },
   "build": {
-    "appId": "kz.aktobenasledie.muragis",
+    "appId": "io.github.berikkkk.muragis",
     "productName": "Mura GIS",
     "copyright": "© BERIKKKK",
     "directories": {
