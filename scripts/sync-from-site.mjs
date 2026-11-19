@@ -112,6 +112,7 @@ ${html.trim()}
 <script src="js/basemaps.js"></script>
 <script>window.QA_FFLATE = 'vendor/fflate.js'; window.QA_API = 'mura://app/api?v=1';</script>
 <script src="js/desktop.js"></script>
+<script src="js/regions.js"></script>
 <script src="marks/marks-dom.js"></script>
 <script type="module" src="qorgau/ui.js"></script>
 <script type="module" src="qorgau/app.js"></script>

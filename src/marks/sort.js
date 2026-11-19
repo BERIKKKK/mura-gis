@@ -101,11 +101,9 @@ function kkCompare(a, b) {
 export const compareText = (a, b) => kkCompare(a, b);
 export const compareNames = (a, b) => kkCompare(nameKey(a), nameKey(b)) || (String(a ?? '') < String(b ?? '') ? -1 : String(a ?? '') > String(b ?? '') ? 1 : 0);
 
-/** Құжаттағы рет: аудан (ауданы жоқтар соңында), содан кейін атау (рим цифрлары ескеріледі). */
+/** Құжаттағы рет: облыс, аудан (ауданы жоқтар облыс ішінде соңында), содан кейін атау (рим цифрлары ескеріледі). */
 export function sortMarks(list) {
-  return list.slice().sort((a, b) => {
-    const da = String(a.district || '').trim(), db = String(b.district || '').trim();
-    if (!da !== !db) return da ? -1 : 1;
-    return compareText(da, db) || compareNames(a.name, b.name) || compareText(a.period, b.period);
-  });
+  const blankLast = (x, y) => { x = String(x || '').trim(); y = String(y || '').trim(); return !x !== !y ? (x ? -1 : 1) : compareText(x, y); };
+  return list.slice().sort((a, b) =>
+    blankLast(a.oblast, b.oblast) || blankLast(a.district, b.district) || compareNames(a.name, b.name) || compareText(a.period, b.period));
 }

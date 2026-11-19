@@ -22,13 +22,15 @@ export const CATEGORIES = [
   { v: 'intl', label: 'Халықаралық маңызы бар', adj: 'халықаралық маңызы бар' },
   { v: '', label: 'Анықталмаған', adj: '' },
 ];
-/** 3, 4, 5-баптар: объектінің құқықтық мәртебесі. */
+/** 3, 4, 5-баптар: объектінің құқықтық мәртебесі. fill / outline — картадағы белгінің түсі (әр мәртебенің өз түсі). */
 export const STATUSES = [
-  { v: 'state', label: 'Тарих және мәдениет ескерткіші (Мемлекеттік тізімге енгізілген)', short: 'Мемлекеттік тізімде' },
-  { v: 'prelim', label: 'Алдын ала есепке алу тізіміне енгізілген объект', short: 'Алдын ала есепке алу тізімінде' },
-  { v: 'archreg', label: 'Археологиялық жұмыстар барысында анықталған объект (тізілімде)', short: 'Археологиялық жұмыстар тізілімінде' },
-  { v: 'excluded', label: 'Мәртебесінен айырылған (Мемлекеттік тізімнен алып тасталған)', short: 'Тізімнен алып тасталған' },
+  { v: 'state', label: 'Тарих және мәдениет ескерткіші (Мемлекеттік тізімге енгізілген)', short: 'Мемлекеттік тізімде', fill: '#A9683F', outline: '#542A17' },
+  { v: 'prelim', label: 'Алдын ала есепке алу тізіміне енгізілген объект', short: 'Алдын ала есепке алу тізімінде', fill: '#3B78B8', outline: '#173A61' },
+  { v: 'archreg', label: 'Археологиялық жұмыстар барысында анықталған объект (тізілімде)', short: 'Археологиялық жұмыстар тізілімінде', fill: '#3C9156', outline: '#17482A' },
+  { v: 'excluded', label: 'Мәртебесінен айырылған (Мемлекеттік тізімнен алып тасталған)', short: 'Тізімнен алып тасталған', fill: '#9A958A', outline: '#4A463E' },
 ];
+/** 5-бап түрлерінің шартты белгілері (src/marks/symbols/*.svg — QGIS параметрлі SVG). */
+export const SYMBOL_FILE = { archeo: 'archaeology', arch: 'architectural', ensemble: 'ensemble', sacred: 'sacred', art: 'monumental' };
 const byV = (list, v) => list.find(x => x.v === v) || null;
 export const typeOf = v => byV(TYPES, v) || TYPES[0];
 export const categoryOf = v => byV(CATEGORIES, v) || CATEGORIES[3];
@@ -49,14 +51,24 @@ export const coordLines = m => [dms(m.lat) + (m.lat < 0 ? ' S' : ' N'), dms(m.lo
 export const nameCell = m => String(m.name || '').trim() + (String(m.period || '').trim() ? ', ' + String(m.period).trim() : '');
 export const NO_DISTRICT = 'Ауданы көрсетілмеген';
 
-/** Сұрыпталған, аудан бойынша топталған жолдар: [{ district, items: [{ n, m }] }]. */
+/**
+ * Сұрыпталған, облыс пен аудан бойынша топталған жолдар: [{ oblast, oblastHead, district, items: [{ n, m }] }].
+ * Тізімде бірнеше облыс болса, әр облыстың бірінші тобында oblastHead = true (кестеде облыс жолы шығады).
+ */
 export function groups(marks) {
   const out = [];
+  const sorted = sortMarks(marks);
+  const multi = new Set(sorted.map(m => String(m.oblast || '').trim())).size > 1;
   let n = 0;
-  for (const m of sortMarks(marks)) {
-    const d = String(m.district || '').trim() || NO_DISTRICT;
+  for (const m of sorted) {
+    const ob = String(m.oblast || '').trim();
+    const isCity = / қаласы$/.test(ob) && !/облысы/.test(ob);
+    const d = String(m.district || '').trim() || (isCity && !multi ? ob : NO_DISTRICT);   // бірнеше облыс болса — облыс жолы бөлек шығады
     let g = out[out.length - 1];
-    if (!g || g.district !== d) { g = { district: d, items: [] }; out.push(g); }
+    if (!g || g.oblast !== ob || g.district !== d) {
+      g = { oblast: ob, oblastHead: multi && (!out.length || out[out.length - 1].oblast !== ob), district: d, items: [] };
+      out.push(g);
+    }
     g.items.push({ n: ++n, m });
   }
   return out;
@@ -145,6 +157,7 @@ export function docxBody(marks, title) {
   let rows = row(HEAD.map((h, i) => cell(h, COLS[i], { b: true, align: 'center', sz: 22 })), { header: true }) +
     row(COLS.map((w, i) => cell(String(i + 1), w, { align: 'center', sz: 20 })), { header: true });
   for (const g of G) {
+    if (g.oblastHead) rows += row([cell((g.oblast || 'Облысы көрсетілмеген').toUpperCase(), CONTENT_W, { span: 5, b: true, align: 'center', shade: 'E6E6E6' })]);
     rows += row([cell(g.district, CONTENT_W, { span: 5, b: true, align: 'center' })]);
     for (const { n, m } of g.items) {
       rows += row([
@@ -208,6 +221,7 @@ export function pdfHtml(marks, title) {
   const w = COLS.map(c => (c / CONTENT_W * 100).toFixed(2) + '%');
   let body = '';
   for (const g of G) {
+    if (g.oblastHead) body += '<tr class="g o"><td colspan="5">' + esc((g.oblast || 'Облысы көрсетілмеген').toUpperCase()) + '</td></tr>';
     body += '<tr class="g"><td colspan="5">' + esc(g.district) + '</td></tr>';
     for (const { n, m } of g.items) {
       body += '<tr><td class="c">' + n + '</td><td>' + esc(nameCell(m)) + '</td><td class="c">' + esc(typeOf(m.type).short) + '</td>' +
@@ -223,7 +237,7 @@ export function pdfHtml(marks, title) {
     'th{font-weight:bold;font-size:11pt;text-align:center;vertical-align:middle;overflow-wrap:normal}' +
     'thead{display:table-header-group}tr{break-inside:avoid}' +
     '.num th{font-weight:normal;font-size:10pt;padding:0 4pt}' +
-    '.g td{font-weight:bold;text-align:center}.c{text-align:center}.nw{white-space:nowrap}' +
+    '.g td{font-weight:bold;text-align:center}.o td{background:#e6e6e6}.c{text-align:center}.nw{white-space:nowrap}' +
     '</style></head><body><h1>' + esc(cap(title)) + '</h1><table><colgroup>' + w.map(x => '<col style="width:' + x + '">').join('') + '</colgroup>' +
     '<thead><tr>' + HEAD.map(h => '<th>' + br(h) + '</th>').join('') + '</tr><tr class="num">' + HEAD.map((_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr></thead>' +
     '<tbody>' + body + '</tbody></table></body></html>';

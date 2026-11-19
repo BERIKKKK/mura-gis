@@ -7,7 +7,7 @@
    Интерфейс бөліктері — marks/marks-dom.js, экспорт — marks/export.js, сұрыптау — marks/sort.js. */
 import { parseOne, genitive } from '../qorgau/app.js';
 import { sortMarks, arabizeRoman, compareText } from './sort.js';
-import { TYPES, CATEGORIES, STATUSES, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, coordLines, nameCell } from './export.js';
+import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, coordLines, nameCell } from './export.js';
 
 const $ = id => document.getElementById(id);
 const L = globalThis.L;
@@ -16,6 +16,7 @@ const map = MM.map;
 const API = 'mura://app/marks?v=1';
 const app = $('qaApp'), mapEl = $('qaMap'), panelEl = $('mkPanel'), modeBtn = $('mkMode'), listBtn = $('mkListBtn');
 const ic = MM.icon || (() => '');
+const REG = globalThis.MuraRegions;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -52,13 +53,30 @@ async function saveMark(m) {
 /* ======================= Карта қабаты ======================= */
 const layer = L.layerGroup();
 const markers = new Map();    // id → L.marker
-const TYPE_CLASS = { archeo: 'a', arch: 's', ensemble: 'e', sacred: 'k', art: 'm' };
-const TYPE_LETTER = { archeo: 'А', arch: 'С', ensemble: 'Ан', sacred: 'К', art: 'М' };
+/* Шартты белгілер: түрі — symbols/*.svg (QGIS параметрлі SVG), түсі — мәртебесіне қарай.
+   QGIS-тің param(fill) / param(outline) мәндері мәртебе түсімен ауыстырылады, қалған param(…) — әдепкі мәнімен. */
+const SYM = {};
+await Promise.all(Object.entries(SYMBOL_FILE).map(async ([t, f]) => {
+  try { SYM[t] = (await (await fetch(new URL('symbols/' + f + '.svg', import.meta.url))).text()).replace(/<!--[\s\S]*?-->/g, '').trim(); }
+  catch (e) { SYM[t] = ''; }
+}));
+const symCache = new Map();
+/** Белгінің SVG-і: w — ені (px), биіктігі 64×80 пропорциясымен. */
+function symbolSvg(type, status, w = 30) {
+  const k = type + '|' + status + '|' + w;
+  if (symCache.has(k)) return symCache.get(k);
+  const st = statusOf(status);
+  let svg = SYM[type] || SYM.archeo || '';
+  svg = svg.replace(/param\(fill\)\s*#[0-9a-f]{3,8}/gi, st.fill).replace(/param\(outline\)\s*#[0-9a-f]{3,8}/gi, st.outline).replace(/param\([\w-]+\)\s*/g, '')
+    .replace(/<svg\b[^>]*>/, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 80" width="' + w + '" height="' + Math.round(w * 1.25) + '" aria-hidden="true">');
+  symCache.set(k, svg);
+  return svg;
+}
 function pinIcon(m) {
-  const cls = 'mk-pin mk-pin--' + (TYPE_CLASS[m.type] || 'a') + (m.status === 'excluded' ? ' is-excl' : m.status === 'prelim' || m.status === 'archreg' ? ' is-pre' : '');
+  const w = 30, h = Math.round(w * 1.25);
   return L.divIcon({
-    className: cls, iconSize: [26, 34], iconAnchor: [13, 33], tooltipAnchor: [0, -30],
-    html: '<svg viewBox="0 0 26 34" width="26" height="34" aria-hidden="true"><path class="mk-pin-b" d="M13 33c-1.2-3.6-11-12.2-11-19.6A11 11 0 0 1 24 13.4C24 20.8 14.2 29.4 13 33z"/></svg><b>' + esc(TYPE_LETTER[m.type] || 'А') + '</b>',
+    className: 'mk-pin' + (m.status === 'excluded' ? ' is-excl' : ''), iconSize: [w, h], iconAnchor: [w / 2, h - 1], tooltipAnchor: [0, -h + 4],
+    html: symbolSvg(m.type, m.status, w),
   });
 }
 function drawMarkers() {
@@ -148,24 +166,28 @@ function openDialog(m, o = {}) {
   const def = lastDefaults();
   const v = {
     name: '', period: '', place: '', note: '',
-    oblast: def.oblast || $('qaOblast')?.value || 'Ақтөбе облысы',
-    district: def.district || '', type: def.type || 'archeo', category: def.category ?? 'local', status: def.status || 'state',
+    oblast: REG ? REG.remembered() : (def.oblast || 'Ақтөбе облысы'),
+    type: def.type || 'archeo', category: def.category ?? 'local', status: def.status || 'state',
     ...m,
   };
+  // Аудан әдепкісі — соңғы таңдалған (сол облыстікі болса ғана)
+  if (v.district == null) v.district = def.oblast === v.oblast ? def.district || '' : '';
   const dists = districtOpts();
   if (v.district && !dists.includes(v.district)) dists.push(v.district);
   const back = document.createElement('div');
   back.className = 'qa-dlg-back mk-dlg-back';
   back.innerHTML =
     '<form class="qa-dlg qa-glass mk-dlg" role="dialog" aria-modal="true" aria-labelledby="mkDlgT" novalidate>' +
-      '<h3 id="mkDlgT">' + ic('<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/>') + (isNew ? 'Жаңа ескерткіш белгісі' : 'Ескерткіш белгісі') + '</h3>' +
+      '<h3 id="mkDlgT"><span class="mk-sym" id="mkSym"></span>' + (isNew ? 'Жаңа ескерткіш белгісі' : 'Ескерткіш белгісі') + '</h3>' +
       '<div class="qa-f"><label for="mkName">Атауы <span class="mk-req">*</span></label><input type="text" id="mkName" name="name" maxlength="200" required placeholder="Мысалы: Қабантау-V қорғаны" value="' + esc(v.name) + '">' +
         '<p class="qa-hint mk-key" id="mkKey" hidden></p></div>' +
       '<div class="qa-f"><label for="mkPeriod">Мерзімі (дәуірі)</label><input type="text" id="mkPeriod" name="period" maxlength="120" placeholder="б.з.б. VII–IV ғасырлар" value="' + esc(v.period) + '"></div>' +
       '<div class="qa-row2">' +
-        '<div class="qa-f"><label for="mkOblast">Облыс</label><input type="text" id="mkOblast" name="oblast" maxlength="80" value="' + esc(v.oblast) + '"></div>' +
-        '<div class="qa-f"><label for="mkDistrict">Аудан / қала</label><select id="mkDistrict" name="district"><option value="">—</option>' +
-          dists.map(d => '<option' + (d === v.district ? ' selected' : '') + '>' + esc(d) + '</option>').join('') + '</select></div>' +
+        '<div class="qa-f"><label for="mkOblast">Облыс / республикалық қала</label>' + (REG
+          ? '<select id="mkOblast" name="oblast">' + REG.regionOptions(v.oblast) + '</select>'
+          : '<input type="text" id="mkOblast" name="oblast" maxlength="80" value="' + esc(v.oblast) + '">') + '</div>' +
+        '<div class="qa-f"><label for="mkDistrict">Аудан / қала</label><select id="mkDistrict" name="district">' + (REG ? REG.unitOptions(v.oblast, v.district) : '<option value="">—</option>' +
+          dists.map(d => '<option' + (d === v.district ? ' selected' : '') + '>' + esc(d) + '</option>').join('')) + '</select></div>' +
       '</div>' +
       '<div class="qa-f"><label for="mkPlace">Орналасқан жері</label><textarea id="mkPlace" name="place" maxlength="1500" rows="2" placeholder="Қос Естек ауылынан 15,8 шақырым батыста, Егінді жылғасының оң жағалауында">' + esc(v.place) + '</textarea></div>' +
       '<div class="qa-f"><label for="mkType">Түрі <small class="mk-law">(Заңның 5-бабы)</small></label><select id="mkType" name="type">' + optionsHtml(TYPES, v.type) + '</select></div>' +
@@ -211,10 +233,13 @@ function openDialog(m, o = {}) {
     return r;
   }
   F.name.addEventListener('input', paintKey);
+  if (REG) F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); });
   F.lat.addEventListener('input', paintCoord);
   F.lon.addEventListener('input', paintCoord);
-  F.type.addEventListener('change', paintCoord);
-  F.status.addEventListener('change', paintCoord);
+  const paintSym = () => { back.querySelector('#mkSym').innerHTML = symbolSvg(F.type.value, F.status.value, 26); };
+  F.type.addEventListener('change', () => { paintCoord(); paintSym(); });
+  F.status.addEventListener('change', () => { paintCoord(); paintSym(); });
+  paintSym();
   paintKey(); paintCoord();
 
   form.addEventListener('submit', async e => {
@@ -233,6 +258,7 @@ function openDialog(m, o = {}) {
     try {
       const saved = await saveMark(rec);
       store.set(lastKey, JSON.stringify({ oblast: rec.oblast, district: rec.district, type: rec.type, category: rec.category, status: rec.status }));
+      if (REG) REG.remember(rec.oblast);          // соңғы облыс — келесі белгіге де, жаңа қорғау аймағына да әдепкі
       closeDialog();
       toast(isNew ? 'Белгі сақталды: «' + name + '».' : 'Белгі жаңартылды: «' + name + '».');
       if (saved && !map.getBounds().contains([saved.lat, saved.lon])) map.panTo([saved.lat, saved.lon]);
@@ -310,14 +336,16 @@ document.addEventListener('keydown', e => {
 const fillSel = (id, list) => { $(id).insertAdjacentHTML('beforeend', list.map(x => '<option value="' + esc(x.v) + '">' + esc(x.label) + '</option>').join('')); };
 fillSel('mkFType', TYPES);
 fillSel('mkFStatus', STATUSES);
-for (const id of ['mkQ', 'mkFDistrict', 'mkFType', 'mkFStatus']) $(id).addEventListener(id === 'mkQ' ? 'input' : 'change', () => render());
+for (const id of ['mkQ', 'mkFOblast', 'mkFDistrict', 'mkFType', 'mkFStatus']) $(id).addEventListener(id === 'mkQ' ? 'input' : 'change', () => render());
 $('mkShow').addEventListener('change', paintLayerVisibility);
 $('mkLabels').addEventListener('change', () => { store.set('mk-labels', $('mkLabels').checked ? '1' : '0'); drawMarkers(); });
 $('mkLabels').checked = store.get('mk-labels') === '1';
 
 function filtered() {
+  const fo = $('mkFOblast').value;
   const q = $('mkQ').value.trim().toLocaleLowerCase('kk'), fd = $('mkFDistrict').value, ft = $('mkFType').value, fs = $('mkFStatus').value;
   return sortMarks(items.filter(m => {
+    if (fo && (m.oblast || '') !== fo) return false;
     if (fd && (fd === '—' ? m.district : m.district !== fd)) return false;
     if (ft && m.type !== ft) return false;
     if (fs && m.status !== fs) return false;
@@ -336,10 +364,16 @@ $('mkTitleAuto').addEventListener('click', () => { titleAuto = true; paintTitle(
 function render() {
   $('mkCount').textContent = items.length;
   drawMarkers();
-  // Аудан сүзгісі: бар белгілердің аудандары
-  const sel = $('mkFDistrict'), cur = sel.value;
-  const ds = [...new Set(items.map(m => m.district).filter(Boolean))].sort(compareText);
-  const hasNone = items.some(m => !m.district);
+  // Облыс сүзгісі (бірден көп облыс болса ғана көрінеді) және аудан сүзгісі — бар белгілердің мәндері
+  const os = $('mkFOblast'), oc = os.value;
+  const obs = [...new Set(items.map(m => m.oblast).filter(Boolean))].sort(compareText);
+  os.innerHTML = '<option value="">Барлық облыс</option>' + obs.map(o => '<option' + (o === oc ? ' selected' : '') + '>' + esc(o) + '</option>').join('');
+  if (![...os.options].some(o => o.value === oc)) os.value = '';
+  os.hidden = obs.length < 2 && !os.value;
+  $('mkFilters').classList.toggle('has-ob', !os.hidden);
+  const sel = $('mkFDistrict'), cur = sel.value, inOb = items.filter(m => !os.value || m.oblast === os.value);
+  const ds = [...new Set(inOb.map(m => m.district).filter(Boolean))].sort(compareText);
+  const hasNone = inOb.some(m => !m.district);
   sel.innerHTML = '<option value="">Барлық аудан</option>' + ds.map(d => '<option' + (d === cur ? ' selected' : '') + '>' + esc(d) + '</option>').join('') +
     (hasNone ? '<option value="—"' + (cur === '—' ? ' selected' : '') + '>Ауданы көрсетілмеген</option>' : '');
   if (![...sel.options].some(o => o.value === cur)) sel.value = '';
@@ -352,11 +386,12 @@ function render() {
   if (!items.length) { box.innerHTML = '<div class="qa-empty">Әзірге белгі жоқ. Құралдар жолағындағы «Белгі қою» батырмасын басып, картадан ескерткіштің орнын белгілеңіз.</div>'; return; }
   if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай белгі табылмады.</div>'; return; }
   let html = '', lastD = null;
+  const multiOb = new Set(list.map(m => m.oblast || '')).size > 1;
   for (const m of list) {
-    const d = m.district || 'Ауданы көрсетілмеген';
+    const d = (multiOb && m.oblast ? m.oblast + ' · ' : '') + (m.district || (multiOb ? 'ауданы көрсетілмеген' : 'Ауданы көрсетілмеген'));
     if (d !== lastD) { html += '<div class="mk-dhead">' + esc(d) + '</div>'; lastD = d; }
     html += '<div class="qa-sc mk-card" data-id="' + esc(m.id) + '">' +
-      '<i class="mk-dot mk-dot--' + (TYPE_CLASS[m.type] || 'a') + '" aria-hidden="true"></i>' +
+      '<span class="mk-sym" title="' + esc(statusOf(m.status).short) + '">' + symbolSvg(m.type, m.status, 22) + '</span>' +
       '<div class="qa-sc-main"><button type="button" class="qa-sc-title" data-act="go" title="Картадан көрсету">' + esc(nameCell(m)) + '</button>' +
       '<div class="qa-sc-meta">' + esc(typeOf(m.type).label) + (categoryOf(m.category).adj ? ' · ' + esc(categoryOf(m.category).adj) : '') +
         ' · <span class="mk-st mk-st--' + esc(m.status) + '">' + esc(statusOf(m.status).short) + '</span></div>' +
@@ -432,8 +467,11 @@ $('mkGeoFile').addEventListener('change', async e => {
   });
 });
 
+/* Мәртебе түстерінің шартты белгісі (панельде) */
+$('mkLegend').innerHTML = STATUSES.map(st => '<span><i style="background:' + st.fill + ';border-color:' + st.outline + '"></i>' + esc(st.short) + '</span>').join('');
+
 /* ======================= Іске қосу ======================= */
 paintLayerVisibility();
 api('list').catch(e => { toast('Белгілер жүктелмеді: ' + e.message, true); render(); });
 
-globalThis.__marks = { get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };
+globalThis.__marks = { symbolSvg, get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };

@@ -49,7 +49,9 @@
   if (cnt) {
     var s = document.createElement('span');
     s.className = 'mk-leg';
-    s.innerHTML = '<i class="mk-leg-pin"></i>Белгі';
+    s.title = 'Ескерткіш белгілері: түсі — мәртебесі (Белгілер панеліндегі шартты белгілерді қараңыз)';
+    s.innerHTML = '<i class="mk-leg-pin" style="background:#A9683F;box-shadow:0 0 0 1px #542A17"></i><i class="mk-leg-pin" style="background:#3B78B8;box-shadow:0 0 0 1px #173A61"></i>' +
+      '<i class="mk-leg-pin" style="background:#3C9156;box-shadow:0 0 0 1px #17482A"></i><i class="mk-leg-pin" style="background:#9A958A;box-shadow:0 0 0 1px #4A463E"></i>Белгілер';
     cnt.parentNode.insertBefore(s, cnt);
   }
 
@@ -65,7 +67,9 @@
     '<header class="qa-dh"><h2 id="mkPanelT">' + ic(IC.flag) + 'Ескерткіш белгілері</h2><button type="button" class="qa-ib" data-mkclose aria-label="Жабу" title="Жабу">' + ic(IC.close) + '</button></header>' +
     '<div class="qa-db">' +
       '<div class="qa-sfilter"><label class="qa-search">' + ic(IC.search, 16) + '<input type="search" id="mkQ" placeholder="Іздеу: атауы, жері…" aria-label="Белгілерден іздеу" autocomplete="off"></label></div>' +
-      '<div class="mk-filters">' +
+      '<div class="mk-legend" id="mkLegend" aria-label="Белгі түстері — мәртебесі бойынша"></div>' +
+      '<div class="mk-filters" id="mkFilters">' +
+        '<select id="mkFOblast" aria-label="Облыс бойынша сүзу" hidden><option value="">Барлық облыс</option></select>' +
         '<select id="mkFDistrict" aria-label="Аудан бойынша сүзу"><option value="">Барлық аудан</option></select>' +
         '<select id="mkFType" aria-label="Түрі бойынша сүзу"><option value="">Барлық түрі</option></select>' +
         '<select id="mkFStatus" aria-label="Мәртебесі бойынша сүзу"><option value="">Барлық мәртебе</option></select>' +

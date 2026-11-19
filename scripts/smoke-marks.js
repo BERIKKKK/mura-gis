@@ -31,6 +31,8 @@ async function run(win) {
       { name: 'Қабантау-Х қорғаны', district: 'Мәртөк ауданы', lat: 50.714, lon: 56.514 },
       { name: 'Абат-Байтақ кесенесі', district: 'Алға ауданы', lat: 50.1, lon: 57.2, type: 'arch', period: 'XIV ғасыр' },
       { name: 'Ескерткіш белгі', district: '', lat: 50.3, lon: 57.1, type: 'art', status: 'prelim' },
+      { name: 'Райымбек батыр кесенесі', oblast: 'Алматы қаласы', district: 'Алмалы ауданы', lat: 43.25, lon: 76.93, type: 'sacred', status: 'archreg' },
+      { name: 'Тас мүсін', oblast: 'Алматы қаласы', district: 'Медеу ауданы', lat: 43.2, lon: 77.0, type: 'ensemble', status: 'excluded' },
     ];
     for (const m of add) await M.api('save', { data: JSON.stringify({ ...base, ...m }) });
     out.count = M.items.length;
@@ -39,6 +41,13 @@ async function run(win) {
     out.cards = document.querySelectorAll('#mkList .mk-card').length;
     out.title = document.getElementById('mkTitle').value;
     out.pins = document.querySelectorAll('.mk-pin').length;
+    out.pinColors = [...new Set([...document.querySelectorAll('.mk-pin svg path')].map(p => p.getAttribute('fill')).filter(c => /^#/.test(c||'')))].join(' ');
+    out.obFilter = !document.getElementById('mkFOblast').hidden;
+    const ob = document.getElementById('qaOblast');
+    out.regions = ob.tagName + ' ' + ob.options.length + ' / remembered ' + MuraRegions.remembered() + ' / districts ' + document.getElementById('qaDistrict').options.length;
+    ob.value = 'Жетісу облысы'; out.progDistricts = [...document.getElementById('qaDistrict').options].map(o => o.value).slice(1, 4).join(', ');
+    document.getElementById('qaDistrict').value = 'Ескі аудан'; out.legacy = document.getElementById('qaDistrict').value;
+    ob.value = 'Шымкент қаласы'; ob.dispatchEvent(new Event('change', { bubbles: true })); out.remembered2 = MuraRegions.remembered() + ' / ' + document.getElementById('qaDistrict').options.length;
 
     // Режимдер: белгі қою → шекара нүктесі өшеді; шекара нүктесі → белгі қою өшеді
     const add0 = document.getElementById('qaAddMode').getAttribute('aria-pressed');
