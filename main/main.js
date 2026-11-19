@@ -99,15 +99,12 @@ function buildMenu() {
 }
 
 function about() {
-  let site = {};
-  try { site = JSON.parse(fs.readFileSync(path.join(SRC, 'site-version.json'), 'utf8')); } catch (e) { /* жоқ */ }
   dialog.showMessageBox(win, {
     type: 'info', title: 'Mura GIS туралы', buttons: ['Жабу', 'GitHub беті'], cancelId: 0,
     message: 'Mura GIS ' + app.getVersion(),
     detail: 'Тарих және мәдениет ескерткіштерінің қорғау аймағын, құрылыс салуды реттеу аймағын және қорғалатын табиғи ' +
       'ландшафт аймағын есептеу (ҚР МСМ 2020 ж. 14 сәуірдегі № 86 бұйрығы, 7–9-тармақтар).\n\n' +
       'Деректер қалтасы: ' + store.dir + '\n' +
-      (site.siteCommit ? 'Құрал коды: aktobenasledie.kz (' + site.siteCommit + ')\n' : '') +
       'Electron ' + process.versions.electron,
   }).then(r => { if (r.response === 1) shell.openExternal(REPO_URL); });
 }
