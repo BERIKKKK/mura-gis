@@ -99,6 +99,7 @@ async function run(win) {
     document.getElementById('qaName').value = 'Аяқтау тесті қорымы'; document.getElementById('qaName').dispatchEvent(new Event('input'));
     zd.requestSubmit(); await wait(1500);
     out.zdAfter = 'dialog ' + !!document.querySelector('.zd-dlg') + ', loaded ' + __qa.state.loadedName + ', panelBack ' + document.getElementById('qaPanelInfo').contains(document.getElementById('qaName')) + ', saved ' + document.getElementById('qaSavedCount').textContent;
+    out.titleLoaded = document.title + ' / ' + document.getElementById('qaLoaded').textContent + ' hidden=' + document.getElementById('qaLoaded').hidden;
     // Белгіден жаңа қорғау аймағын бастау: тазалауды растап, мәліметтер белгіден толтырылады
     const mk = M.items.find(m => m.name.startsWith('Абат'));
     const pz = MuraZone.startFromMark(mk); await wait(300);
@@ -160,12 +161,32 @@ async function run(win) {
     out.rulerBefore = document.querySelectorAll('#qaRulerList li').length + ' өлшем, × ' + document.querySelectorAll('.mura-rdel').length;
     document.querySelector('.mura-rdel')?.click(); await wait(200);
     out.rulerAfter = document.querySelectorAll('#qaRulerList li').length + ' өлшем, × ' + document.querySelectorAll('.mura-rdel').length;
+    // Импорт: KML, KMZ, GPX → «Импортталғандар», сәйкестендіру → белгі
+    const kml = '<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Барлау 2025</name><Folder><name>Қорғандар</name>' +
+      '<Placemark><name>Қорған-ІІІ</name><description><![CDATA[<b>диаметрі</b> 12 м]]></description><Point><coordinates>57.05,50.42,0</coordinates></Point></Placemark>' +
+      '<Placemark><name>Қоршау</name><Polygon><outerBoundaryIs><LinearRing><coordinates>57.06,50.43 57.07,50.43 57.07,50.44 57.06,50.43</coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark></Folder></Document></kml>';
+    const gpx = '<?xml version="1.0"?><gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"><wpt lat="50.45" lon="57.1"><name>Тас мүсін</name><desc>жол жиегінде</desc></wpt><wpt lat="50.46" lon="57.11"><name>WP2</name></wpt></gpx>';
+    const ff = await new Promise(r => { const s = document.createElement('script'); s.src = 'vendor/fflate.js'; s.onload = () => r(globalThis.fflate); document.head.appendChild(s); });
+    const kmz = ff.zipSync({ 'doc.kml': ff.strToU8(kml.replace('Қорған-ІІІ', 'Қорған-ІV')) });
+    const dt = new DataTransfer();
+    dt.items.add(new File([kml], 'barlau.kml')); dt.items.add(new File([kmz], 'barlau.kmz')); dt.items.add(new File([gpx], 'jol.gpx'));
+    const inp = document.getElementById('mkGeoFile'); inp.files = dt.files; inp.dispatchEvent(new Event('change')); await wait(2500);
+    out.imported = M.imports.length + ': ' + M.imports.map(x => x.name + '@' + x.file).join(', ');
+    out.impDesc = (M.imports.find(x => x.name === 'Қорған-ІІІ') || {}).desc + ' / ' + (M.imports.find(x => x.name === 'Қоршау') || {}).desc;
+    out.impTab = document.getElementById('mkTabImpB').getAttribute('aria-selected') + ' / cards ' + document.querySelectorAll('#mkImpList .mk-impcard').length + ' / map ' + document.querySelectorAll('.mk-imp:not(.mk-imp--inline)').length;
+    const before = M.items.length, x0 = M.imports.find(x => x.name === 'Тас мүсін');
+    M.identify(x0); await wait(300);
+    out.identDlg = document.getElementById('mkDlgT').textContent + ' / ' + document.getElementById('mkName').value + ' / ' + document.getElementById('mkNote').value.split(String.fromCharCode(10)).join(' | ');
+    document.querySelector('.mk-dlg').requestSubmit(); await wait(800);
+    out.identAfter = 'marks +' + (M.items.length - before) + ', imports ' + M.imports.length + ', left: ' + M.imports.map(x => x.name).join(', ');
+    out.title = document.title + ' / status: ' + document.getElementById('muraRec').textContent;
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());
     window.__docx = new Uint8Array(await d.arrayBuffer()); window.__pdf = new Uint8Array(await p.arrayBuffer());
     return out;
-  })()`);
+  })().catch(e => ({ ERROR: String(e && e.stack || e) }))`);
+  if (r.ERROR) { console.error('FAIL', r.ERROR); app.exit(1); return; }
   fs.writeFileSync(path.join(tmp, 'list.docx'), Buffer.from(await js('Array.from(window.__docx)')));
   fs.writeFileSync(path.join(tmp, 'list.pdf'), Buffer.from(await js('Array.from(window.__pdf)')));
   await js("__marks.closePanel(); __marks.openPanel(); MuraMarks.map.setView([50.712, 56.512], 15); 0");
@@ -180,6 +201,9 @@ async function run(win) {
   await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); (() => { const mp = MuraMarks.map, c = mp.getCenter(), p = mp.latLngToContainerPoint(c), r = document.getElementById('qaMap').getBoundingClientRect(); mp.fire('contextmenu', { latlng: c, containerPoint: p, originalEvent: new MouseEvent('contextmenu', { clientX: r.left + p.x, clientY: r.top + p.y }) }); })(); 0");
   await new Promise(res => setTimeout(res, 500));
   fs.writeFileSync(shot.replace(/.png$/, '-ctx.png'), (await win.webContents.capturePage()).toPNG());
+  await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); __marks.setTab('imp'); const b = L.latLngBounds(__marks.imports.map(x => [x.lat, x.lon])); MuraMarks.map.fitBounds(b.pad(0.3)); 0");
+  await new Promise(res => setTimeout(res, 2500));
+  fs.writeFileSync(shot.replace(/.png$/, '-imp.png'), (await win.webContents.capturePage()).toPNG());
   r.files = tmp;
   r.storeFile = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'marks.json'), 'utf8')).length + ' белгі';
   console.log(JSON.stringify(r, null, 1));

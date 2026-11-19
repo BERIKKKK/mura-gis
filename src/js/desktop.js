@@ -92,11 +92,21 @@
   if (top) top.remove();
 
   /* ---------- Терезе атауы: ашық жазба және сақталмаған өзгерістер ---------- */
+  // «Жаңа жазба» деген күй жоқ: ашық қорғау аймағы болмаса — тек «Mura GIS»; ашылса — «Mura GIS — атауы».
+  // Күй жолағында да «Жаңа жазба» жазуы көрсетілмейді (app.js оны жазады — жасырамыз), ашық жазба болса — «Қорғау аймағы: атауы».
+  var busyTitle = false;
   function paintTitle() {
+    if (busyTitle) return;
+    busyTitle = true;
     var loaded = $('qaLoaded'), dirty = $('qaDirty');
     var strong = loaded && loaded.querySelector('strong');
-    var name = strong ? strong.textContent.trim() : 'Жаңа жазба';
-    document.title = (dirty && !dirty.hidden ? '● ' : '') + name + ' — Mura GIS';
+    var name = strong ? strong.textContent.trim() : '';
+    if (loaded) {
+      if (loaded.hidden !== !strong) loaded.hidden = !strong;      // тек өзгергенде — әйтпесе MutationObserver тұйықталады
+      if (strong && loaded.firstChild && loaded.firstChild.nodeType === 3 && loaded.firstChild.textContent !== 'Қорғау аймағы: ') loaded.firstChild.textContent = 'Қорғау аймағы: ';
+    }
+    document.title = 'Mura GIS' + (name ? ' — ' + name : '') + (name && dirty && !dirty.hidden ? ' ●' : '');
+    busyTitle = false;
   }
   new MutationObserver(paintTitle).observe(rec, { subtree: true, childList: true, characterData: true, attributes: true });
   paintTitle();

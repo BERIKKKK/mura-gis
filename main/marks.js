@@ -3,8 +3,11 @@
    Клиент (src/marks/marks.js): POST mura://app/marks?op=list|save|delete|import
      save   — FormData data = бір белгі (JSON), id болса — жаңартылады;
      delete — FormData id;
-     import — FormData data = белгілер тізімі (JSON), id бірдей болса жаңасы қалады.
-   Жауап: { ok, items, id, added, updated, error }. */
+     import — FormData data = белгілер тізімі (JSON), id бірдей болса жаңасы қалады;
+     ilist / iadd / idel — импортталған нүктелер (KML, KMZ, GPX): data/imports.json. Олар белгі емес — «Сәйкестендіру»
+       арқылы белгі ретінде сақталғанда ғана тізімнен алынады (idel). iadd: data = [{ name, desc, lat, lon, file, folder }],
+       idel: id = 'all' не id-лер үтір арқылы.
+   Жауап: { ok, items, imports, id, added, updated, error }. */
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -19,6 +22,7 @@ class MarksStore {
   constructor(dir) {
     this.dir = dir;
     this.file = path.join(dir, 'marks.json');
+    this.ifile = path.join(dir, 'imports.json');
     fs.mkdirSync(dir, { recursive: true });
   }
 
@@ -41,6 +45,48 @@ class MarksStore {
 
   list() {
     return this.load();
+  }
+
+  /* ---------- Импортталған нүктелер ---------- */
+  loadImports() {
+    try {
+      const j = JSON.parse(fs.readFileSync(this.ifile, 'utf8'));
+      return Array.isArray(j) ? j.filter(x => x && typeof x === 'object' && x.id) : [];
+    } catch (e) {
+      if (e.code === 'ENOENT') return [];
+      throw new Error('Импорт файлы оқылмады: ' + this.ifile + ' (' + e.message + ')');
+    }
+  }
+  writeImports(items) {
+    const tmp = this.ifile + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(items, null, 1));
+    fs.renameSync(tmp, this.ifile);
+  }
+  addImports(raw) {
+    let list;
+    try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
+    if (!Array.isArray(list)) throw new Error('Нүктелер тізімі оқылмады.');
+    if (list.length > 20000) throw new Error('Бір файлда нүкте тым көп (20 000-нан аспауы керек).');
+    const items = this.loadImports();
+    const now = new Date().toISOString();
+    const cut = (v, n) => [...String(v ?? '').trim()].slice(0, n).join('');
+    let added = 0, skipped = 0;
+    for (const r of list) {
+      const lat = Number(r && r.lat), lon = Number(r && r.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) { skipped++; continue; }
+      const key = (x) => x.lat.toFixed(7) + ',' + x.lon.toFixed(7) + '|' + x.name;
+      const rec = { id: crypto.randomBytes(8).toString('hex'), name: cut(r.name, 200), desc: cut(r.desc, 3000), file: cut(r.file, 200), folder: cut(r.folder, 200),
+        lat: Math.round(lat * 1e8) / 1e8, lon: Math.round(lon * 1e8) / 1e8, imported_at: now };
+      if (items.some(x => key(x) === key(rec))) { skipped++; continue; }   // сол нүкте қайта импортталмайды
+      items.push(rec); added++;
+    }
+    this.writeImports(items);
+    return { added, skipped };
+  }
+  removeImports(ids) {
+    const all = String(ids || '') === 'all';
+    const set = new Set(String(ids || '').split(',').filter(Boolean));
+    this.writeImports(all ? [] : this.loadImports().filter(x => !set.has(x.id)));
   }
 
   /** Бір белгіні тексеріп, қалыпқа келтіру (қате болса — Error). */
@@ -111,7 +157,10 @@ class MarksStore {
     try {
       if (request.method !== 'POST') return out({ ok: false, error: 'POST керек.' });
       const fd = await request.formData();
-      if (op === 'list') return out({ ok: true, items: this.list() });
+      if (op === 'list') return out({ ok: true, items: this.list(), imports: this.loadImports() });
+      if (op === 'ilist') return out({ ok: true, imports: this.loadImports() });
+      if (op === 'iadd') { const r = this.addImports(fd.get('data')); return out({ ok: true, ...r, imports: this.loadImports() }); }
+      if (op === 'idel') { this.removeImports(fd.get('id')); return out({ ok: true, imports: this.loadImports() }); }
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
       if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, items: this.list() }); }
       if (op === 'import') { const r = this.importMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }

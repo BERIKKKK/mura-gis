@@ -65,7 +65,11 @@
   d.hidden = true;
   d.innerHTML =
     '<header class="qa-dh"><h2 id="mkPanelT">' + ic(IC.flag) + 'Ескерткіш белгілері</h2><button type="button" class="qa-ib" data-mkclose aria-label="Жабу" title="Жабу">' + ic(IC.close) + '</button></header>' +
-    '<div class="qa-db">' +
+    '<div class="mk-tabs" role="tablist">' +
+      '<button type="button" role="tab" id="mkTabMarksB" data-mktab="marks" aria-selected="true">Белгілер <span class="mk-tabn" id="mkTabN">0</span></button>' +
+      '<button type="button" role="tab" id="mkTabImpB" data-mktab="imp" aria-selected="false" title="KML, KMZ, GPX файлдарынан импортталған, әлі сәйкестендірілмеген нүктелер">Импортталғандар <span class="mk-tabn" id="mkTabI">0</span></button>' +
+    '</div>' +
+    '<div class="qa-db" id="mkTabMarks">' +
       '<div class="qa-sfilter"><label class="qa-search">' + ic(IC.search, 16) + '<input type="search" id="mkQ" placeholder="Іздеу: атауы, жері…" aria-label="Белгілерден іздеу" autocomplete="off"></label></div>' +
       '<div class="mk-legend" id="mkLegend" aria-label="Белгі түстері — санаты бойынша"></div>' +
       '<div class="mk-filters" id="mkFilters">' +
@@ -86,12 +90,22 @@
           '<p class="qa-hint mk-multi" id="mkTitleMulti" hidden></p></div>' +
       '</section>' +
     '</div>' +
+    '<div class="qa-db" id="mkTabImp" hidden>' +
+      '<p class="qa-hint mk-imphint">KML, KMZ, GPX файлдарынан алынған нүктелер. Олар әзірге белгі емес: картадан қарауға болады, ал <b>«Сәйкестендіру»</b> басып, ' +
+        'ескерткіштің мәліметтерін (атауы, түрі, санаты, мәртебесі…) толтырып сақтағанда ғана белгілер тізіміне өтеді.</p>' +
+      '<div class="qa-sfilter"><label class="qa-search">' + ic(IC.search, 16) + '<input type="search" id="mkIQ" placeholder="Іздеу: атауы, файлы…" aria-label="Импортталғандардан іздеу" autocomplete="off"></label>' +
+        '<select id="mkIFile" aria-label="Файл бойынша сүзу"><option value="">Барлық файл</option></select></div>' +
+      '<div class="qa-selbar"><label class="qa-check"><input type="checkbox" id="mkImpShow" checked> Картада көрсету</label>' +
+        '<label class="qa-check"><input type="checkbox" id="mkImpLabels"> Атаулары</label><span id="mkIInfo"></span></div>' +
+      '<div class="qa-slist" id="mkImpList"></div>' +
+    '</div>' +
     '<footer class="qa-df">' +
       '<button type="button" class="btn btn--steppe btn--sm" id="mkGeo" disabled title="Белгілердің нүктелері (WGS 84) — GeoJSON">GeoJSON</button>' +
       '<button type="button" class="btn btn--primary btn--sm" id="mkDocx" disabled title="Ескерткіштер тізімі — Word кестесі">Word (DOCX)</button>' +
       '<button type="button" class="btn btn--ghost btn--sm" id="mkPdf" disabled title="Ескерткіштер тізімі — PDF кестесі">PDF</button>' +
-      '<input type="file" id="mkGeoFile" accept=".geojson,.json,application/geo+json,application/json" hidden>' +
-      '<button type="button" class="lnk qa-grow" id="mkImport" title="GeoJSON файлынан нүктелерді белгі ретінде қосу">GeoJSON-нан қосу</button>' +
+      '<button type="button" class="btn btn--ghost btn--sm mk-imponly" id="mkIDelAll" hidden title="Барлық импортталған нүктелерді тізімнен өшіру (белгілерге әсер етпейді)">Барлығын өшіру</button>' +
+      '<input type="file" id="mkGeoFile" accept=".geojson,.json,.kml,.kmz,.gpx,application/geo+json,application/json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml" multiple hidden>' +
+      '<button type="button" class="lnk qa-grow" id="mkImport" title="Импорттау: KML, KMZ, GPX — «Импортталғандарға» (сәйкестендіру үшін); GeoJSON (Mura GIS белгілері) — бірден белгілерге">Импорттау (KML, KMZ, GPX, GeoJSON)</button>' +
       '<span class="qa-cinfo" id="mkBusy" role="status"></span>' +
     '</footer>';
   stage.appendChild(d);

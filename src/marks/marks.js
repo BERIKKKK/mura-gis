@@ -6,7 +6,8 @@
      • белгілер панелі мен «Мәліметтер» / «Сақталған аймақтар» / «Нүктелер» панельдері бірін-бірі жабады.
    Интерфейс бөліктері — marks/marks-dom.js, экспорт — marks/export.js, сұрыптау — marks/sort.js. */
 import { parseOne, genitive } from '../qorgau/app.js';
-import { sortMarks, arabizeRoman, compareText } from './sort.js';
+import { sortMarks, arabizeRoman, compareText, compareNames } from './sort.js';
+import { parseGeoFile } from './geofiles.js';
 import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, sections, coordLines, nameCell } from './export.js';
 
 const $ = id => document.getElementById(id);
@@ -24,6 +25,7 @@ const store = {
 };
 
 let items = [];               // барлық белгілер (сақталғандары)
+let imports = [];             // импортталған, әлі сәйкестендірілмеген нүктелер (KML, KMZ, GPX)
 let marking = false;          // «Белгі қою» режимі
 let dragging = false;
 
@@ -43,6 +45,7 @@ async function api(op, data) {
   const j = await r.json();
   if (!j.ok) throw new Error(j.error || 'Сақтау қатесі');
   if (Array.isArray(j.items)) { items = j.items; render(); }
+  if (Array.isArray(j.imports)) { imports = j.imports; renderImports(); }
   return j;
 }
 async function saveMark(m) {
@@ -179,7 +182,7 @@ function openDialog(m, o = {}) {
   back.className = 'qa-dlg-back mk-dlg-back';
   back.innerHTML =
     '<form class="qa-dlg qa-glass mk-dlg" role="dialog" aria-modal="true" aria-labelledby="mkDlgT" novalidate>' +
-      '<h3 id="mkDlgT"><span class="mk-sym" id="mkSym"></span>' + (isNew ? 'Жаңа ескерткіш белгісі' : 'Ескерткіш белгісі') + '</h3>' +
+      '<h3 id="mkDlgT"><span class="mk-sym" id="mkSym"></span>' + esc(o.title || (isNew ? 'Жаңа ескерткіш белгісі' : 'Ескерткіш белгісі')) + '</h3>' +
       '<div class="qa-f"><label for="mkName">Атауы <span class="mk-req">*</span></label><input type="text" id="mkName" name="name" maxlength="200" required placeholder="Мысалы: Қабантау-V қорғаны" value="' + esc(v.name) + '">' +
         '<p class="qa-hint mk-key" id="mkKey" hidden></p></div>' +
       '<div class="qa-f"><label for="mkPeriod">Мерзімі (дәуірі)</label><input type="text" id="mkPeriod" name="period" maxlength="120" placeholder="б.з.б. VII–IV ғасырлар" value="' + esc(v.period) + '"></div>' +
@@ -263,6 +266,7 @@ function openDialog(m, o = {}) {
       if (REG) REG.remember(rec.oblast);          // соңғы облыс — келесі белгіге де, жаңа қорғау аймағына да әдепкі
       closeDialog();
       toast(isNew ? 'Белгі сақталды: «' + name + '».' : 'Белгі жаңартылды: «' + name + '».');
+      if (o.onSaved) o.onSaved(saved);
       if (saved && !map.getBounds().contains([saved.lat, saved.lon])) map.panTo([saved.lat, saved.lon]);
     } catch (ex) { showErr(ex.message); btn.disabled = false; }
   });
@@ -316,6 +320,7 @@ function openPanel() {
   listBtn.setAttribute('aria-expanded', 'true');
   applyRight();
   render();
+  renderImports();
 }
 function closePanel() {
   if (!open) return;
@@ -375,6 +380,7 @@ $('mkTitleAuto').addEventListener('click', () => { titleAuto = true; paintTitle(
 
 function render() {
   $('mkCount').textContent = items.length;
+  $('mkTabN').textContent = items.length;
   drawMarkers();
   // Облыс сүзгісі (бірден көп облыс болса ғана көрінеді) және аудан сүзгісі — бар белгілердің мәндері
   const os = $('mkFOblast'), oc = os.value;
@@ -473,20 +479,147 @@ $('mkGeo').addEventListener('click', () => {
 $('mkDocx').addEventListener('click', () => busy('Word құжаты жасалуда…', async () => { download(await buildDocx(), '', fileName('docx')); }));
 $('mkPdf').addEventListener('click', () => busy('PDF жасалуда…', async () => { download(await buildPdf(), '', fileName('pdf')); }));
 
-// GeoJSON-нан қосу (басқа компьютерден, QGIS-тен)
+/* ======================= Импорт ======================= */
+// GeoJSON (Mura GIS белгілері, QGIS) — бірден белгілерге; KML, KMZ, GPX — «Импортталғандарға»: сәйкестендірілгенше белгі емес
 $('mkImport').addEventListener('click', () => $('mkGeoFile').click());
 $('mkGeoFile').addEventListener('change', async e => {
-  const f = e.target.files && e.target.files[0];
+  const files = [...(e.target.files || [])];
   e.target.value = '';
-  if (!f) return;
-  await busy('Импортталуда…', async () => {
-    let o;
-    try { o = JSON.parse(await f.text()); } catch (ex) { throw new Error('Файл оқылмады: JSON емес.'); }
-    const list = fromGeojson(o).filter(m => m.name && isFinite(m.lat) && isFinite(m.lon));
-    if (!list.length) throw new Error('Файлда атауы бар нүкте (Point) табылмады.');
-    const r = await api('import', { data: JSON.stringify(list) });
-    toast('Қосылды: ' + r.added + ', жаңартылды: ' + r.updated + (r.skipped ? ', қабылданбады: ' + r.skipped : '') + '.');
+  for (const f of files) {
+    await busy('Импортталуда: ' + f.name + '…', async () => {
+      if (/\.(kml|kmz|gpx)$/i.test(f.name)) {
+        const pts = await parseGeoFile(f, /\.kmz$/i.test(f.name) ? await loadFflate() : null);
+        if (!pts.length) throw new Error(f.name + ': нүкте табылмады.');
+        const r = await api('iadd', { data: JSON.stringify(pts) });
+        toast(f.name + ': ' + r.added + ' нүкте импортталды' + (r.skipped ? ', ' + r.skipped + ' қайталанған не қате нүкте алынбады' : '') + '. Оларды «Импортталғандар» қойындысынан сәйкестендіріңіз.');
+        setTab('imp');
+        const fresh = imports.filter(x => x.file === f.name);
+        if (fresh.length) map.fitBounds(L.latLngBounds(fresh.map(x => [x.lat, x.lon])).pad(0.2), { maxZoom: 15 });
+        return;
+      }
+      let o;
+      try { o = JSON.parse(await f.text()); } catch (ex) { throw new Error(f.name + ': файл оқылмады (JSON емес).'); }
+      const list = fromGeojson(o).filter(m => m.name && isFinite(m.lat) && isFinite(m.lon));
+      if (!list.length) throw new Error(f.name + ': атауы бар нүкте (Point) табылмады.');
+      const r = await api('import', { data: JSON.stringify(list) });
+      toast('Қосылды: ' + r.added + ', жаңартылды: ' + r.updated + (r.skipped ? ', қабылданбады: ' + r.skipped : '') + '.');
+      setTab('marks');
+    });
+  }
+});
+
+/* ---------- Қойындылар: Белгілер | Импортталғандар ---------- */
+let tab = 'marks';
+function setTab(t) {
+  tab = t === 'imp' ? 'imp' : 'marks';
+  if (!open) openPanel();
+  $('mkTabMarks').hidden = tab !== 'marks';
+  $('mkTabImp').hidden = tab !== 'imp';
+  $('mkTabMarksB').setAttribute('aria-selected', tab === 'marks' ? 'true' : 'false');
+  $('mkTabImpB').setAttribute('aria-selected', tab === 'imp' ? 'true' : 'false');
+  for (const id of ['mkGeo', 'mkDocx', 'mkPdf']) $(id).hidden = tab !== 'marks';
+  $('mkIDelAll').hidden = tab !== 'imp' || !imports.length;
+  if (tab === 'imp' && !$('mkImpShow').checked) { $('mkImpShow').checked = true; paintImpVisibility(); }
+  renderImports();
+}
+panelEl.addEventListener('click', e => { const b = e.target.closest('[data-mktab]'); if (b) setTab(b.dataset.mktab); });
+
+/* ---------- Импортталған нүктелер: карта қабаты ---------- */
+const impLayer = L.layerGroup();
+function impIcon() {
+  return L.divIcon({ className: 'mk-imp', iconSize: [18, 18], iconAnchor: [9, 9], tooltipAnchor: [0, -9], html: '<span>?</span>' });
+}
+function drawImports() {
+  impLayer.clearLayers();
+  const labels = $('mkImpLabels').checked;
+  for (const x of imports) {
+    const mk = L.marker([x.lat, x.lon], { icon: impIcon(), keyboard: false, riseOnHover: true });
+    mk.bindTooltip(esc(x.name || '(атаусыз)') + '<small>импортталған · сәйкестендірілмеген</small>', { direction: 'top', permanent: labels, className: 'mk-tip mk-imptip' + (labels ? ' is-perm' : '') });
+    const menuAt = ev => {
+      const oe = ev.originalEvent;
+      L.DomEvent.preventDefault(oe);
+      globalThis.MuraCtx?.openMenu(oe.clientX, oe.clientY, esc(x.name || '(атаусыз)'), [
+        { label: 'Сәйкестендіру', hint: 'белгі ретінде мәліметтерін толтыру', icon: '<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/>', run: () => identify(x) },
+        { label: 'Координатаны көшіру', hint: x.lat.toFixed(7) + ', ' + x.lon.toFixed(7), icon: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', run: () => (globalThis.mura?.clipWrite ? globalThis.mura.clipWrite(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7)) : navigator.clipboard.writeText(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7))) },
+        'sep',
+        { label: 'Импорттан өшіру', icon: '<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/>', run: () => removeImport(x) },
+      ]);
+    };
+    mk.on('click', menuAt);
+    mk.on('contextmenu', menuAt);
+    mk.addTo(impLayer);
+  }
+}
+function paintImpVisibility() {
+  const on = $('mkImpShow').checked;
+  if (on && !map.hasLayer(impLayer)) impLayer.addTo(map);
+  if (!on && map.hasLayer(impLayer)) map.removeLayer(impLayer);
+}
+$('mkImpShow').addEventListener('change', paintImpVisibility);
+$('mkImpLabels').addEventListener('change', drawImports);
+for (const id of ['mkIQ', 'mkIFile']) $(id).addEventListener(id === 'mkIQ' ? 'input' : 'change', () => renderImports());
+
+/** Сәйкестендіру: импортталған нүкте — жаңа белгі терезесі (атауы, сипаттамасы, координатасы алдын ала толтырылған);
+    сақталғанда нүкте импорттан алынады. */
+function identify(x) {
+  const note = [x.desc, 'Импорт: ' + [x.file, x.folder].filter(Boolean).join(' / ')].filter(Boolean).join('\n');
+  openDialog({ name: x.name || '', note, lat: x.lat, lon: x.lon }, {
+    title: 'Импортталған нүктені сәйкестендіру',
+    onSaved: async () => { try { await api('idel', { id: x.id }); } catch (e) { toast(e.message, true); } },
   });
+}
+async function removeImport(x) {
+  try { await api('idel', { id: x.id }); toast('Импорттан өшірілді: «' + (x.name || '(атаусыз)') + '».'); }
+  catch (e) { toast(e.message, true); }
+}
+$('mkIDelAll').addEventListener('click', async () => {
+  if (!(await ask('Барлық импортталған нүкте (' + imports.length + ') тізімнен өшірілсін бе? Сәйкестендірілген белгілерге әсер етпейді.', { ok: 'Өшіру', danger: true }))) return;
+  try { await api('idel', { id: 'all' }); toast('Импортталғандар тазаланды.'); } catch (e) { toast(e.message, true); }
+});
+
+function filteredImports() {
+  const q = $('mkIQ').value.trim().toLocaleLowerCase('kk'), ff = $('mkIFile').value;
+  return imports.filter(x => (!ff || x.file === ff) && (!q || (x.name + ' ' + x.desc + ' ' + x.file + ' ' + x.folder).toLocaleLowerCase('kk').includes(q)))
+    .sort((a, b) => compareText(a.file, b.file) || compareText(a.folder, b.folder) || compareNames(a.name, b.name));
+}
+function renderImports() {
+  $('mkTabI').textContent = imports.length;
+  $('mkTabImpB').classList.toggle('has-new', imports.length > 0);
+  drawImports();
+  const fs = $('mkIFile'), cur = fs.value, files = [...new Set(imports.map(x => x.file).filter(Boolean))].sort(compareText);
+  fs.innerHTML = '<option value="">Барлық файл</option>' + files.map(f => '<option' + (f === cur ? ' selected' : '') + '>' + esc(f) + '</option>').join('');
+  fs.hidden = files.length < 2;
+  if (!open || tab !== 'imp') return;
+  $('mkIDelAll').hidden = !imports.length;
+  const list = filteredImports();
+  $('mkIInfo').textContent = list.length === imports.length ? imports.length + ' нүкте' : list.length + ' / ' + imports.length + ' нүкте';
+  const box = $('mkImpList');
+  if (!imports.length) { box.innerHTML = '<div class="qa-empty">Импортталған нүкте жоқ. Төмендегі «Импорттау» арқылы KML, KMZ не GPX файлын таңдаңыз.</div>'; return; }
+  if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай нүкте табылмады.</div>'; return; }
+  let html = '', last = null;
+  for (const x of list.slice(0, 1000)) {
+    const g = x.file + (x.folder ? ' · ' + x.folder : '');
+    if (g !== last) { html += '<div class="mk-dhead">' + esc(g || 'Файл көрсетілмеген') + '</div>'; last = g; }
+    html += '<div class="qa-sc mk-card mk-impcard" data-iid="' + esc(x.id) + '"><span class="mk-imp mk-imp--inline"><span>?</span></span>' +
+      '<div class="qa-sc-main"><button type="button" class="qa-sc-title" data-iact="go" title="Картадан көрсету">' + esc(x.name || '(атаусыз)') + '</button>' +
+      (x.desc ? '<p class="qa-sc-desc">' + esc(x.desc) + '</p>' : '') +
+      '<div class="qa-sc-meta mk-cc">' + esc(coordLines(x).join(', ')) + '</div>' +
+      '<div class="qa-sc-act"><button type="button" class="lnk mk-ident" data-iact="ident">Сәйкестендіру</button><button type="button" class="lnk" data-iact="go">Картадан көрсету</button>' +
+      '<button type="button" class="lnk lnk--danger" data-iact="del">Өшіру</button></div></div></div>';
+  }
+  if (list.length > 1000) html += '<div class="qa-empty">Тағы ' + (list.length - 1000) + ' нүкте — іздеу не файл сүзгісін қолданыңыз.</div>';
+  box.innerHTML = html;
+}
+$('mkImpList').addEventListener('click', e => {
+  const b = e.target.closest('[data-iact]'), card = e.target.closest('[data-iid]');
+  if (!b || !card) return;
+  const x = imports.find(i => i.id === card.dataset.iid);
+  if (!x) return;
+  if (b.dataset.iact === 'go') {
+    if (!$('mkImpShow').checked) { $('mkImpShow').checked = true; paintImpVisibility(); }
+    map.flyTo([x.lat, x.lon], Math.max(map.getZoom(), 15), { duration: 0.6 });
+  } else if (b.dataset.iact === 'ident') identify(x);
+  else if (b.dataset.iact === 'del') removeImport(x);
 });
 
 /* Мәртебе түстерінің шартты белгісі (панельде) */
@@ -494,6 +627,7 @@ $('mkLegend').innerHTML = CATEGORIES.slice().sort((a, b) => a.order - b.order).m
 
 /* ======================= Іске қосу ======================= */
 paintLayerVisibility();
+paintImpVisibility();
 api('list').catch(e => { toast('Белгілер жүктелмеді: ' + e.message, true); render(); });
 
-globalThis.__marks = { symbolSvg, exportSections, get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };
+globalThis.__marks = { symbolSvg, exportSections, get imports() { return imports; }, setTab, identify, get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };
