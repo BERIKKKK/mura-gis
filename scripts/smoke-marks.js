@@ -124,6 +124,24 @@ async function run(win) {
     out.ctxPaste = (pb.disabled ? 'disabled' : 'enabled ' + pb.querySelector('small').textContent);
     pb.click(); await wait(300);
     out.ctxPasted = document.getElementById('qaInLat').value + ' / ' + document.getElementById('qaInLon').value;
+    out.exportHidden = getComputedStyle(document.getElementById('qaExportBtn')).display;
+    document.getElementById('qaOpenSaved').click(); await wait(300);
+    out.savedActs2 = [...document.querySelector('.qa-sc-act').querySelectorAll('button')].filter(b => getComputedStyle(b).display !== 'none').map(b => b.textContent).join(', ');
+    document.querySelector('[data-zexp]').click(); await wait(200);
+    out.expMenu = [...document.querySelectorAll('.mura-ctx button')].map(b => b.querySelector('span').firstChild.textContent).join(' | ');
+    out.expOpts = !!document.querySelector('#qaPanelSaved .zd-expopts #qaGeoMode') + ' / ' + (document.querySelector('.zd-combt') || {}).textContent;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    document.getElementById('qaOpenSaved').click(); await wait(200);
+    // Шекараны 1-нүктені басып жабу → терезе ашылады
+    document.getElementById('qaSample').click(); await wait(1200);
+    document.querySelector('.qa-dlg-back [data-v="1"]')?.click(); await wait(1200);
+    if (document.getElementById('qaAddMode').getAttribute('aria-pressed') !== 'true') document.getElementById('qaAddMode').click();
+    await wait(200);
+    const v1 = [...document.querySelectorAll('.qa-vx')].find(v => v.textContent.trim() === '1');
+    const vr = v1.getBoundingClientRect(), xy = { clientX: vr.left + 5, clientY: vr.top + 5, bubbles: true };
+    v1.dispatchEvent(new PointerEvent('pointerdown', xy)); v1.dispatchEvent(new MouseEvent('click', xy)); await wait(300);
+    out.closeByFirst = 'dialog ' + !!document.querySelector('.zd-dlg') + ', pts ' + __qa.state.pts.length + ', add ' + document.getElementById('qaAddMode').getAttribute('aria-pressed');
+    document.getElementById('zdCancel')?.click(); await wait(100);
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());

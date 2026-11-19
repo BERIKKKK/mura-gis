@@ -68,7 +68,7 @@ body.mura .qa-map .leaflet-bottom.leaflet-right .leaflet-control-attribution { m
 body.mura .qa-map .leaflet-bottom.leaflet-right .qa-legend { margin-bottom: 6px; }
 
 /* ---------- Қорғау аймағын «Аяқтау» терезесі (js/zone-dialog.js) — «Мәліметтер» бөлімдері уақытша осында ---------- */
-.qa-dlg.zd-dlg { width: min(640px, 100%); }
+.qa-dlg.zd-dlg { width: min(560px, 100%); }
 .zd-dlg .qa-sec + .qa-sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(34, 29, 22, .10); }
 .zd-dlg .qa-sec h3, .zd-dlg .zd-h { margin: 0 0 8px; font-size: 14px; }
 .zd-dlg .zd-h { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(34, 29, 22, .10); }
@@ -77,3 +77,15 @@ body.mura .qa-map .leaflet-bottom.leaflet-right .qa-legend { margin-bottom: 6px;
 .zd-dlg .qa-dlg-btns { position: sticky; bottom: -14px; margin: 0 -18px -14px; padding: 10px 18px 14px; background: #fbf9f4; border-top: 1px solid rgba(34, 29, 22, .10); }
 .zd-mark { padding-bottom: 4px; }
 .zd-mark select { width: 100%; }
+/* «Аяқтау» терезесі белгі терезесіндей: бөлім тақырыптары жоқ, өрістер ықшам */
+.zd-dlg .zd-body > .qa-sec:first-of-type h3, .zd-dlg .zd-mark + .qa-sec h3 { display: none; }
+.zd-dlg .qa-sec + .qa-sec { margin-top: 4px; padding-top: 10px; }
+.zd-dlg .zd-mark + .qa-sec { margin-top: 0; padding-top: 0; border-top: 0; }
+.zd-dlg textarea { min-height: 52px !important; }
+.zd-dlg .qa-rule { font-size: 12px; padding: 6px 9px; margin: 2px 0 8px; }
+.zd-dlg .qa-res { font-size: 12px; }
+.zd-dlg .qa-res th, .zd-dlg .qa-res td { padding: 4px 5px; }
+.zd-expopts { margin-top: 12px; font-size: 12.5px; }
+.zd-expopts > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.zd-expopts .qa-opts { margin-top: 8px; }
+.zd-combt { width: 100%; font-size: 12px; font-weight: 600; color: var(--soft); }

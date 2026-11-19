@@ -20,7 +20,7 @@ function paintFinish() {
   fin.disabled = !ok;
   fin.classList.toggle('is-dirty', ok && dirty);
   fin.dataset.tip = !ok ? 'Аяқтау: алдымен шекараның кемінде 4 нүктесін қойыңыз'
-    : dirty ? 'Аяқтау: сақталмаған өзгерістер бар — мәліметтерді тексеріп, сақтаңыз' : 'Аяқтау: мәліметтерді толтырып, қорғау аймағын сақтау';
+    : dirty ? 'Аяқтау: сақталмаған өзгерістер бар — мәліметтерді тексеріп, сақтаңыз' : 'Аяқтау: мәліметтерді толтырып, қорғау аймағын сақтау (не 1-нүктені басып, шекараны жабыңыз)';
 }
 if (dirtyEl) new MutationObserver(paintFinish).observe(dirtyEl, { attributes: true, attributeFilter: ['hidden'] });
 function toast(msg, err) {
@@ -28,6 +28,33 @@ function toast(msg, err) {
   if (!t) return;
   t.textContent = msg; t.classList.toggle('is-err', !!err); t.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, err ? 5000 : 3200);
+}
+
+/* ---------- Шекараны жабу: нүкте қою режимінде 1-нүктені басса — «Аяқтау» (белгі қойғандағыдай терезе бірден ашылады) ---------- */
+const mapEl = $('qaMap');
+let downAt = null;
+if (mapEl) {
+  mapEl.addEventListener('pointerdown', e => { downAt = e.target.closest('.qa-vx') ? { x: e.clientX, y: e.clientY } : null; }, true);
+  mapEl.addEventListener('click', e => {
+    const vx = e.target.closest('.qa-vx');
+    if (!vx || !downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 4) return;   // сүйреу емес, басу
+    if (vx.textContent.trim() !== '1' || !ready()) return;
+    const add = $('qaAddMode');
+    if (!add || add.getAttribute('aria-pressed') !== 'true') return;
+    openDialog();
+  });
+}
+const cntEl = $('qaCount');
+if (cntEl) {                                       // 4-нүкте қойылғанда — кеңес (бір рет)
+  let hinted = false;
+  new MutationObserver(() => {
+    const add = $('qaAddMode');
+    if (!hinted && ready() && add && add.getAttribute('aria-pressed') === 'true' && !QA.state.loadedId) {
+      hinted = true;
+      toast('Шекара дайын: «Аяқтау» басыңыз не 1-нүктені басып, шекараны жабыңыз.');
+    }
+    if (!QA.state.pts.length) hinted = false;
+  }).observe(cntEl, { childList: true, characterData: true, subtree: true });
 }
 
 /* ---------- Белгіленген ескерткіштер: шекараға жақындығы ---------- */
@@ -116,18 +143,20 @@ function openDialog() {
   if (near.length) {
     const box = document.createElement('section');
     box.className = 'qa-sec zd-mark';
-    box.innerHTML = '<div class="qa-f"><label for="zdMark">Белгіленген ескерткіш</label><select id="zdMark"><option value="">— таңдалмаған —</option>' +
+    box.innerHTML = '<div class="qa-f"><label for="zdMark">Белгіленген ескерткіш <small class="mk-law">(мәліметтер белгіден алынады)</small></label><select id="zdMark"><option value="">— таңдалмаған —</option>' +
       near.map(x => '<option value="' + escapeHtml(x.m.id) + '"' + (pre && pre.m.id === x.m.id ? ' selected' : '') + '>' + escapeHtml(x.m.name) +
         (x.m.district ? ' — ' + escapeHtml(x.m.district) : '') + (x.in ? ' · шекара ішінде' : x.d < Infinity ? ' · ' + fmtD(x.d) : '') + '</option>').join('') +
-      '</select><p class="qa-hint" id="zdMarkHint">Таңдасаңыз, атауы, мерзімі, облыс, аудан, орналасқан жері мен түрі белгіден толтырылады.</p></div>';
+      '</select><p class="qa-hint" id="zdMarkHint" hidden></p></div>';
     body.appendChild(box);
     box.querySelector('select').addEventListener('change', e => {
       const m = marks().find(x => x.id === e.target.value);
-      if (m) { fillFromMark(m); box.querySelector('#zdMarkHint').textContent = 'Мәліметтер «' + m.name + '» белгісінен толтырылды — қажет болса түзетіңіз.'; }
+      const h = box.querySelector('#zdMarkHint');
+      if (m) { fillFromMark(m); h.textContent = 'Мәліметтер «' + m.name + '» белгісінен толтырылды — қажет болса түзетіңіз.'; h.hidden = false; }
     });
     if (pre && (auto || pendingMark === pre.m.id)) {
       fillFromMark(pre.m);
-      box.querySelector('#zdMarkHint').textContent = (auto ? 'Шекара ішіндегі белгі таңдалды: ' : 'Мәліметтер белгіден толтырылды: ') + '«' + pre.m.name + '». Қажет болса түзетіңіз.';
+      const h = box.querySelector('#zdMarkHint');
+      h.textContent = (auto ? 'Шекара ішіндегі белгі таңдалды: ' : 'Мәліметтер белгіден толтырылды: ') + '«' + pre.m.name + '». Қажет болса түзетіңіз.'; h.hidden = false;
     }
   }
   pendingMark = null;
@@ -213,6 +242,19 @@ if (savedBox) new MutationObserver(() => {
 
 /* «Қорғау аймақтары» тізімі: әр жазбада «Өңдеу» — жазбаны ашып, мәліметтер терезесін бірден көрсетеді
    («Ашу» — тек картаға ашады: шекараны түзетіп, кейін «Аяқтау» басуға болады) */
+/** Жазбаны редакторға ашу (қажет болса — app.js сақталмаған өзгерістер туралы сұрайды); ашылса — true. */
+async function ensureLoaded(id) {
+  const st = QA.state;
+  if (st.loadedId === id) return true;
+  const open = savedBox && savedBox.querySelector('[data-open="' + CSS.escape(id) + '"]');
+  if (!open) return false;
+  open.click();
+  for (let i = 0; i < 1200 && st.loadedId !== id; i++) {
+    await new Promise(r => setTimeout(r, 100));
+    if (st.loadedId !== id && i > 3 && !document.querySelector('.qa-dlg-back')) return false;   // бас тартты
+  }
+  return st.loadedId === id;
+}
 async function editRecord(id) {
   const st = QA.state;
   if (st.loadedId !== id) {
@@ -239,10 +281,62 @@ if (savedBox) {
       b.type = 'button'; b.className = 'lnk'; b.dataset.zedit = open.getAttribute('data-open');
       b.textContent = 'Өңдеу'; b.title = 'Мәліметтерді өңдеу (атауы, орналасқан жері, аймақ өлшемдері) және сақтау';
       open.after(b);
+      // Экспорт: әр ескерткіштің өз экспорты (GeoJSON, Word, сызба PNG) — бір батырмадан
+      const geo = act.querySelector('[data-geo]');
+      if (geo) {
+        geo.classList.add('mura-gone');
+        const x = document.createElement('button');
+        x.type = 'button'; x.className = 'lnk'; x.dataset.zexp = geo.getAttribute('data-geo');
+        x.textContent = 'Экспорт ▾'; x.title = 'Осы ескерткіштің қорғау аймағын экспорттау: GeoJSON, Word (DOCX), сызба (PNG)';
+        geo.before(x);
+      }
     }
   };
   new MutationObserver(addEdit).observe(savedBox, { childList: true, subtree: true });
   addEdit();
-  savedBox.addEventListener('click', e => { const b = e.target.closest('[data-zedit]'); if (b) editRecord(b.dataset.zedit); });
+  savedBox.addEventListener('click', e => {
+    const b = e.target.closest('[data-zedit]');
+    if (b) { editRecord(b.dataset.zedit); return; }
+    const x = e.target.closest('[data-zexp]');
+    if (x) exportMenu(x.dataset.zexp, x);
+  });
+}
+
+/* Жеке экспорт: GeoJSON — жазбаның өзінен (ашпай); Word мен сызба — жазба ашылып, «Мәліметтер» панеліндегі экспорт арқылы */
+const ICX = {
+  geo: '<path d="M12 3v12"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>',
+  doc: '<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>',
+  png: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 16l-5-5-8 8"/>',
+};
+async function exportRecord(id, kind) {
+  if (kind === 'geo') { savedBox.querySelector('[data-geo="' + CSS.escape(id) + '"]')?.click(); return; }
+  if (!(await ensureLoaded(id))) return;
+  const btn = $(kind === 'docx' ? 'qaDocx' : 'qaPng');
+  for (let i = 0; i < 50 && btn.disabled; i++) await new Promise(r => setTimeout(r, 100));   // аймақтар есептелгенше
+  if (btn.disabled) { toast('Аймақтар есептелмеді — шекараны тексеріңіз.', true); return; }
+  toast(kind === 'docx' ? 'Word құжаты жасалуда (карта суреті жүктелуде)…' : 'Сызба жасалуда…');
+  btn.click();
+}
+function exportMenu(id, anchor) {
+  const r = anchor.getBoundingClientRect();
+  globalThis.MuraCtx?.openMenu(r.left, r.bottom + 4, 'Жеке экспорт', [
+    { label: 'GeoJSON', hint: 'аймақтар шекарасы (QGIS)', icon: ICX.geo, run: () => exportRecord(id, 'geo') },
+    { label: 'Word (DOCX)', hint: 'мәтін, сызба, аудандары', icon: ICX.doc, run: () => exportRecord(id, 'docx') },
+    { label: 'Сызба (PNG)', hint: 'фоны — картадағы қабат', icon: ICX.png, run: () => exportRecord(id, 'png') },
+  ]);
+}
+
+/* Жеке экспорт баптаулары («Мәліметтер» панелінен) — «Қорғау аймақтары» панеліне; төменде — біріктіріп экспорттау */
+{
+  const opts = document.querySelector('#qaResSec .qa-opts'), db = $('qaPanelSaved')?.querySelector('.qa-db'), df = $('qaPanelSaved')?.querySelector('.qa-df');
+  if (opts && db) {
+    const d = document.createElement('details');
+    d.className = 'qa-combine zd-expopts';
+    d.innerHTML = '<summary>Жеке экспорт баптаулары</summary>';
+    d.appendChild(opts);
+    db.appendChild(d);
+  }
+  if (df) df.insertAdjacentHTML('afterbegin', '<span class="zd-combt">Таңдалғандарды біріктіріп экспорттау:</span>');
 }
 globalThis.MuraZone.editRecord = editRecord;
+globalThis.MuraZone.exportRecord = exportRecord;

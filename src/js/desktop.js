@@ -23,7 +23,7 @@
 
   /* ---------- Құралдар жолағы жұмыс реті бойынша ----------
      [Белгілер — marks/marks-dom.js қосады] → [Қорғау аймағы: шекара — Нүкте қою, Болдырмау, Ретке келтіру, Тіктөртбұрыш, Нүктелер, Аяқтау]
-     → [Қорғау аймағы: деректер — Қорғау аймақтары, Экспорт] → [Өлшеу] → [Көрініс: Сыйғызу, Толық экран] … ⋯, Сақтау */
+     → [Қорғау аймақтары (тізім, өңдеу, экспорт)] → [Өлшеу] → [Көрініс: Сыйғызу, Толық экран] … ⋯, Сақтау */
   var tmain = $('qaTmain');
   var gBorder = $('qaAddMode').closest('.qa-tgroup'), gData = $('qaPtsBtn').closest('.qa-tgroup'), gMeasure = $('qaRuler').closest('.qa-tgroup');
   gBorder.setAttribute('aria-label', 'Қорғау аймағы: шекара');
@@ -54,6 +54,9 @@
   });
   // «Мәліметтер» батырмасы жоқ: мәліметтер «Аяқтау» терезесінде, өңдеу — «Қорғау аймақтары» тізімінен.
   // Панельдің өзі қалады (экспорт: «Экспорт» батырмасы оны ашады) — батырма элементі жасырын түрде сақталады.
+  // «Экспорт» батырмасы да жоқ: әр ескерткіштің экспорты және біріктіріп экспорттау — «Қорғау аймақтары» панелінде
+  var exp = $('qaExportBtn');
+  if (exp) { exp.removeAttribute('data-prio'); exp.className = 'qa-tbtn mura-gone'; }
   var info = $('qaOpenInfo');
   if (info) { info.className = 'qa-tbtn mura-gone'; info.removeAttribute('title'); info.setAttribute('aria-label', 'Мәліметтер'); gData.appendChild(info); }
   tmain.insertBefore(gData, gMeasure);
