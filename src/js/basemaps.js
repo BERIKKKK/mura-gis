@@ -40,6 +40,9 @@
       url: SAT_URL, maxNative: 18, probe: true,
       attribution: '© Esri, Maxar, Earthstar Geographics' },
   ];
+  // Esri Wayback — спутник суретінің бұрынғы нұсқалары, жылдар бойынша салыстыру (js/wayback.js; қабат пен панельді сол жасайды)
+  var WAYBACK = { id: 'wayback', kind: 'sat', label: 'Спутник: Esri Wayback (жылдар бойынша)', sw: 'sat',
+    make: function (map) { return window.MuraWayback.create(map); } };
   var BUILTIN_OVL = [
     { id: 'esri-places', overlay: true, label: 'Атаулар мен шекаралар (Esri)',
       url: ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maxNative: 19,
@@ -94,11 +97,12 @@
     function rebuildCatalog() {
       bases = {}; overlays = {};
       BUILTIN.forEach(function (d) { bases[d.id] = d; });
+      if (window.MuraWayback) bases[WAYBACK.id] = WAYBACK;
       BUILTIN_OVL.forEach(function (d) { overlays[d.id] = d; });
       customs().forEach(function (d) { d.custom = true; if (d.overlay) overlays[d.id] = d; else bases[d.id] = d; });
     }
     rebuildCatalog();
-    function layerOf(d) { if (!layers[d.id]) { layers[d.id] = makeLayer(d); watch(layers[d.id], d); } return layers[d.id]; }
+    function layerOf(d) { if (!layers[d.id]) { layers[d.id] = d.make ? d.make(map) : makeLayer(d); watch(layers[d.id], d); } return layers[d.id]; }
 
     var base = store.get(KEY_BASE, 'osm');
     if (!bases[base]) base = 'osm';

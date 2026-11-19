@@ -99,3 +99,34 @@ body.mura .qa-rlbl { position: relative; padding-left: 20px; }
 .mura-rdel { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; padding: 0; border: 0; border-radius: 50%;
   background: rgba(255, 255, 255, .22); color: #fff; font: 700 12px/15px system-ui, sans-serif; text-align: center; cursor: pointer; pointer-events: auto; }
 .mura-rdel:hover { background: #d6261f; }
+
+/* ===== Esri Wayback: нұсқа таңдау панелі және салыстыру бөлгіші (js/wayback.js) ===== */
+.wb-panel { position: absolute; z-index: 1000; top: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 140px);
+  display: flex; flex-direction: column; gap: 5px; padding: 7px 10px; background: var(--white); border: 1px solid var(--line); border-radius: 9px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, .22); font: 13px/1.2 system-ui, 'Segoe UI', sans-serif; color: var(--ink); }
+.wb-panel[hidden] { display: none; }
+.wb-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.wb-row[hidden] { display: none; }
+.wb-title { font-weight: 700; margin-right: 2px; }
+.wb-lbl { color: var(--soft); font-size: 12px; min-width: 52px; }
+.wb-panel .wb-sel { flex: none; width: auto; min-width: 118px; margin: 0; height: 28px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); color: var(--ink); font: inherit; font-variant-numeric: tabular-nums; }
+.wb-panel .wb-step, .wb-panel .wb-swap { flex: none; margin: 0; width: 28px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: var(--white); color: var(--ink); font-size: 11px; cursor: pointer; }
+.wb-swap { font-size: 15px; }
+.wb-step:hover:not([disabled]), .wb-swap:hover { background: var(--paper2); }
+.wb-step[disabled] { opacity: .4; cursor: default; }
+.wb-panel .wb-chk { flex: none; width: auto; white-space: nowrap; color: var(--ink); font-weight: 400; display: inline-flex; align-items: center; gap: 5px; margin-left: 4px; font-size: 12.5px; cursor: pointer; user-select: none; }
+.wb-chk.is-busy::after { content: ''; width: 10px; height: 10px; border: 2px solid var(--line); border-top-color: var(--terr); border-radius: 50%; animation: wb-spin .8s linear infinite; }
+@keyframes wb-spin { to { transform: rotate(360deg); } }
+.wb-panel .wb-chk input { width: auto; height: auto; margin: 0; }
+.wb-row--info { justify-content: space-between; gap: 14px; }
+.wb-info { color: var(--soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+.wb-divider { position: absolute; z-index: 450; top: 0; bottom: 0; width: 0; pointer-events: none; }
+.wb-divider[hidden] { display: none; }
+.wb-divider::before { content: ''; position: absolute; top: 0; bottom: 0; left: -1.5px; width: 3px; background: #fff; box-shadow: 0 0 4px rgba(0, 0, 0, .55); }
+.wb-handle { position: absolute; top: 50%; left: -17px; width: 34px; height: 34px; margin-top: -17px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border: 2px solid #fff; border-radius: 50%; background: var(--terr); color: #fff; cursor: ew-resize; pointer-events: auto; box-shadow: 0 2px 8px rgba(0, 0, 0, .45); touch-action: none; }
+.wb-handle:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.wb-side { position: absolute; top: calc(50% + 28px); padding: 3px 8px; border-radius: 5px; background: rgba(34, 29, 22, .85); color: #fff; font: 600 12px/1.2 system-ui, 'Segoe UI', sans-serif; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.wb-side--a { right: 10px; }
+.wb-side--b { left: 10px; }
+.wb-side:empty { display: none; }

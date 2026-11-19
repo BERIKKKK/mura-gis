@@ -2,6 +2,7 @@
    Картаны оң жақ батырмамен басқанда: координатаны көшіру (ондық градус / ° ′ ″), алмасу буферіндегі координатаны қою
    (картадан көрсету), осы жерге белгі қою, осы жерге шекара нүктесін қосу, белгіленген мәтінді көшіру.
    Белгіні оң жақ батырмамен басқанда: оның координатасын көшіру, өңдеу, қорғау аймағын бастау.
+   Екеуінде де: осы нүктені Google Maps-та ашу — қалыпты карта не спутник (жүйенің браузерінде).
    Мәтін өрістеріндегі мәзірді (Қию / Көшіру / Қою / Барлығын белгілеу) негізгі процесс көрсетеді (main/main.js).
    Шекара нүктесін оң жақ батырмамен басу бұрынғыдай — нүктені өшіреді; сызғыш режимінде — өлшеуден бас тарту. */
 import { parseOne } from '../qorgau/app.js';
@@ -18,6 +19,8 @@ const IC = {
   pin: '<path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><path d="M12 7.5v5M9.5 10h5"/>',
   edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
   zone: '<path d="M4 8l8-4 8 4v8l-8 4-8-4z"/><path d="M8 10l4-2 4 2v4l-4 2-4-2z"/>',
+  gmap: '<path d="M9 4L3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/>',
+  gsat: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5c-2.6-2.4-3.8-5.2-3.8-8.5s1.2-6.1 3.8-8.5z"/>',
 };
 const icon = p => '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>';
 
@@ -104,6 +107,16 @@ const copyItems = p => [
   { label: 'Координатаны көшіру', hint: fmtDec(p), icon: IC.copy, run: async () => { if (await clipWrite(fmtDec(p))) toast('Көшірілді: ' + fmtDec(p)); } },
   { label: 'Координатаны көшіру (° ′ ″)', hint: fmtDms(p), icon: IC.copy, run: async () => { if (await clipWrite(fmtDms(p))) toast('Көшірілді: ' + fmtDms(p)); } },
 ];
+/* Google Maps: осы нүкте белгімен, картаның қазіргі масштабымен; «!3m1!1e3» — спутник түрі. Сілтеме жүйенің браузерінде ашылады (main.js). */
+function gmapsUrl(p, sat) {
+  const ll = p.lat.toFixed(7) + ',' + p.lon.toFixed(7);
+  const z = Math.max(3, Math.min(21, Math.round(map ? map.getZoom() : 17)));
+  return 'https://www.google.com/maps/place/' + ll + '/@' + ll + ',' + z + 'z' + (sat ? '/data=!3m1!1e3' : '');
+}
+const gmapsItems = p => [
+  { label: 'Google Maps-та ашу', hint: 'қалыпты карта', icon: IC.gmap, run: () => window.open(gmapsUrl(p, false)) },
+  { label: 'Google Maps-та ашу (спутник)', hint: 'спутник түсірілімі', icon: IC.gsat, run: () => window.open(gmapsUrl(p, true)) },
+];
 /** Алмасу буферіндегі координатаны картадан көрсету: төменгі координата панеліне қойып, «Көрсету». */
 function showPasted(p) {
   const lat = $('qaInLat'), lon = $('qaInLon');
@@ -127,6 +140,8 @@ if (map) map.on('contextmenu', async e => {
     'sep',
     { label: 'Осы жерге белгі қою', icon: IC.flag, run: () => globalThis.__marks?.openDialog({ lat: p.lat, lon: p.lon }) },
     { label: 'Осы жерге шекара нүктесін қосу', icon: IC.pin, run: () => addBoundaryPoint(p) },
+    'sep',
+    ...gmapsItems(p),
   ];
   if (sel) items.push('sep', { label: 'Көшіру', hint: sel.length > 40 ? sel.slice(0, 40) + '…' : sel, icon: IC.copy, run: () => clipWrite(sel) });
   const m = openMenu(oe.clientX, oe.clientY, esc(fmtDec(p)), items);
@@ -155,6 +170,8 @@ function forMark(m, ev) {
     'sep',
     { label: 'Өңдеу', icon: IC.edit, run: () => globalThis.__marks?.openDialog(m) },
     { label: 'Қорғау аймағын белгілеу', icon: IC.zone, run: () => globalThis.MuraZone?.startFromMark(m) },
+    'sep',
+    ...gmapsItems(m),
   ]);
 }
 

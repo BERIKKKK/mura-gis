@@ -109,6 +109,7 @@ ${html.trim()}
 
 <script type="application/json" id="qaSiteData">[]</script>
 <script src="vendor/leaflet/leaflet.js"></script>
+<script src="js/wayback.js"></script>
 <script src="js/basemaps.js"></script>
 <script>window.QA_FFLATE = 'vendor/fflate.js'; window.QA_API = 'mura://app/api?v=1';</script>
 <script src="js/desktop.js"></script>
