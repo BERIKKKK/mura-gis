@@ -1,8 +1,9 @@
 /* Mura GIS: «Қорғау аймағы» қызметінің интерфейс қабығы.
    Есеп, карта, сақтау мен экспорт — app.js; бұл файл тек интерфейсті басқарады:
      • бүйірлік панельдер (Мәліметтер / Сақталған аймақтар / Нүктелер; мобильде — төменнен шығатын drawer);
-     • бір қатарлы құралдар жолағы: орын жетпесе алдымен жазулар жасырылады, содан кейін басымдығы төмен
-       құралдар «⋯» мәзіріне көшеді (data-prio: 0 — ешқашан жасырылмайды; сан үлкен болған сайын ертерек жасырылады);
+     • құралдар жолағының төменгі қатары (таңдалған қызметтің батырмалары, js/services.js): орын жетпесе алдымен жазулар
+       жасырылады, содан кейін басымдығы төмен құралдар «⋯» мәзіріне көшеді (data-prio: 0 — ешқашан жасырылмайды;
+       сан үлкен болған сайын ертерек жасырылады). Басқа қызметтің батырмалары (.mura-off) есепке алынбайды;
      • поповерлер (өлшеу баптаулары, тіктөртбұрыш) және «⋯» мәзірі;
      • төменгі координата панелін жасыру/ашу (күйі браузерде сақталады);
      • бүкіл жұмыс аймағын (құралдар жолағымен бірге) толық экранға жаю;
@@ -49,7 +50,9 @@ function pad() {
 }
 
 /* ======================= Құралдар жолағы: бір қатар + «⋯» ======================= */
-const items = [...tmain.querySelectorAll('.qa-tbtn[data-prio]')];
+const allItems = [...tmain.querySelectorAll('.qa-tbtn[data-prio]')];
+let items = allItems;
+const activeItems = () => allItems.filter(b => !b.closest('.mura-off'));
 const groups = [...tmain.querySelectorAll('.qa-tgroup')];
 const fits = () => tmain.scrollWidth <= tmain.clientWidth + 1;
 function syncGroups() { groups.forEach(gr => { gr.hidden = !gr.querySelector('.qa-tbtn:not([hidden])'); }); }
@@ -58,7 +61,8 @@ function layoutBar(force) {
   const w = tmain.clientWidth;
   if (!force && w === lastW) return;
   lastW = w;
-  items.forEach(b => { b.hidden = false; b.classList.remove('is-icon'); });
+  allItems.forEach(b => { b.hidden = false; b.classList.remove('is-icon'); });
+  items = activeItems();
   syncGroups();
   bar.classList.remove('is-compact');
   // 1) басымдығы төмен құралдардан бастап жазуларды жасырамыз (тек иконка қалады);
@@ -271,6 +275,8 @@ new ResizeObserver(relayout).observe(tmain);
 new ResizeObserver(relayout).observe($('qaStage'));
 for (const id of ['qaCoordBar', 'qaCoordShow', ...Object.values(PANELS)]) new ResizeObserver(relayout).observe($(id));
 mqMobile.addEventListener('change', relayout);
+// Қызмет ауысқанда (js/services.js) — төменгі қатар басқа батырмалармен қайта сыйғызылады
+app.addEventListener('mura:service', () => { closePop(); measure(); layoutBar(true); });
 // app.js өз баптауларын (туралау мәні, т.б.) орнатқаннан кейін
 document.addEventListener('DOMContentLoaded', () => { paintSnap(); measure(); layoutBar(true); });
 

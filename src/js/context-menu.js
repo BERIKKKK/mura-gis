@@ -138,7 +138,7 @@ if (map) map.on('contextmenu', async e => {
     ...copyItems(p),
     pasteItem,
     'sep',
-    { label: 'Осы жерге белгі қою', icon: IC.flag, run: () => globalThis.__marks?.openDialog({ lat: p.lat, lon: p.lon }) },
+    { label: 'Осы жерге белгі қою', icon: IC.flag, run: () => { globalThis.MuraSvc?.set('marks'); globalThis.__marks?.openDialog({ lat: p.lat, lon: p.lon }); } },
     { label: 'Осы жерге шекара нүктесін қосу', icon: IC.pin, run: () => addBoundaryPoint(p) },
     'sep',
     ...gmapsItems(p),

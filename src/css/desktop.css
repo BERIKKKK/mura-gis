@@ -30,12 +30,41 @@ body.mura .mura-bar .qa-total { font-size: 11px; font-weight: 700; background: v
 body.mura .mura-bar .qa-tbtn[aria-expanded="true"] { background: var(--ink); color: var(--paper); }
 body.mura .mura-bar .qa-tbtn[aria-expanded="true"] .qa-total { background: rgba(255, 255, 255, .2); color: #fff; }
 
+/* ===== Екі қатарлы жолақ (js/services.js): жоғарыда — қызметтер мен ортақ құралдар, төменде — қызметтің батырмалары ===== */
+body.mura .qa-tb.mura-2rows { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+body.mura .mura-svcrow { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 8px; background: var(--paper); border-bottom: 1px solid var(--line); }
+body.mura .mura-svcs { display: flex; flex: 0 1 auto; min-width: 0; gap: 2px; padding: 2px; border-radius: 10px; background: var(--paper2); }
+body.mura .mura-svc { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 14px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--soft); font: 600 13px/1 system-ui, 'Segoe UI', Roboto, Arial, sans-serif; white-space: nowrap; cursor: pointer; transition: background .12s, color .12s; }
+body.mura .mura-svc:hover { color: var(--ink); background: rgba(34, 29, 22, .06); }
+body.mura .mura-svc[aria-selected="true"] { background: var(--white); color: var(--terr); box-shadow: 0 1px 3px rgba(34, 29, 22, .16); }
+body.mura .mura-svc:focus-visible { outline: 2px solid var(--terr); outline-offset: 1px; }
+body.mura .mura-common { display: flex; align-items: center; gap: 2px; margin-left: auto; flex: 0 0 auto; }
+body.mura .mura-svcrow .qa-tbtn { height: 30px; min-width: 30px; }
+body.mura .mura-svcrow .qa-tright { gap: 2px; }
+body.mura .mura-2rows .qa-tmain { padding: 4px 8px; min-height: 42px; }
+body.mura .mura-2rows .qa-tmain > .qa-tgroup.mura-first { margin-left: 0; padding-left: 0; border-left: 0; }
+body.mura .mura-off { display: none !important; }
+@media (hover: hover) and (pointer: fine) {
+  body.mura .mura-common .qa-tbtn[data-tip]::after { left: auto; right: 0; transform: none; }
+  body.mura .mura-2rows .qa-tmain > .qa-tgroup.mura-first .qa-tbtn:first-child::after { left: 0; transform: none; }
+}
+@media (max-width: 640px) {
+  body.mura .mura-svc { padding: 0 10px; }
+  body.mura .mura-svcrow .qa-tl { display: none; }
+}
+@media (max-width: 460px) {
+  body.mura .mura-svc span { display: none; }
+}
+
 /* ===== Бүйірлік панельдер: картаның оң жиегіне жабысқан ===== */
 @media (min-width: 768px) {
   body.mura .qa-drawer { top: 0; right: 0; bottom: 0; border-radius: 0; border-top: 0; border-right: 0; border-bottom: 0;
     background: var(--white); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: -4px 0 18px rgba(34, 29, 22, .10); }
 }
-body.mura .qa-pop { border-radius: 10px; }
+body.mura .qa-app { position: relative; }
+/* Поповерлер #qaApp ішінде (js/desktop-ui.js) — құралдар жолағының үстінде */
+body.mura .qa-pop { border-radius: 10px; z-index: 950; }
 
 /* ===== Төменгі күй жолағы ===== */
 .mura-status {
