@@ -119,6 +119,7 @@ ${html.trim()}
 <script type="module" src="marks/marks.js"></script>
 <script type="module" src="js/zone-dialog.js"></script>
 <script type="module" src="js/context-menu.js"></script>
+<script type="module" src="js/desktop-ui.js"></script>
 </body>
 </html>
 `;

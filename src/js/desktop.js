@@ -22,8 +22,8 @@
   app.insertBefore(bar, stage);
 
   /* ---------- Құралдар жолағы жұмыс реті бойынша ----------
-     [Белгілер — marks/marks-dom.js қосады] → [Қорғау аймағы: шекара — Нүкте қою, Болдырмау, Ретке келтіру, Тіктөртбұрыш, Нүктелер, Аяқтау]
-     → [Қорғау аймақтары (тізім, өңдеу, экспорт)] → [Өлшеу] → [Көрініс: Сыйғызу, Толық экран] … ⋯, Сақтау */
+     [Белгілер — marks/marks-dom.js қосады] → [Қорғау аймағы: шекара — Нүкте қою, Болдырмау, Нүктелер, Аяқтау]
+     → [Қорғау аймақтары (тізім, өңдеу, экспорт)] → [Өлшеу: Сызғыш, бұрыш, Ретке келтіру, Тіктөртбұрыш] → [Көрініс: Сыйғызу, Толық экран] … ⋯ */
   var tmain = $('qaTmain');
   var gBorder = $('qaAddMode').closest('.qa-tgroup'), gData = $('qaPtsBtn').closest('.qa-tgroup'), gMeasure = $('qaRuler').closest('.qa-tgroup');
   gBorder.setAttribute('aria-label', 'Қорғау аймағы: шекара');
@@ -31,6 +31,18 @@
   gBorder.classList.add('mura-zone');
   gData.classList.add('mura-zone');
   gBorder.appendChild($('qaPtsBtn'));
+  // «Ретке келтіру» мен «Тіктөртбұрыш» — бұрышты туралаудан кейін (өлшеу / геометрия құралдары)
+  gMeasure.setAttribute('aria-label', 'Өлшеу және геометрия');
+  gMeasure.appendChild($('qaSort'));
+  gMeasure.appendChild($('qaRectBtn'));
+  // «⋯» мәзірі: «GeoJSON файлын ашу» мен «Тізіммен енгізу» — «Нүктелер» панелінде бар; «Үлгіні ашу» — үлгі жазба
+  // «Қорғау аймақтары» тізімінде (main/store.js бір рет қосады, өшірсе — қайта пайда болмайды)
+  ['qaMenuPaste', 'qaSample'].forEach(function (id) { var el = $(id); if (el) el.classList.add('mura-gone'); });
+  var mm = $('qaMoreMenu');
+  if (mm) {
+    var gp = mm.querySelector('[data-proxy="qaGeoOpen"]'); if (gp) gp.classList.add('mura-gone');
+    [].forEach.call(mm.querySelectorAll('.qa-msep:not(#qaMoreSep)'), function (s) { s.classList.add('mura-gone'); });
+  }
   // «Аяқтау»: шекара белгіленген соң — мәліметтер терезесі және сақтау (js/zone-dialog.js)
   var fin = document.createElement('button');
   fin.type = 'button'; fin.className = 'qa-tbtn mura-finish'; fin.id = 'qaFinish';

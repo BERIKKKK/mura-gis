@@ -142,6 +142,24 @@ async function run(win) {
     v1.dispatchEvent(new PointerEvent('pointerdown', xy)); v1.dispatchEvent(new MouseEvent('click', xy)); await wait(300);
     out.closeByFirst = 'dialog ' + !!document.querySelector('.zd-dlg') + ', pts ' + __qa.state.pts.length + ', add ' + document.getElementById('qaAddMode').getAttribute('aria-pressed');
     document.getElementById('zdCancel')?.click(); await wait(100);
+    // Поповер батырманың астында
+    document.getElementById('qaSnapBtn').click(); await wait(300);
+    const pb2 = document.getElementById('qaSnapBtn').getBoundingClientRect(), pp = document.getElementById('qaPopMeasure').getBoundingClientRect();
+    out.popUnder = Math.round(pp.left - pb2.left) + 'px / ' + Math.round(pp.top - pb2.bottom) + 'px';
+    document.getElementById('qaSnapBtn').click(); await wait(100);
+    document.getElementById('qaRectBtn').click(); await wait(300);
+    const rb = document.getElementById('qaRectBtn').getBoundingClientRect(), rp = document.getElementById('qaPopRect').getBoundingClientRect();
+    out.rectUnder = Math.round(rp.left - rb.left) + 'px / ' + Math.round(rp.top - rb.bottom) + 'px';
+    document.getElementById('qaRectBtn').click(); await wait(100);
+    out.moreMenu = [...document.querySelectorAll('#qaMoreMenu .qa-mi')].filter(b => getComputedStyle(b).display !== 'none' && !b.hidden).map(b => b.textContent.trim()).join(' | ');
+    // Сызғыш: өлшеу, картадағы «×» арқылы өшіру
+    document.getElementById('qaRuler').click(); await wait(100);
+    const mq = MuraMarks.map, c0 = mq.getCenter(), c1 = { lat: c0.lat + 0.0003, lng: c0.lng + 0.0004 };
+    for (const ll of [c0, c1]) { mq.fire('click', { latlng: ll, containerPoint: mq.latLngToContainerPoint(ll), originalEvent: new MouseEvent('click') }); await wait(150); }
+    document.getElementById('qaRuler').click(); await wait(200);
+    out.rulerBefore = document.querySelectorAll('#qaRulerList li').length + ' өлшем, × ' + document.querySelectorAll('.mura-rdel').length;
+    document.querySelector('.mura-rdel')?.click(); await wait(200);
+    out.rulerAfter = document.querySelectorAll('#qaRulerList li').length + ' өлшем, × ' + document.querySelectorAll('.mura-rdel').length;
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());

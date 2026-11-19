@@ -148,14 +148,27 @@ function about() {
   let site = {};
   try { site = JSON.parse(fs.readFileSync(path.join(SRC, 'site-version.json'), 'utf8')); } catch (e) { /* жоқ */ }
   dialog.showMessageBox(win, {
-    type: 'info', title: 'Mura GIS туралы', buttons: ['Жабу', 'GitHub беті'], cancelId: 0,
-    message: 'Mura GIS ' + app.getVersion(),
-    detail: 'Тарих және мәдениет ескерткіштерінің қорғау аймағын, құрылыс салуды реттеу аймағын және қорғалатын табиғи ' +
-      'ландшафт аймағын есептеу (ҚР МСМ 2020 ж. 14 сәуірдегі № 86 бұйрығы, 7–9-тармақтар).\n\n' +
+    type: 'info', title: 'Mura GIS туралы', buttons: ['Жабу', 'GitHub беті', 'Заң (Әділет)'], cancelId: 0,
+    message: 'Mura GIS ' + app.getVersion() + ' — тарихи-мәдени мұра объектілеріне арналған ГАЖ бағдарламасы',
+    detail:
+      'Мүмкіндіктері:\n' +
+      '• ескерткіштерді картада белгілеу: атауы, орналасқан жері, түрі, санаты, мәртебесі; ескерткіштер тізімі (DOCX, PDF), GeoJSON;\n' +
+      '• қорғау аймағын, құрылыс салуды реттеу аймағын және қорғалатын табиғи ландшафт аймағын есептеу, сызба мен құжат (DOCX, PNG, GeoJSON);\n' +
+      '• Қазақстанның барлық облыстары, республикалық маңызы бар қалалары және аудандары; өлшеу құралдары, карта қабаттары.\n\n' +
+      'Қолданылған нормативтік құқықтық актілер:\n' +
+      '• ҚР «Тарихи-мәдени мұра объектілерін қорғау және пайдалану туралы» Заңы, 2019 жылғы 26 желтоқсан, № 288-VI ҚРЗ — ' +
+      'ескерткіштердің түрлері (5-бап), санаттары (6-бап), мәртебесі (3–5-баптар), Мемлекеттік тізімдегі деректер (3-бап);\n' +
+      '• ҚР Мәдениет және спорт министрінің 2020 жылғы 14 сәуірдегі № 86 бұйрығы — қорғау аймақтарының, құрылыс салуды ' +
+      'реттеу аймақтарының және қорғалатын табиғи ландшафт аймақтарының шекаралары (7–9-тармақтар);\n' +
+      '• ескерткіштер тізімі кестесінің үлгісі — облыс әкімдігінің жергілікті маңызы бар тарих және мәдениет ескерткіштерінің ' +
+      'мемлекеттік тізімін бекіту туралы қаулысына қосымша (мыс. Түркістан облысы әкімдігінің 2020 ж. 17 қыркүйектегі № 188 қаулысы).\n\n' +
       'Деректер қалтасы: ' + store.dir + '\n' +
-      (site.siteCommit ? 'Құрал коды: aktobenasledie.kz (' + site.siteCommit + ')\n' : '') +
+      (site.siteCommit ? 'Қорғау аймағы құралының коды: aktobenasledie.kz (' + site.siteCommit + ')\n' : '') +
       'Electron ' + process.versions.electron,
-  }).then(r => { if (r.response === 1) shell.openExternal(REPO_URL); });
+  }).then(r => {
+    if (r.response === 1) shell.openExternal(REPO_URL);
+    if (r.response === 2) shell.openExternal('https://adilet.zan.kz/kaz/docs/Z1900000288');
+  });
 }
 
 async function exportStore() {
@@ -184,6 +197,7 @@ app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(
 app.whenReady().then(() => {
   store = new Store(path.join(app.getPath('userData'), 'data'));
   marks = new MarksStore(store.dir);
+  try { store.seedSample(); } catch (e) { console.error('Үлгі жазба қосылмады:', e.message); }
 
   protocol.handle('mura', req => {
     const u = new URL(req.url);

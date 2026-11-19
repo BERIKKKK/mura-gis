@@ -93,3 +93,9 @@ body.mura .qa-app.is-fs, body.mura .qa-app:fullscreen { display: flex; flex-dire
 .mura-ctx button span { min-width: 0; }
 .mura-ctx small { display: block; font: 11px/1.3 ui-monospace, Consolas, monospace; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mura-ctx-sep { height: 1px; margin: 3px 6px; background: var(--line); }
+
+/* ===== Сызғыш өлшемін өшіру (js/desktop-ui.js) ===== */
+body.mura .qa-rlbl { position: relative; padding-left: 20px; }
+.mura-rdel { position: absolute; left: 3px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; padding: 0; border: 0; border-radius: 50%;
+  background: rgba(255, 255, 255, .22); color: #fff; font: 700 12px/15px system-ui, sans-serif; text-align: center; cursor: pointer; pointer-events: auto; }
+.mura-rdel:hover { background: #d6261f; }
