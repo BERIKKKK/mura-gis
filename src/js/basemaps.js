@@ -1,317 +1,312 @@
-/* Сайттың assets/js/app.js файлынан автоматты көшірілген (scripts/sync-from-site.mjs). Қолмен өзгертпеңіз. */
+/* Mura GIS: карта қабаттары — тек сыртқы сервистер (бағдарламаның өз модулі, сайттан көшірілмейді).
+ *
+ * Сайттағы модуль (assets/js/app.js → AqmBasemaps) топокартаны aktobenasledie.kz серверінен алады;
+ * бағдарлама одан тәуелсіз: негізгі карталар мен үстіңгі қабаттар ашық сыртқы тайл-сервистерден жүктеледі,
+ * пайдаланушы өз XYZ сервисін (мыс. SAS.Planet, QGIS-те қолданатын сілтеме) «Сыртқы карта қосу» арқылы қоса алады.
+ *
+ * Интерфейсі сайттағымен бірдей: AqmBasemaps.attach(map, el) → { mode(), set(id) };
+ * карта ауысқанда map 'basemapchange' оқиғасы шығады. mode() — 'sat' (спутник түрі) не 'std':
+ * құралдың сызба (PNG/DOCX) фонын таңдауы осыған сүйенеді (qorgau/app.js → schemeIsSat).
+ */
 (function () {
   'use strict';
-  var Basemaps = (function () {
-    var KEY = 'aqm.basemap';
-    var cfg = null;
-    try { var ce = document.getElementById('mapBasemaps'); if (ce) cfg = JSON.parse(ce.textContent || 'null'); } catch (e) { cfg = null; }
-    var T = (cfg && cfg.i18n) || {};
-    var STD_MAX = 18;
+  var L = window.L;
+  if (!L) return;
 
-    function saved() { try { var v = localStorage.getItem(KEY); return v === 'topo' || v === 'sat' ? v : 'std'; } catch (e) { return 'std'; } }
-    function save(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
-    function topoOk() { return !!(cfg && cfg.available && cfg.layers && cfg.layers.length); }
+  var KEY_BASE = 'mura.basemap', KEY_OVL = 'mura.overlays', KEY_CUSTOM = 'mura.custom-maps';
+  var ESRI = 'https://server.arcgisonline.com/ArcGIS/rest/services/';
+  var SAT_URL = ESRI + 'World_Imagery/MapServer/tile/{z}/{y}/{x}';
 
-    function stdLayer() {
-      return L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: STD_MAX, zIndex: 1 });
+  /* ---------- Кірістірілген каталог ---------- */
+  var BUILTIN = [
+    { id: 'osm', kind: 'std', label: 'OpenStreetMap', sw: 'std',
+      url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxNative: 19,
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' },
+    { id: 'otm', kind: 'std', label: 'OpenTopoMap (топокарта)', sw: 'topo',
+      url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains: 'abc', maxNative: 17,
+      attribution: '© OpenStreetMap, SRTM · © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)' },
+    { id: 'esri-topo', kind: 'std', label: 'Esri World Topo', sw: 'topo2',
+      url: ESRI + 'World_Topo_Map/MapServer/tile/{z}/{y}/{x}', maxNative: 19,
+      attribution: '© Esri, HERE, Garmin, OpenStreetMap' },
+    { id: 'sat', kind: 'sat', label: 'Спутник (Esri)', sw: 'sat',
+      url: SAT_URL, maxNative: 18, probe: true,
+      attribution: '© Esri, Maxar, Earthstar Geographics' },
+  ];
+  var BUILTIN_OVL = [
+    { id: 'esri-places', overlay: true, label: 'Атаулар мен шекаралар (Esri)',
+      url: ESRI + 'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', maxNative: 19,
+      attribution: '© Esri' },
+    { id: 'esri-roads', overlay: true, label: 'Жолдар (Esri)',
+      url: ESRI + 'Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', maxNative: 19,
+      attribution: '© Esri' },
+  ];
+
+  var store = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* елемейміз */ } },
+  };
+  function customs() { var c = store.get(KEY_CUSTOM, []); return Array.isArray(c) ? c.filter(function (x) { return x && x.id && x.url; }) : []; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+  function makeLayer(d) {
+    var url = d.url, tms = false;
+    if (url.indexOf('{-y}') >= 0) { url = url.replace('{-y}', '{y}'); tms = true; }
+    var o = {
+      attribution: d.attribution || '', maxZoom: 20, maxNativeZoom: d.maxNative || 18,
+      zIndex: d.overlay ? 5 : 1, opacity: d.opacity != null ? d.opacity : 1, tms: tms,
+    };
+    if (d.subdomains) o.subdomains = d.subdomains;
+    if (d.kind === 'sat') o.className = 'sat-tiles';
+    return L.tileLayer(url, o);
+  }
+
+  /* Спутник: кей өңірде 18-масштабта сурет жоқ — көрініс ортасындағы ең үлкен бар масштабты тексеріп, одан әрі ұлғайтамыз */
+  var satZoomCache = {};
+  function satNativeZoom(lat, lng, done) {
+    var key = lat.toFixed(2) + ',' + lng.toFixed(2);
+    if (satZoomCache[key]) { done(satZoomCache[key]); return; }
+    var z = 18;
+    (function probe() {
+      var n = Math.pow(2, z), s = Math.sin(lat * Math.PI / 180);
+      var x = Math.floor((lng + 180) / 360 * n), y = Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n);
+      fetch(SAT_URL.replace('/tile/{z}/{y}/{x}', '/tilemap/' + z + '/' + y + '/' + x + '/1/1'))
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if ((j && j.data && j.data[0]) || z <= 13) { satZoomCache[key] = z; done(z); return; }
+          z--; probe();
+        })
+        .catch(function () { satZoomCache[key] = 18; done(18); });
+    })();
+  }
+
+  var ICON = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 5-9 5-9-5 9-5z"/><path d="M3 13l9 5 9-5"/></svg>';
+
+  function attach(map) {
+    var bases = {}, overlays = {}, layers = {};
+    function rebuildCatalog() {
+      bases = {}; overlays = {};
+      BUILTIN.forEach(function (d) { bases[d.id] = d; });
+      BUILTIN_OVL.forEach(function (d) { overlays[d.id] = d; });
+      customs().forEach(function (d) { d.custom = true; if (d.overlay) overlays[d.id] = d; else bases[d.id] = d; });
     }
-    // Қамту картасы (coverage.json, әр масштабқа 2 бит): 0 — тайл жоқ (аймақтық қамтудан тыс →
-    // сұраныс жіберілмейді, мөлдір орын арқылы астындағы OSM көрінеді), 1 — JPEG (толық ішінде),
-    // 2 — WebP (қамту шекарасымен қиылысатын тайл; шекарадан тыс пиксельдері мөлдір).
-    var BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-    function covDecode(cov) {
-      if (!cov || !cov.levels) return null;
-      var out = {};
-      Object.keys(cov.levels).forEach(function (z) {
-        var l = cov.levels[z];
-        out[z] = { x0: l.x0, y0: l.y0, w: l.w, h: l.h, b: atob(l.bits) };
+    rebuildCatalog();
+    function layerOf(d) { if (!layers[d.id]) { layers[d.id] = makeLayer(d); watch(layers[d.id], d); } return layers[d.id]; }
+
+    var base = store.get(KEY_BASE, 'osm');
+    if (!bases[base]) base = 'osm';
+    var onOvl = (store.get(KEY_OVL, []) || []).filter(function (id) { return overlays[id]; });
+    var api = {
+      mode: function () { return bases[base] && bases[base].kind === 'sat' ? 'sat' : 'std'; },
+      id: function () { return base; },
+      set: function (id) { setBase(id); },
+    };
+
+    /* --- Тайлдар жүктелмесе: хабарлама --- */
+    var notice = null, stat = {}, timer = null;
+    function watch(tl, d) {
+      tl.on('tileload', function () { bump(d, true); });
+      tl.on('tileerror', function () { bump(d, false); });
+    }
+    function bump(d, ok) {
+      var s = stat[d.id] || (stat[d.id] = { ok: 0, bad: 0 });
+      if (ok) s.ok++; else s.bad++;
+      clearTimeout(timer); timer = setTimeout(check, 1200);
+    }
+    function check() {
+      Object.keys(stat).forEach(function (id) {
+        var s = stat[id], d = bases[id] || overlays[id];
+        if (d && s.bad > 0 && s.ok === 0 && (id === base || onOvl.indexOf(id) >= 0)) showNotice(d);
       });
-      return out;
+      stat = {};
     }
-    function covValue(lv, z, x, y) {
-      var l = lv[z];
-      if (!l) return 0;
-      x -= l.x0; y -= l.y0;
-      if (x < 0 || y < 0 || x >= l.w || y >= l.h) return 0;
-      var i = (y * l.w + x) * 2;
-      return (l.b.charCodeAt(i >> 3) >> (6 - (i & 7))) & 3;
-    }
-    // Класс тек картасы бар бетте (Leaflet жүктелгенде) жасалады: басты бетте L жоқ — модуль
-    // анықталғанда L-ге жүгінсе, қате бүкіл app.js-ті тоқтатады (мыс. тақырып ауыстырғышы істемей қалады).
-    var CovLayer = null;
-    function covLayerClass() {
-      if (!CovLayer) CovLayer = L.TileLayer.extend({
-        getTileUrl: function (c) {
-          var lv = this.options.levels;
-          if (lv) {
-            var v = covValue(lv, c.z, c.x, c.y);
-            if (!v) return BLANK;
-            this.options.ext = v === 2 ? 'webp' : 'jpg';
-          }
-          return L.TileLayer.prototype.getTileUrl.call(this, c);
-        }
-      });
-      return CovLayer;
-    }
-    // Топокарта — OSM-нің ҮСТІНДЕГІ қабаттар тобы (астыңғысы бірінші): 1:1 млн шолу (5–10, ары қарай
-    // үлкейтіліп фон болады — ішкі бос орындарда да, 1:200 000 жүктелгенше де көрінеді) және
-    // 1:200 000 (11–12, 13-те үлкейтіледі). Аймақтық қамту ішінде топокарта мөлдір емес;
-    // одан тыс тайлдар жоқ, сондықтан бір картада өзінен-өзі OSM ашылады.
-    function topoLayer() {
-      var labels = cfg.layers.map(function (l) { return l.label; }).filter(Boolean);
-      var att = cfg.attribution + (labels.length ? ' (' + labels.join(', ') + ')' : '');
-      return L.layerGroup(cfg.layers.map(function (l, i) {
-        return new (covLayerClass())(l.url, {
-          minZoom: l.minZoom, maxNativeZoom: l.nativeZoom, maxZoom: cfg.maxZoom, zIndex: 2 + i,
-          bounds: l.bounds ? L.latLngBounds(l.bounds) : undefined, ext: 'jpg',
-          attribution: i === 0 ? att : undefined, className: 'topo-tiles', keepBuffer: 1, levels: covDecode(l.cov)
-        });
-      }));
+    map.on('zoomstart movestart', function () { clearTimeout(timer); stat = {}; });
+    function hideNotice() { if (notice) { notice.remove(); notice = null; } }
+    function showNotice(d) {
+      hideNotice();
+      notice = L.DomUtil.create('div', 'bm-notice', map.getContainer());
+      notice.setAttribute('role', 'status');
+      notice.innerHTML = '<span class="bm-notice-text"></span>' +
+        (d.overlay || d.id === 'osm' ? '' : '<button type="button" class="bm-notice-back">OpenStreetMap-қа оралу</button>') +
+        '<button type="button" class="bm-notice-close" aria-label="Жабу">×</button>';
+      notice.querySelector('.bm-notice-text').textContent = '«' + d.label + '» картасы жүктелмеді. Интернет байланысын не сервис мекенжайын тексеріңіз.';
+      L.DomEvent.disableClickPropagation(notice);
+      var back = notice.querySelector('.bm-notice-back');
+      if (back) back.addEventListener('click', function () { setBase('osm'); });
+      notice.querySelector('.bm-notice-close').addEventListener('click', hideNotice);
     }
 
-    /* --- Толық экран: Fullscreen API; ол жоқ браузерде (мыс. iPhone Safari) — CSS арқылы
-       бүкіл терезеге жаю (.map-fs). Карта қайта құрылмайды, тек өлшемі жаңарады. --- */
-    var FS_ON = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5V3h4.5M12.5 3H17v4.5M17 12.5V17h-4.5M7.5 17H3v-4.5"/></svg>';
-    var FS_OFF = '<svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.5 3v4.5H3M17 7.5h-4.5V3M12.5 17v-4.5H17M3 12.5h4.5V17"/></svg>';
-    function addFullscreen(map, el) {
-      var native = !!(el.requestFullscreen || el.webkitRequestFullscreen);
-      var wheelWas = map.scrollWheelZoom.enabled();
-      var btn = null, on = false;
-      function fsEl() { return document.fullscreenElement || document.webkitFullscreenElement || null; }
-      function paint() {
-        if (!btn) return;
-        btn.innerHTML = on ? FS_OFF : FS_ON;
-        var t = on ? (T.fsOff || 'Exit full screen') : (T.fsOn || 'Full screen');
-        btn.title = t; btn.setAttribute('aria-label', t); btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      }
-      function changed(state) {
-        on = state;
-        el.classList.toggle('is-fullscreen', on);
-        if (on) map.scrollWheelZoom.enable(); else if (!wheelWas) map.scrollWheelZoom.disable();
-        paint();
-        setTimeout(function () { map.invalidateSize(); }, 60);
-      }
-      function enter() {
-        if (native) {
-          var r = el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen();
-          if (r && r.catch) r.catch(function () { native = false; enter(); });   // рұқсат етілмесе — CSS нұсқасы
-          return;
-        }
-        el.classList.add('map-fs'); document.documentElement.classList.add('map-fs-lock'); changed(true);
-      }
-      function exit() {
-        if (fsEl() === el) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
-        el.classList.remove('map-fs'); document.documentElement.classList.remove('map-fs-lock'); changed(false);
-      }
-      ['fullscreenchange', 'webkitfullscreenchange'].forEach(function (ev) {
-        document.addEventListener(ev, function () { var f = fsEl() === el; if (f !== on) changed(f); });
-      });
-      document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && on && !fsEl()) exit(); });
-      var Ctl = L.Control.extend({
-        options: { position: 'topleft' },
-        onAdd: function () {
-          var box = L.DomUtil.create('div', 'leaflet-bar map-fs-ctl');
-          btn = L.DomUtil.create('a', 'map-fs-btn', box);
-          btn.href = '#'; btn.setAttribute('role', 'button');
-          L.DomEvent.on(btn, 'click', function (e) { L.DomEvent.preventDefault(e); if (on) exit(); else enter(); });
-          L.DomEvent.disableClickPropagation(box);
-          paint();
-          return box;
-        }
-      });
-      map.addControl(new Ctl());
+    /* --- Спутник: нақты масштабты тексеру --- */
+    var probeTimer = null;
+    function satCheck() {
+      var d = bases[base];
+      if (!d || !d.probe || map.getZoom() < 15) return;
+      clearTimeout(probeTimer);
+      probeTimer = setTimeout(function () {
+        var c = map.getCenter(), tl = layers[d.id];
+        satNativeZoom(c.lat, c.lng, function (z) { if (tl && tl.options.maxNativeZoom !== z) { tl.options.maxNativeZoom = z; tl.redraw(); } });
+      }, 300);
     }
+    map.on('moveend', satCheck);
 
-    // Спутник: Esri World Imagery. Кей өңірде 18-масштабта сурет жоқ («Map data not yet available»),
-    // сондықтан көрініс ортасында суреті бар ең үлкен масштаб тексеріліп, одан әрі тайлдар ұлғайтылады.
-    var SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-    var SAT_MAX = 19;
-    function satLayer() {
-      return L.tileLayer(SAT_URL, { attribution: '© Esri, Maxar, Earthstar Geographics', maxZoom: SAT_MAX, maxNativeZoom: 18, zIndex: 1, className: 'sat-tiles' });
+    function setBase(id) {
+      if (!bases[id]) return;
+      var prev = base;
+      if (prev !== id && layers[prev] && map.hasLayer(layers[prev])) map.removeLayer(layers[prev]);
+      base = id; store.set(KEY_BASE, id);
+      layerOf(bases[id]).addTo(map);
+      hideNotice(); satCheck(); paint();
+      if (prev !== id) map.fire('basemapchange', { mode: api.mode(), id: id });
     }
-    var satZoomCache = {};
-    function satNativeZoom(lat, lng, done) {
-      var key = lat.toFixed(2) + ',' + lng.toFixed(2);
-      if (satZoomCache[key]) { done(satZoomCache[key]); return; }
-      if (!window.fetch) { done(18); return; }
-      var z = 18;
-      (function probe() {
-        var n = Math.pow(2, z), s = Math.sin(lat * Math.PI / 180);
-        var x = Math.floor((lng + 180) / 360 * n), y = Math.floor((0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * n);
-        fetch(SAT_URL.replace('/tile/{z}/{y}/{x}', '/tilemap/' + z + '/' + y + '/' + x + '/1/1'))
-          .then(function (r) { return r.json(); })
-          .then(function (j) {
-            if ((j && j.data && j.data[0] === 1) || z <= 14) { satZoomCache[key] = z; done(z); }
-            else { z--; probe(); }
-          })
-          .catch(function () { satZoomCache[key] = 18; done(18); });
-      })();
-    }
-
-    var ICON_LAYERS = '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M10 2.5 2 6.5l8 4 8-4-8-4Z"/><path d="m2 10 8 4 8-4"/><path d="m2 13.5 8 4 8-4"/></svg>';
-
-    /* attach(map, el) → { mode(), set(m) }; режим ауысқанда map 'basemapchange' оқиғасын шығарады ({mode}). */
-    function attach(map, el) {
-      if (el && el.dataset.basemaps) addFullscreen(map, el);
-      var withMenu = !!(el && el.dataset.basemaps);
-      var hasTopo = withMenu && topoOk();
-      var layers = { std: stdLayer(), sat: withMenu ? satLayer() : null, topo: hasTopo ? topoLayer() : null };
-      var modes = ['std', 'sat'].concat(hasTopo ? ['topo'] : []);
-      var mode = withMenu ? saved() : 'std';
-      if (modes.indexOf(mode) < 0) mode = 'std';
-      var notice = null, opts = {}, keptZoom = null;
-      var api = { mode: function () { return mode; }, set: function (m) { set(m, true); } };
-      if (!withMenu) { layers.std.addTo(map); return api; }
-
-      // Ұлғайту шегі: топо кезінде cfg.maxZoom; асып тұрса — шекке дейін кішірейтеміз,
-      // ал басқа картаға оралғанда (пайдаланушы масштабты өзгертпесе) бұрынғы масштабты қайтарамыз.
-      function applyLimit(m) {
-        if (m === 'topo') {
-          if (map.getZoom() > cfg.maxZoom) { keptZoom = map.getZoom(); map.setZoom(cfg.maxZoom, { animate: false }); }
-          else keptZoom = null;
-          map.setMaxZoom(cfg.maxZoom);
-        } else {
-          map.setMaxZoom(m === 'sat' ? SAT_MAX : STD_MAX);
-          if (keptZoom !== null && map.getZoom() === cfg.maxZoom) map.setZoom(keptZoom, { animate: false });
-          keptZoom = null;
-        }
-      }
-
-      // --- Топокарта тайлдары жүктелмесе: хабарлама + OpenStreetMap-қа оралу ---
-      var ok = 0, bad = 0, timer = null;
-      function resetCount() { ok = 0; bad = 0; }
-      function check() { timer = null; if (mode === 'topo' && bad > 0 && ok === 0) showNotice(); resetCount(); }
-      function bump(isOk) { if (isOk) ok++; else bad++; clearTimeout(timer); timer = setTimeout(check, 900); }
-      if (layers.topo) layers.topo.eachLayer(function (tl) {
-        tl.on('tileload', function (e) { if (e.tile.src !== BLANK) bump(true); });
-        tl.on('tileerror', function () { bump(false); });
-      });
-      map.on('zoomstart movestart', function () { clearTimeout(timer); timer = null; resetCount(); });
-      map.on('zoomend', function () { if (mode === 'topo' && map.getZoom() !== cfg.maxZoom) keptZoom = null; });
-
-      // Спутник: суреті бар ең үлкен масштабты тексеру
-      var satTimer = null;
-      function satCheck() {
-        if (mode !== 'sat' || map.getZoom() < 15) return;
-        clearTimeout(satTimer);
-        satTimer = setTimeout(function () {
-          var c = map.getCenter();
-          satNativeZoom(c.lat, c.lng, function (z) {
-            if (layers.sat.options.maxNativeZoom !== z) { layers.sat.options.maxNativeZoom = z; layers.sat.redraw(); }
-          });
-        }, 300);
-      }
-      map.on('moveend', satCheck);
-
-      function hideNotice() { if (notice) { notice.remove(); notice = null; } }
-      function showNotice() {
-        if (notice) return;
-        notice = L.DomUtil.create('div', 'bm-notice', map.getContainer());
-        notice.setAttribute('role', 'status');
-        notice.innerHTML = '<span class="bm-notice-text"></span>' +
-          '<button type="button" class="bm-notice-back"></button>' +
-          '<button type="button" class="bm-notice-close">×</button>';
-        notice.querySelector('.bm-notice-text').textContent = T.failed || 'The topographic map could not be loaded.';
-        notice.querySelector('.bm-notice-back').textContent = T.back || 'Back';
-        var cl = notice.querySelector('.bm-notice-close');
-        cl.setAttribute('aria-label', T.close || 'Close');
-        L.DomEvent.disableClickPropagation(notice);
-        L.DomEvent.disableScrollPropagation(notice);
-        notice.querySelector('.bm-notice-back').addEventListener('click', function () { set('std', true); });
-        cl.addEventListener('click', hideNotice);
-      }
-
-      function paint() {
-        var c = map.getContainer();
-        c.classList.toggle('is-topo', mode === 'topo');
-        c.classList.toggle('is-sat', mode === 'sat');
-        Object.keys(opts).forEach(function (k) {
-          opts[k].classList.toggle('is-active', k === mode);
-          opts[k].setAttribute('aria-checked', k === mode ? 'true' : 'false');
-        });
-      }
-      // OSM топокартаның астында қалады (қамтудан тыс жерде көрінеді); спутник кезінде OSM алынады.
-      function set(m, persist) {
-        if (modes.indexOf(m) < 0) return;
-        if (persist) save(m);
-        if (m === mode) return;
-        if (mode === 'topo') map.removeLayer(layers.topo);
-        if (mode === 'sat') map.removeLayer(layers.sat);
-        if (m === 'sat') map.removeLayer(layers.std); else if (!map.hasLayer(layers.std)) layers.std.addTo(map);
-        mode = m;
-        applyLimit(m);
-        if (m === 'topo') layers.topo.addTo(map);
-        if (m === 'sat') { layers.sat.addTo(map); satCheck(); }
-        hideNotice(); resetCount(); paint();
-        map.fire('basemapchange', { mode: m });
-      }
-
-      applyLimit(mode);
-      if (mode === 'sat') layers.sat.addTo(map); else layers.std.addTo(map);
-      if (mode === 'topo') layers.topo.addTo(map);
-      if (mode === 'sat') map.whenReady(satCheck);
-
-      // --- «Карта қабаттары» ашылмалы мәзірі ---
-      var Ctl = L.Control.extend({
-        options: { position: 'topright' },
-        onAdd: function () {
-          var box = L.DomUtil.create('div', 'bm-layers');
-          var trig = L.DomUtil.create('button', 'bm-trigger', box);
-          trig.type = 'button';
-          trig.setAttribute('aria-haspopup', 'true');
-          trig.setAttribute('aria-expanded', 'false');
-          // Ықшам иконка; «Карта қабаттары» жазуы — меңзер апарғанда/фокуста шығатын кеңес (tooltip)
-          // және ашылған мәзірдің тақырыбы.
-          var title = T.layers || 'Map layers';
-          trig.setAttribute('aria-label', title);
-          trig.innerHTML = ICON_LAYERS + '<span class="bm-tip" aria-hidden="true"></span>';
-          trig.querySelector('.bm-tip').textContent = title;
-          var menu = L.DomUtil.create('div', 'bm-menu', box);
-          menu.setAttribute('role', 'menu');
-          menu.setAttribute('aria-label', title);
-          menu.hidden = true;
-          L.DomUtil.create('div', 'bm-menu-title', menu).textContent = title;
-          var labels = { std: T.osm || 'OpenStreetMap', sat: T.sat || 'Satellite', topo: T.topo || 'Topographic map' };
-          modes.forEach(function (k) {
-            var b = L.DomUtil.create('button', 'bm-opt', menu);
-            b.type = 'button';
-            b.setAttribute('role', 'menuitemradio');
-            b.innerHTML = '<span class="bm-sw bm-sw--' + k + '" aria-hidden="true"></span><span class="bm-opt-label"></span><span class="bm-radio" aria-hidden="true"></span>';
-            b.querySelector('.bm-opt-label').textContent = labels[k];
-            b.addEventListener('click', function () { set(k, true); close(true); });
-            opts[k] = b;
-          });
-          function open() { menu.hidden = false; trig.setAttribute('aria-expanded', 'true'); box.classList.add('is-open'); }
-          function close(focus) {
-            if (menu.hidden) return;
-            menu.hidden = true; trig.setAttribute('aria-expanded', 'false'); box.classList.remove('is-open');
-            if (focus) trig.focus();
-          }
-          trig.addEventListener('click', function () {
-            if (menu.hidden) { open(); (opts[mode] || menu.firstChild).focus(); } else close();
-          });
-          box.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') { close(true); return; }
-            if (menu.hidden || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
-            e.preventDefault();
-            var list = modes.map(function (k) { return opts[k]; });
-            var i = list.indexOf(document.activeElement);
-            list[(i + (e.key === 'ArrowDown' ? 1 : list.length - 1)) % list.length].focus();
-          });
-          document.addEventListener('click', function (e) { if (!box.contains(e.target)) close(); });
-          map.on('click movestart', function () { close(); });
-          L.DomEvent.disableClickPropagation(box);
-          L.DomEvent.disableScrollPropagation(box);
-          return box;
-        }
-      });
-      map.addControl(new Ctl());
+    function toggleOverlay(id, on) {
+      var d = overlays[id];
+      if (!d) return;
+      var i = onOvl.indexOf(id);
+      if (on && i < 0) onOvl.push(id);
+      if (!on && i >= 0) onOvl.splice(i, 1);
+      store.set(KEY_OVL, onOvl);
+      if (on) layerOf(d).addTo(map); else if (layers[id]) map.removeLayer(layers[id]);
       paint();
-      return api;
+    }
+    function removeCustom(id) {
+      var d = bases[id] || overlays[id];
+      if (!d || !d.custom) return;
+      if (!confirm('«' + d.label + '» картасын тізімнен өшіру керек пе?')) return;
+      if (layers[id]) { map.removeLayer(layers[id]); delete layers[id]; }
+      store.set(KEY_CUSTOM, customs().filter(function (x) { return x.id !== id; }));
+      onOvl = onOvl.filter(function (x) { return x !== id; }); store.set(KEY_OVL, onOvl);
+      var wasBase = id === base;
+      rebuildCatalog();
+      if (wasBase) setBase('osm');
+      render();
     }
 
-    return { attach: attach };
-  })();
-  // Әкімші панеліндегі құралдар (мыс. «Координат») сайттың картасын осы модуль арқылы қолданады
-  window.AqmBasemaps = Basemaps;
+    layerOf(bases[base]).addTo(map);
+    onOvl.forEach(function (id) { layerOf(overlays[id]).addTo(map); });
+    map.whenReady(satCheck);
+
+    /* --- «Карта қабаттары» мәзірі --- */
+    var box, menu, trig, opts = {};
+    function row(d, isOvl) {
+      var b = document.createElement('div');
+      b.className = 'bm-opt mura-opt';
+      b.setAttribute('role', isOvl ? 'menuitemcheckbox' : 'menuitemradio');
+      b.tabIndex = 0;
+      b.innerHTML = (isOvl ? '<span class="mura-chk" aria-hidden="true"></span>' : '<span class="bm-sw bm-sw--' + esc(d.sw || 'custom') + '" aria-hidden="true"></span>') +
+        '<span class="bm-opt-label">' + esc(d.label) + (d.custom ? '<small>өз картаңыз</small>' : '') + '</span>' +
+        (d.custom ? '<button type="button" class="mura-del" title="Тізімнен өшіру" aria-label="Өшіру">×</button>' : '') +
+        (isOvl ? '' : '<span class="bm-radio" aria-hidden="true"></span>');
+      function act() { if (isOvl) toggleOverlay(d.id, onOvl.indexOf(d.id) < 0); else setBase(d.id); }
+      b.addEventListener('click', function (e) {
+        if (e.target.closest('.mura-del')) { e.stopPropagation(); removeCustom(d.id); return; }
+        act();
+      });
+      b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+      opts[d.id] = b;
+      return b;
+    }
+    function title(text, extra) { var t = document.createElement('div'); t.className = 'bm-menu-title' + (extra ? ' ' + extra : ''); t.textContent = text; return t; }
+    function render() {
+      opts = {};
+      menu.innerHTML = '';
+      menu.appendChild(title('Негізгі карта'));
+      Object.keys(bases).forEach(function (id) { menu.appendChild(row(bases[id], false)); });
+      menu.appendChild(title('Үстіңгі қабаттар', 'mura-sub'));
+      Object.keys(overlays).forEach(function (id) { menu.appendChild(row(overlays[id], true)); });
+      var add = document.createElement('button');
+      add.type = 'button'; add.className = 'mura-add';
+      add.textContent = '+ Сыртқы карта қосу (XYZ)…';
+      add.addEventListener('click', function () { close(); openAddDialog(); });
+      menu.appendChild(add);
+      paint();
+    }
+    function paint() {
+      Object.keys(opts).forEach(function (id) {
+        var on = id === base || onOvl.indexOf(id) >= 0;
+        opts[id].classList.toggle('is-active', on);
+        opts[id].setAttribute('aria-checked', on ? 'true' : 'false');
+      });
+      map.getContainer().classList.toggle('is-sat', api.mode() === 'sat');
+    }
+    function open() { menu.hidden = false; trig.setAttribute('aria-expanded', 'true'); box.classList.add('is-open'); }
+    function close() { if (!menu || menu.hidden) return; menu.hidden = true; trig.setAttribute('aria-expanded', 'false'); box.classList.remove('is-open'); }
+
+    var Ctl = L.Control.extend({
+      options: { position: 'topright' },
+      onAdd: function () {
+        box = L.DomUtil.create('div', 'bm-layers');
+        trig = L.DomUtil.create('button', 'bm-trigger', box);
+        trig.type = 'button';
+        trig.setAttribute('aria-haspopup', 'true');
+        trig.setAttribute('aria-expanded', 'false');
+        trig.setAttribute('aria-label', 'Карта қабаттары');
+        trig.innerHTML = ICON + '<span class="bm-tip" aria-hidden="true">Карта қабаттары</span>';
+        menu = L.DomUtil.create('div', 'bm-menu mura-menu', box);
+        menu.setAttribute('role', 'menu');
+        menu.hidden = true;
+        render();
+        trig.addEventListener('click', function () { if (menu.hidden) open(); else close(); });
+        box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { close(); trig.focus(); } });
+        document.addEventListener('click', function (e) { if (!box.contains(e.target)) close(); });
+        map.on('click movestart', close);
+        L.DomEvent.disableClickPropagation(box);
+        L.DomEvent.disableScrollPropagation(box);
+        return box;
+      }
+    });
+    map.addControl(new Ctl());
+
+    /* --- Сыртқы карта қосу терезесі --- */
+    function openAddDialog() {
+      var dlg = document.createElement('div');
+      dlg.className = 'mura-dlg-back';
+      dlg.innerHTML =
+        '<form class="mura-dlg" role="dialog" aria-modal="true" aria-labelledby="muraAddT" novalidate>' +
+        '<h3 id="muraAddT">Сыртқы карта қосу</h3>' +
+        '<label>Атауы<input name="label" maxlength="60" placeholder="Мысалы: Генштаб 1:100 000"></label>' +
+        '<label>Тайлдар мекенжайы (XYZ үлгісі)<input name="url" spellcheck="false" placeholder="https://{s}.example.com/{z}/{x}/{y}.png"></label>' +
+        '<p class="mura-hint">Мекенжайда <code>{z}</code>, <code>{x}</code>, <code>{y}</code> болуы керек. Қосымша: <code>{s}</code> (субдомен a, b, c), <code>{-y}</code> (TMS нөмірлеуі). ' +
+        'Пішімі QGIS-тегі «XYZ Tiles» сілтемелерімен бірдей.</p>' +
+        '<div class="mura-dlg-row">' +
+        '<label>Түрі<select name="overlay"><option value="0">Негізгі карта</option><option value="1">Үстіңгі қабат</option></select></label>' +
+        '<label>Ең үлкен масштаб (z)<input name="max" type="number" min="1" max="22" value="18"></label>' +
+        '<label>Мөлдірсіздігі, %<input name="op" type="number" min="10" max="100" value="100"></label>' +
+        '</div>' +
+        '<label>Авторлық белгі (міндетті емес)<input name="attr" maxlength="120" placeholder="© …"></label>' +
+        '<p class="mura-err" role="alert" hidden></p>' +
+        '<div class="mura-dlg-btns"><button type="button" class="btn btn--ghost btn--sm" data-x>Бас тарту</button><button type="submit" class="btn btn--primary btn--sm">Қосу</button></div>' +
+        '</form>';
+      document.body.appendChild(dlg);
+      var f = dlg.querySelector('form'), err = dlg.querySelector('.mura-err');
+      function done() { dlg.remove(); document.removeEventListener('keydown', onKey, true); }
+      function onKey(e) { if (e.key === 'Escape') { e.stopPropagation(); done(); } }
+      document.addEventListener('keydown', onKey, true);
+      dlg.addEventListener('mousedown', function (e) { if (e.target === dlg) done(); });
+      dlg.querySelector('[data-x]').addEventListener('click', done);
+      f.elements.label.focus();
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var url = f.elements.url.value.trim();
+        var bad = !/^https?:\/\//i.test(url) ? 'Мекенжай http:// не https:// деп басталуы керек.' :
+          (url.indexOf('{z}') < 0 || url.indexOf('{x}') < 0 || (url.indexOf('{y}') < 0 && url.indexOf('{-y}') < 0)) ? 'Мекенжайда {z}, {x} және {y} болуы керек.' : '';
+        if (bad) { err.textContent = bad; err.hidden = false; return; }
+        var d = {
+          id: 'c' + Date.now().toString(36), custom: true, label: f.elements.label.value.trim() || 'Өз картам', url: url,
+          overlay: f.elements.overlay.value === '1', kind: 'std', sw: 'custom',
+          subdomains: url.indexOf('{s}') >= 0 ? 'abc' : undefined,
+          maxNative: Math.min(22, Math.max(1, parseInt(f.elements.max.value, 10) || 18)),
+          opacity: Math.min(100, Math.max(10, parseInt(f.elements.op.value, 10) || 100)) / 100,
+          attribution: esc(f.elements.attr.value.trim()),
+        };
+        var list = customs(); list.push(d); store.set(KEY_CUSTOM, list);
+        rebuildCatalog(); render();
+        if (d.overlay) toggleOverlay(d.id, true); else setBase(d.id);
+        done();
+      });
+    }
+
+    paint();
+    return api;
+  }
+
+  window.AqmBasemaps = { attach: attach };
 })();

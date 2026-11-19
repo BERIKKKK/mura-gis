@@ -9,7 +9,8 @@
  *   • «Сайттағы ескерткіштен толтыру» тізімі алынып тасталады (ол сайттың дерекқорына тәуелді);
  *   • Leaflet пен fflate жергілікті (офлайн) файлдардан жүктеледі;
  *   • сақтау API-і mura://app/api мекенжайына бағытталады (main/store.js өңдейді);
- *   • топокарта тайлдары сайттан (site.config.json → siteUrl) алынады, қамту картасы (coverage.json) осы кезде жүктеледі.
+ *   • карта қабаттары сайттан алынбайды: бағдарламаның өз модулі src/js/basemaps.js (тек сыртқы сервистер)
+ *     қолданылады — сайттың топокартасына (aktobenasledie.kz тайлдары) бағдарлама жүгінбейді.
  *
  * Қолдану:  npm run sync            (сайт қалтасы — site.config.json → siteDir)
  *           SITE_DIR=… npm run sync (басқа қалта)
@@ -39,19 +40,7 @@ write('css/admin.css', read('admin/assets/admin.css'));
 copy(path.join(SITE, 'admin/assets/koordinat/vendor/fflate.js'), 'vendor/fflate.js');
 copy(path.join(SITE, 'admin/assets/koordinat/vendor/LICENSE-fflate'), 'vendor/LICENSE-fflate');
 
-/* ---------- 2. Карта қабаттары модулі (сайттың assets/js/app.js ішінен) ---------- */
-{
-  const js = read('assets/js/app.js');
-  const a = js.indexOf('var Basemaps = (function () {');
-  const bMark = 'window.AqmBasemaps = Basemaps;';
-  const b = js.indexOf(bMark, a);
-  if (a < 0 || b < 0) fail('assets/js/app.js ішінде Basemaps модулі табылмады');
-  write('js/basemaps.js',
-    '/* Сайттың assets/js/app.js файлынан автоматты көшірілген (scripts/sync-from-site.mjs). Қолмен өзгертпеңіз. */\n' +
-    '(function () {\n  \'use strict\';\n  ' + js.slice(a, b + bMark.length) + '\n})();\n');
-}
-
-/* ---------- 3. Leaflet (жергілікті) ---------- */
+/* ---------- 2. Leaflet (жергілікті) ---------- */
 {
   const ld = path.join(ROOT, 'node_modules/leaflet/dist');
   if (!fs.existsSync(ld)) fail('node_modules/leaflet жоқ — алдымен npm install орындаңыз');
@@ -60,28 +49,7 @@ copy(path.join(SITE, 'admin/assets/koordinat/vendor/LICENSE-fflate'), 'vendor/LI
   copy(path.join(ROOT, 'node_modules/leaflet/LICENSE'), 'vendor/leaflet/LICENSE');
 }
 
-/* ---------- 4. Топокарта баптаулары (#mapBasemaps) ---------- */
-const topo = CFG.topo;
-const layers = [];
-for (const L of topo.layers) {
-  const base = CFG.siteUrl.replace(/\/$/, '') + '/' + L.dir.replace(/^\/|\/$/g, '');
-  const item = { id: L.id, url: base + '/{z}/{x}/{y}.{ext}', minZoom: L.minZoom, nativeZoom: L.nativeZoom, bounds: L.bounds, label: L.label };
-  try {
-    const r = await fetch(base + '/coverage.json');
-    if (r.ok) {
-      const cv = await r.json();
-      if (cv && cv.levels) {
-        const lv = {};
-        for (const [z, l] of Object.entries(cv.levels)) lv[String(parseInt(z, 10))] = { x0: l.x0 | 0, y0: l.y0 | 0, w: l.w | 0, h: l.h | 0, bits: String(l.bits) };
-        item.cov = { levels: lv };
-      }
-    } else console.warn('  ! ' + L.id + ': coverage.json жүктелмеді (' + r.status + ')');
-  } catch (e) { console.warn('  ! ' + L.id + ': coverage.json жүктелмеді (' + e.message + ')'); }
-  layers.push(item);
-}
-const basemaps = { available: !!topo.enabled && layers.length > 0, maxZoom: topo.maxZoom, layers, attribution: topo.attribution, i18n: topo.i18n };
-
-/* ---------- 5. PHP бет → src/index.html ---------- */
+/* ---------- 3. PHP бет → src/index.html ---------- */
 {
   const php = read('admin/views/tool-qorgau.php');
 
@@ -124,7 +92,6 @@ const basemaps = { available: !!topo.enabled && layers.length > 0, maxZoom: topo
   const left = html.match(/<\?[\s\S]{0,80}/);
   if (left) fail('index.html ішінде өңделмеген PHP қалды: ' + left[0]);
 
-  const jsonSafe = o => JSON.stringify(o).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026');
   const out = `<!doctype html>
 <!-- Автоматты жасалған (scripts/sync-from-site.mjs ← сайттың admin/views/tool-qorgau.php). Қолмен өзгертпеңіз. -->
 <html lang="kk">
@@ -139,7 +106,6 @@ const basemaps = { available: !!topo.enabled && layers.length > 0, maxZoom: topo
 <body class="mura">
 ${html.trim()}
 
-<script type="application/json" id="mapBasemaps">${jsonSafe(basemaps)}</script>
 <script type="application/json" id="qaSiteData">[]</script>
 <script src="vendor/leaflet/leaflet.js"></script>
 <script src="js/basemaps.js"></script>
@@ -153,7 +119,7 @@ ${html.trim()}
   write('index.html', out);
 }
 
-/* ---------- 6. Қай нұсқадан алынғаны ---------- */
+/* ---------- 4. Қай нұсқадан алынғаны ---------- */
 let rev = '';
 try {
   const head = fs.readFileSync(path.join(SITE, '.git/HEAD'), 'utf8').trim();

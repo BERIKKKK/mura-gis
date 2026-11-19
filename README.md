@@ -22,7 +22,7 @@ Linux нұсқасы (AppImage, .deb) кейін шығады.
 - Ескерткіш шекарасын картада нүктелермен белгілеу, координаттарды кез келген пішімде енгізу (ондық градус, ° ′ ″, Excel-ден тізіммен), азимут пен қашықтық бойынша қосу, дәл өлшемді тіктөртбұрыш.
 - Үш аймақ шекарасын автоматты есептеу, аудандарын шығару.
 - Өлшеу құралдары: сызғыш (сызықтарға магниттеледі, перпендикуляр), бұрышты туралау.
-- Карта қабаттары: OpenStreetMap, спутник, тарихи топокарта (Генштаб СССР, Ақтөбе облысы).
+- Карта қабаттары — сыртқы сервистерден: OpenStreetMap, OpenTopoMap, Esri World Topo, Esri спутник; үстіңгі қабаттар (атаулар, жолдар). «Карта қабаттары → Сыртқы карта қосу» арқылы кез келген XYZ тайл-сервисін (QGIS «XYZ Tiles» пішімі) қосуға болады.
 - Экспорт: **GeoJSON**, **сызба (PNG)**, сызбасы бар **Word (DOCX)** құжаты; бірнеше аймақты бір DOCX-ке және QGIS стилі бар GeoJSON-ға біріктіру.
 - Аймақтарды сақтау — компьютердің өзінде (интернетсіз де жұмыс істейді; карта тайлдары үшін интернет керек).
 
@@ -33,7 +33,7 @@ Linux нұсқасы (AppImage, .deb) кейін шығады.
 
 ## Әзірлеушілерге
 
-Құралдың бастапқы коды [aktobenasledie.kz](https://aktobenasledie.kz) сайтының әкімші панеліндегі «Қорғау аймағы» құралымен ортақ: `src/qorgau/`, `src/css/`, `src/js/basemaps.js` және `src/index.html` сайттан **автоматты көшіріледі** — оларды осы жерде қолмен өзгертпеңіз.
+Құралдың бастапқы коды [aktobenasledie.kz](https://aktobenasledie.kz) сайтының әкімші панеліндегі «Қорғау аймағы» құралымен ортақ: `src/qorgau/`, `src/css/admin.css`, `src/css/maptool.css` және `src/index.html` сайттан **автоматты көшіріледі** — оларды осы жерде қолмен өзгертпеңіз. Карта қабаттары (`src/js/basemaps.js`) сайттан көшірілмейді — бағдарламаның өз модулі, сайттың топокартасына жүгінбейді.
 
 ```bash
 npm install
@@ -43,7 +43,7 @@ npm run smoke     # түтін тесті: есептеу, DOCX, сақтау
 npm run dist:win  # Windows орнатқышы → dist/
 ```
 
-Бағдарламаға ғана тән код: `main/` (Electron негізгі процесі, сақтау, жаңартулар), `src/css/desktop.css`, `src/js/desktop.js`.
+Бағдарламаға ғана тән код: `main/` (Electron негізгі процесі, сақтау, жаңартулар), `src/css/desktop.css`, `src/js/desktop.js`, `src/js/basemaps.js`.
 
 ### Жаңа нұсқа шығару
 
@@ -55,4 +55,4 @@ GitHub Actions Windows файлдарын құрастырып, [Releases](https
 
 ## Лицензиялар
 
-Leaflet — BSD-2-Clause (`src/vendor/leaflet/LICENSE`), fflate — MIT (`src/vendor/LICENSE-fflate`). Карта деректері: © OpenStreetMap авторлары, Esri World Imagery.
+Leaflet — BSD-2-Clause (`src/vendor/leaflet/LICENSE`), fflate — MIT (`src/vendor/LICENSE-fflate`). Карта деректері: © OpenStreetMap авторлары, OpenTopoMap (CC-BY-SA), Esri.

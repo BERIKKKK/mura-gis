@@ -49,6 +49,31 @@ async function run(win) {
   await new Promise(res => setTimeout(res, 1200));
   fs.writeFileSync(shot.replace(/.png$/, '-panel.png'), (await win.webContents.capturePage()).toPNG());
   const file = path.join(tmp, 'data', 'qorgau.json');
+  // Карта қабаттары: мәзір, OpenTopoMap, Esri топо, спутник + атаулар қабаты
+  await js("document.querySelector('#qaOpenInfo').click(); document.querySelector('.bm-trigger').click()");
+  await new Promise(res => setTimeout(res, 600));
+  fs.writeFileSync(shot.replace(/.png$/, '-layers.png'), (await win.webContents.capturePage()).toPNG());
+  r.layers = await js(`(async () => {
+    const pick = t => [...document.querySelectorAll('.mura-opt')].find(o => o.textContent.includes(t)).click();
+    const out = {};
+    for (const t of ['Esri World Topo', 'Спутник', 'OpenTopoMap']) {
+      pick(t); await new Promise(r => setTimeout(r, 2500));
+      out[t] = (document.querySelector('.qa-map').classList.contains('is-sat') ? 'sat' : 'std') + ' / сызба фоны: ' + document.getElementById('qaSchemeBase').textContent;
+    }
+    pick('Атаулар'); await new Promise(r => setTimeout(r, 2000));
+    out.saved = localStorage.getItem('mura.basemap') + ' ' + localStorage.getItem('mura.overlays');
+    out.notice = !!document.querySelector('.bm-notice');
+    // Өз XYZ картасын қосу: алдымен қате мекенжай, сосын дұрысы
+    document.querySelector('.mura-add').click();
+    const f = document.querySelector('.mura-dlg');
+    f.elements.label.value = 'Тест XYZ'; f.elements.url.value = 'https://example.com/tiles';
+    f.requestSubmit(); out.badUrl = document.querySelector('.mura-err').textContent;
+    f.elements.url.value = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
+    f.requestSubmit(); await new Promise(r => setTimeout(r, 1500));
+    out.custom = !!document.querySelector('.mura-dlg') ? 'терезе жабылмады' : localStorage.getItem('mura.basemap') + ' | ' + [...document.querySelectorAll('.mura-opt')].map(o => o.textContent).filter(t => t.includes('Тест')).join();
+    return out;
+  })()`);
+  fs.writeFileSync(shot.replace(/.png$/, '-otm.png'), (await win.webContents.capturePage()).toPNG());
   r.tilesLoaded = await js("document.querySelectorAll('.leaflet-tile-loaded').length");
   r.requests = tiles;
   r.storeFile = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).length + ' жазба' : 'жоқ';
