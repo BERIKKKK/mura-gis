@@ -8,7 +8,7 @@
   "homepage": "https://github.com/BERIKKKK/mura-gis",
   "private": true,
   "scripts": {
-    "sync": "node scripts/sync-from-site.mjs",
+    "vendor": "node scripts/vendor.mjs",
     "icon": "electron scripts/make-icon.js",
     "start": "electron .",
     "dist:win": "electron-builder --win --publish never",

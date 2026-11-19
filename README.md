@@ -40,22 +40,27 @@ Linux нұсқасы (AppImage, .deb) кейін шығады.
 
 ## Әзірлеушілерге
 
-Құралдың бастапқы коды [aktobenasledie.kz](https://aktobenasledie.kz) сайтының әкімші панеліндегі «Қорғау аймағы» құралымен ортақ: `src/qorgau/`, `src/css/admin.css`, `src/css/maptool.css` және `src/index.html` сайттан **автоматты көшіріледі** — оларды осы жерде қолмен өзгертпеңіз. Карта қабаттары (`src/js/basemaps.js`) сайттан көшірілмейді — бағдарламаның өз модулі, сайттың топокартасына жүгінбейді.
+Mura GIS — дербес бағдарлама, оның барлық коды осы репозиторийде. Бағдарлама ешбір сайтқа не серверге тәуелді емес: деректер компьютерде сақталады, карта қабаттары ашық сыртқы тайл-сервистерден жүктеледі (`src/js/basemaps.js`).
 
 ```bash
 npm install
-npm run sync      # сайт қалтасынан құралды көшіру (site.config.json → siteDir)
+npm run vendor    # Leaflet-ті node_modules-тен src/vendor/ ішіне жаңарту (қажет болғанда)
 npm start         # бағдарламаны іске қосу
 npm run smoke     # түтін тесті: есептеу, DOCX, сақтау
 npm run smoke:marks  # белгі қою: сұрыптау, режимдер, GeoJSON / DOCX / PDF
 npm run dist:win  # Windows орнатқышы → dist/
 ```
 
-Бағдарламаға ғана тән код: `main/` (Electron негізгі процесі, сақтау, жаңартулар, PDF), `src/css/desktop.css`, `src/js/desktop.js`, `src/js/basemaps.js`; «Белгі қою» функциясы — `src/marks/`, `src/css/marks.css` (сайттан көшірілмейді, `npm run sync` оларды index.html-ге өзі қосады).
+Код құрылымы:
+- `main/` — Electron негізгі процесі: терезе, мәзір, сақтау (`store.js`), жаңартулар, PDF;
+- `src/index.html` — басты бет; `src/css/` — стильдер (`base.css` — негізгі, `maptool.css` — карта интерфейсінің қабығы, `desktop.css` — жұмыс үстелі, `marks.css` — белгілер);
+- `src/qorgau/` — «Қорғау аймағы» қызметі (есеп, сызба, DOCX/GeoJSON экспорты, интерфейс);
+- `src/marks/` — «Белгі қою» қызметі; `src/js/` — карта қабаттары, оң жақ мәзір, жұмыс үстелі қабығы т.б.;
+- `src/vendor/` — Leaflet, fflate (офлайн жұмыс үшін жергілікті көшірмелер).
 
 ### Жаңа нұсқа шығару
 
-1. `npm run sync` (сайттағы құрал өзгерген болса), `npm run smoke`.
+1. `npm run smoke`.
 2. `package.json` → `version` өсіріңіз (мыс. `1.0.1`), commit жасаңыз.
 3. `git tag v1.0.1 && git push origin main v1.0.1`
 

@@ -233,7 +233,7 @@ function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;
 fin?.addEventListener('click', openDialog);
 globalThis.MuraZone = { openDialog, closeDialog, ready, fillFromMark, startFromMark };
 
-/* Сайттағы құралдың бос тізім мәтіні «Сақтау» батырмасына сілтейді — бағдарламада ол «Аяқтау» */
+/* Бос тізім мәтіні «Сақтау» батырмасына сілтейді — бағдарламада ол «Аяқтау» */
 const savedBox = $('qaSaved');
 if (savedBox) new MutationObserver(() => {
   const e = savedBox.querySelector('.qa-empty');

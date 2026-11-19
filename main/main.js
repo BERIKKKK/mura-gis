@@ -145,8 +145,6 @@ function buildMenu() {
 }
 
 function about() {
-  let site = {};
-  try { site = JSON.parse(fs.readFileSync(path.join(SRC, 'site-version.json'), 'utf8')); } catch (e) { /* жоқ */ }
   dialog.showMessageBox(win, {
     type: 'info', title: 'Mura GIS туралы', buttons: ['Жабу', 'GitHub беті', 'Заң (Әділет)'], cancelId: 0,
     message: 'Mura GIS ' + app.getVersion() + ' — тарихи-мәдени мұра объектілеріне арналған ГАЖ бағдарламасы',
@@ -163,7 +161,6 @@ function about() {
       '• ескерткіштер тізімі кестесінің үлгісі — облыс әкімдігінің жергілікті маңызы бар тарих және мәдениет ескерткіштерінің ' +
       'мемлекеттік тізімін бекіту туралы қаулысына қосымша (мыс. Түркістан облысы әкімдігінің 2020 ж. 17 қыркүйектегі № 188 қаулысы).\n\n' +
       'Деректер қалтасы: ' + store.dir + '\n' +
-      (site.siteCommit ? 'Қорғау аймағы құралының коды: aktobenasledie.kz (' + site.siteCommit + ')\n' : '') +
       'Electron ' + process.versions.electron,
   }).then(r => {
     if (r.response === 1) shell.openExternal(REPO_URL);

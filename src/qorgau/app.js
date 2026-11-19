@@ -1,4 +1,4 @@
-/* «Қорғау аймағы» құралы — admin/views/tool-qorgau.php.
+/* Mura GIS: «Қорғау аймағы» қызметі.
    ҚР МСМ 2020 ж. 14 сәуірдегі № 86 бұйрығымен бекітілген қағидалар:
      7-т. қорғау аймағы: археологиялық — 40 м; ансамбль/кешен — 20 м;
           сәулет/монументалды өнер/киелі ғимарат: биіктігі ≤ 40 м → 2×биіктік, > 40 м → 1×биіктік;
@@ -199,7 +199,6 @@ export function computeZones(pts, dists) {
 }
 
 /* ======================= Күй ======================= */
-const SITE = JSON.parse($('qaSiteData')?.textContent || '[]');
 const state = { pts: [], add: true, loadedId: null, loadedName: '' };   // loadedId — ашық тұрған сақталған жазба
 let R = null;
 let genTouched = false;
@@ -263,7 +262,7 @@ function dists() {
 /* ======================= Карта ======================= */
 const mapEl = $('qaMap');
 const map = L.map(mapEl, { scrollWheelZoom: true, doubleClickZoom: false }).setView([48.6, 58.2], 6);
-// Қабаттар (OpenStreetMap / Спутник / Топокарта) — сайттың ортақ «Карта қабаттары» мәзірі (assets/js/app.js).
+// Қабаттар — бағдарламаның «Карта қабаттары» модулі (js/basemaps.js).
 // Сызбаның фоны картада таңдалған қабатқа сәйкес: Спутник → Esri суреті, қалғандары → OpenStreetMap.
 const basemaps = globalThis.AqmBasemaps ? globalThis.AqmBasemaps.attach(map, mapEl) : null;
 if (!basemaps) L.tileLayer(OSM_URL, { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map);
@@ -854,7 +853,7 @@ function ringLL(pts, cw) {
   a.push(a[0].slice());
   return a;
 }
-const geoMeta = () => ({ generator: 'aktobenasledie — Қорғау аймағы', rules: 'ҚР МСМ 14.04.2020 № 86 бұйрығы, 7–9-тармақтар', crs: 'EPSG:4326 (WGS 84)', created: new Date().toISOString() });
+const geoMeta = () => ({ generator: 'Mura GIS — Қорғау аймағы', rules: 'ҚР МСМ 14.04.2020 № 86 бұйрығы, 7–9-тармақтар', crs: 'EPSG:4326 (WGS 84)', created: new Date().toISOString() });
 function geojson(Rx = R, I = info(), id = state.loadedId || null) {
   const H = haValues(Rx), full = $('qaGeoMode').value === 'full';
   const features = ZONES.map((z, i) => {
@@ -1498,21 +1497,6 @@ $('qaGeoFile').addEventListener('change', async e => {
   } catch (err) { toast('GeoJSON оқылмады: ' + err.message, true); }
 });
 
-const pick = $('qaPick');
-if (pick) pick.addEventListener('change', () => {
-  const m = SITE[+pick.value];
-  if (pick.value === '' || !m) return;
-  F.name.value = m.name; genTouched = false; syncGen();
-  if (m.period) F.period.value = /^[А-ЯӘҒҚҢӨҰҮҺІ][а-яәғқңөұүһі]/.test(m.period) ? m.period.charAt(0).toLowerCase() + m.period.slice(1) : m.period;
-  const opt = [...F.district.options].find(o => o.dataset.key === m.district);
-  if (opt) F.district.value = opt.value;
-  const map2type = { archeo: 'archeo', arch: 'arch', ensemble: 'ensemble', sacred: 'sacred', art: 'art' };
-  if (map2type[m.category]) { F.type.value = map2type[m.category]; applyRule(true); }
-  if (m.lat !== null && m.lng !== null) map.setView([m.lat, m.lng], 17);
-  recompute(true);
-  if (!state.pts.length && m.lat !== null) toast('Карта ескерткішке жақындатылды — шекара нүктелерін белгілеңіз.');
-});
-
 $('qaSample').addEventListener('click', async () => {
   if (state.pts.length && !(await ask('Ағымдағы нүктелер мен деректер үлгімен ауыстырылады. Жалғастырасыз ба?', { ok: 'Ауыстыру' }))) return;
   state.loadedId = null; state.loadedName = '';
@@ -1557,7 +1541,6 @@ function resetAll() {
   genTouched = false;
   state.pts = [];
   state.loadedId = null; state.loadedName = '';
-  if (pick) pick.value = '';
   for (const id of ['qaPasteText', 'qaInLat', 'qaInLon']) $(id).value = '';
   $('qaPasteErr').textContent = '';
   $('qaInLatOk').innerHTML = ''; $('qaInLonOk').innerHTML = '';
@@ -1583,18 +1566,16 @@ $('qaReset').addEventListener('click', async () => {
 });
 
 /* ======================= Сақталған аймақтар ======================= */
-// Сервер: admin/modules/tools.php (?p=tools&ajax=qorgau&op=list|save|delete), дерек — data/admin/qorgau.json.php.
-const CSRF = document.querySelector('meta[name="csrf"]')?.content || '';
+// Сақтау: mura://app/api?v=1&op=list|save|delete — main/store.js (компьютердегі JSON файл).
 async function api(op, data = {}) {
   const fd = new FormData();
-  fd.append('csrf', CSRF);
   for (const [k, v] of Object.entries(data)) fd.append(k, v);
   let r;
-  try { r = await fetch((globalThis.QA_API || 'index.php?p=tools&ajax=qorgau') + '&op=' + op, { method: 'POST', body: fd, credentials: 'same-origin' }); }
-  catch (e) { throw new Error('Серверге қосылу мүмкін болмады.'); }
+  try { r = await fetch((globalThis.QA_API || 'mura://app/api?v=1') + '&op=' + op, { method: 'POST', body: fd }); }
+  catch (e) { throw new Error('Сақтау қызметіне қосылу мүмкін болмады.'); }
   let j = null;
   try { j = await r.json(); } catch (e) { /* төменде */ }
-  if (!j) throw new Error('Сервер жауабы оқылмады (' + r.status + '). Жүйеден шығып кеткен болуыңыз мүмкін — бетті жаңартыңыз.');
+  if (!j) throw new Error('Сақтау қызметінің жауабы оқылмады (' + r.status + ').');
   if (!j.ok) throw new Error(j.error || 'Белгісіз қате.');
   return j;
 }
@@ -1755,7 +1736,6 @@ function openRecord(rec) {
   for (const k of FIELD_KEYS) if (typeof f[k] === 'string') F[k].value = f[k];
   genTouched = !!f.gen && f.gen !== genitive(f.name || '');
   if (!f.gen) syncGen();
-  if (pick) pick.value = '';
   state.pts = (rec.pts || []).map(p => ({ lat: +p.lat, lon: +p.lon }));
   state.loadedId = rec.id; state.loadedName = rec.name;
   $('qaHeightWrap').hidden = !['arch', 'art', 'sacred'].includes(F.type.value);

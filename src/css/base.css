@@ -1,0 +1,361 @@
+/* Mura GIS: негізгі стильдер — түстер (:root айнымалылары), қаріптер, батырмалар, өрістер, кестелер,
+   «Карта қабаттары» мәзірі және хабарламалар. */
+:root{
+  --ink:#221d16; --paper:#f4f0e8; --paper2:#ebe5d8; --white:#fcfaf5;
+  --line:#d9d0bf; --terr:#b4471f; --steppe:#2c4a3e; --sand:#c7a36a; --soft:#6b6354;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,'Segoe UI',Roboto,Arial,sans-serif;color:var(--ink);background:var(--paper);font-size:15px;line-height:1.5}
+a{color:var(--terr);text-decoration:none}
+a:hover{text-decoration:underline}
+h1{font-size:23px;margin:0} h2{font-size:17px;margin:0 0 12px}
+.muted{color:var(--soft)} small.muted{font-weight:400}
+code{background:var(--paper2);padding:1px 6px;border-radius:5px;font-size:.9em}
+
+/* ---- Auth ---- */
+
+/* ---- Layout ---- */
+
+/* Desktop + tablet (>820px): sidebar position:fixed — экранға шегеленген, бет қалай
+   скроллданса да орнында тұрады. Контент кәдімгі табиғи бет скроллымен жүреді —
+   бұл кез келген құрылғы/браузерде кепілді жұмыс істейтін классикалық схема. */
+@media (min-width:821px){
+  .adm-main{margin-left:230px;min-width:0}
+}
+
+/* ---- Desktop: мәзірді жіңішке иконка-жолаққа жинау (Claude стилі) ---- */
+@media (min-width:821px){
+  .adm-main{transition:margin-left .22s ease}
+  /* Тек лого-белгі + ашу батырмасы қалады, аты-жөн мен жазулар жасырылады */
+} /* Chrome, Safari, Edge (Chromium) */
+
+/* ---- Rail режимі: навигация мен қолданушы блогы да иконкаға жиналады ---- */
+@media (min-width:821px){
+  /* Иконкаға апарғанда шағын тултип (браузердің title атрибутынан) */
+}
+
+/* ---- Аватар ---- */
+
+/* ---- Жүктеу прогресі (аватар т.б.) ---- */
+.adm-main{flex:1;padding:26px 30px;max-width:none}
+@media (min-width:1920px){.adm-main{padding:30px 48px 26px 40px}}
+.adm-content{flex:1;min-width:0;display:flex;flex-direction:column}
+/* Топбар тек мобильде көрінеді */
+.adm-topbar{display:none;align-items:center;gap:12px;background:var(--ink);color:var(--paper);padding:12px 16px;position:sticky;top:0;z-index:30}
+/* Құралдар: «Құралдарға қайту» батырмасы — барлық құралда бірдей (tool-*.php) */
+
+/* ---- Cards ---- */
+.card{background:var(--white);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:20px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+
+/* ---- Мобиль: off-canvas sidebar + scroll-кесте ---- */
+/* Кесте кез келген тар экранда (tablet те, mobile де) көлденең айналдырылады —
+   баған саны көбейген сайын (Тілдер, сұрыпталатын тақырыптар) бұл маңызды болды.
+   overflow-x:auto мазмұн сыймай қалған жағдайда ғана көрінеді, әйтпесе әсері жоқ. */
+.card{overflow-x:auto} /* RTE toolbar-дың sticky күйі жұмыс істеуі үшін — бұл карточка кесте емес */
+.tbl{min-width:880px}
+.tbl th:last-child,.tbl td.actions{min-width:100px}
+@media (max-width:820px){
+  .cols{grid-template-columns:1fr}
+  .adm-topbar{display:flex}
+  .adm-main{padding:18px 16px;max-width:none}
+}
+
+/* ---- Stats ---- */
+
+/* ---- Tables ---- */
+.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th,.tbl td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--soft)}
+.tbl .actions{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+
+/* ---- Forms ---- */
+label{display:block;margin:0 0 5px;font-size:13px;font-weight:600}
+input,select,textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--white);font-size:14px;font-family:inherit}
+textarea{min-height:64px;resize:vertical}
+.lang{border:1px solid var(--line);border-radius:10px;padding:14px;margin:12px 0}
+.lang label{margin-top:10px}
+.inline{display:inline}
+
+/* ---- Buttons / badges ---- */
+.btn{display:inline-block;padding:10px 18px;border-radius:8px;border:1px solid transparent;font-size:14px;cursor:pointer;font-family:inherit}
+.btn--primary{background:var(--terr);color:#fff}
+.btn--primary:hover{background:#933a18;text-decoration:none}
+.btn--ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+.btn--ghost:hover{background:var(--paper2);text-decoration:none}
+button.btn{font-size:14px}
+.lnk{background:none;border:0;color:var(--terr);cursor:pointer;padding:0;font-size:14px;font-family:inherit}
+
+/* ---- Баптаулар: әлеуметтік желілер ---- */
+.lnk:hover{text-decoration:underline}
+.lnk--danger{color:#b3261e}
+/* Жұмыс ағыны (тексеру, рұқсаттар, тарих) */
+
+/* ---- Flash ---- */
+.flash{padding:11px 14px;border-radius:9px;margin-bottom:16px;font-size:14px}
+
+/* ---- Media ---- */
+/* Жүктеу аймағы */
+
+/* ---- Filters ---- */
+
+/* ---- Сүзгі аккордеоны ----
+   Desktop (≥821px): summary жасырын, мазмұн әрқашан ашық (JS open=true ұстайды) — түпнұсқа көрініс өзгермейді.
+   Мобиль (≤820px): «Сүзгі және іздеу» батырма-жолағы, басқанда ашылады. */
+
+/* ---- Секция аккордеоны (баптаулар т.б. ұзын беттер) ----
+   Сүзгі аккордеонымен бірдей принцип: desktop-та әрқашан ашық (summary жасырын),
+   мобильде жиналмалы. Секция ішіндегі h2 (desktop тақырыбы) мобильде жасырылады —
+   орнына summary өзі тақырып қызметін атқарады. */
+@media (max-width:820px){ /* desktop h2 тақырыбы мобильде summary-мен қайталанбауы үшін */
+}
+
+/* ---- Ескерткіштер: мобильді карточка-аккордеон ----
+   Desktop-та жасырын; ≤820px-те кестенің орнына көрсетіледі. */
+
+@media (max-width:820px){
+  /* Сүзгі аккордеоны */
+
+  /* Кесте → карточкалар (tbl--collapsible класы бар кез келген тізім: ескерткіштер, жаңалықтар) */
+  .card:has(.mon-cards){overflow-x:visible} /* карточкаларға көлденең скролл қажет емес */
+  /* Чекбоксы жоқ тізімдер (мыс., басылымдар) — сол жақ шегініс кішірек */
+}
+select[multiple]{height:auto;padding:6px}
+
+/* Ескерткіш медиасы (әкімші) */
+input[type=file]{padding:7px;background:var(--paper2)}
+
+/* PDF → reader конверторы */
+
+/* Басылым формасы: міндетті, ISBN, сипаттама, жүктеу прогресі */
+.req{color:var(--terr);font-weight:700}
+.btn--sm{padding:6px 12px;font-size:13px;margin-top:4px}
+
+/* Ықшам онлайн-оқырман блогы */
+
+/* Тізімдегі реті — префикс + нөмір */
+
+/* Ұқсас нысандар — белгілеу қорабы */
+/* Сақтау прогресі */
+
+/* Топтап таңдау/өшіру */
+
+/* === Ескерткіш редакторы === */
+
+/* === Редактор v2 толықтырулары === */
+/* Мұқаба кадрын қию (кроп) — сурет алдын ала қарауының төменгі сол бұрышында */
+/* Суреттің үштілді caption (түсіндірме) өрістері — жария бетте <figcaption> ретінде шығады */
+/* «Құралдар» бөлімі */
+/* Іздеу өрісі: ішіндегі іздеу пернесі + теріп жатқандағы ұсыныстар (ескерткіштер тізімі) */
+/* 360° панорамалар тізімі (ескерткіш редакторы → Медиа) */
+.btn--steppe{background:var(--steppe);color:#fff;border-color:var(--steppe)}
+.btn--steppe:hover{filter:brightness(.96)}
+
+/* === Редактор v3: сол жақ толық редактор, оң жақ деректер === */
+@media(max-width:900px){
+  /* Мобиль: алдымен редактор, сосын деректер, сосын медиа */
+}
+
+/* === Accordion (оң жақ ықшам карталар) === */
+.acc{padding-top:0;padding-bottom:0}
+.btn--sm{padding:6px 12px;font-size:13px}
+
+/* === Ұқсас нысандар: іздеп таңдау === */
+
+/* === Жаңалықтар редакторы (ескерткіш редакторы үлгісімен: editor-grid 2/3 + 1/3) === */
+
+/* ============================================================
+   Desktop Editor UX: кең экрандарға бейімдеу
+   ≤1280px — қазіргі layout өзгеріссіз (төмендегі ережелер қосылмайды)
+   ============================================================ */
+
+/* 6. Мәтін белгілеу (selection) — редакторда анық көрінетін көк реңк */
+
+textarea::selection, input::selection{background:#B9D8FF;color:#14212e}
+
+/* 7. Оқуға ыңғайлы жол ұзындығы: контейнер кең болса да мәтін ~1000px
+   бағанда ортада тұрады (padding-пен шешілген — contenteditable-ды орамай) */
+
+/* 3–4. Оң панельді жасыру/ашу (тек desktop, JS батырмаларды өзі қояды) */
+
+@media (min-width:901px){
+  /* Панель жасырылса — қай экран енінде болса да (тек 1360px+ емес) редактор
+     дереу толық енге жайылады, ешбір бос орын/із қалмайды. */
+  .adm-main:has(.editor-grid.side-hidden){max-width:none;padding-right:36px}
+}
+
+/* 1–2. Кең экран пропорциялары: редактор — негізгі аймақ, панель — қажетті ені ғана */
+@media (min-width:1360px){
+  .adm-main:has(.editor-grid){max-width:none;padding-right:36px}
+}
+@media (min-width:1920px){
+  .adm-main:has(.editor-grid){padding:30px 48px 26px 40px}
+}
+
+/* Focus Mode (F9): сол жақ мәзір + оң панель жасырылып, тек toolbar мен мәтін қалады */
+
+/* === Хабарламалар модулі === */
+
+/* === Қаралы күн режимі (settings) === */
+
+/* Қаралы күн режимінің ағымдағы күй белгісі (settings-acc тақырыбының жанында) */
+
+/* Қаралы күн: ықшам күн таңдау (бір күн ↔ бірнеше күн ауысатын) интерфейсі */
+
+/* Күндер негізінде автоматты қалыптасатын хабарламаның алдын ала қарауы */
+
+/* === Ескерткіш медиа: алдын ала қарау + кітапхана таңдау === */
+/* Кітапхана терезесі */
+
+/* Ескі QR сілтемелері — бір жолға бір slug (оқуға ыңғайлы моно қаріп) */
+
+/* QR код модалы (ескерткіштер тізімі) */
+
+/* Ескерткіштер тізіміндегі «Тілдер» бағаны */
+
+/* Кесте тақырыптары арқылы сұрыптау (Ескерткіштер тізімі) */
+
+/* RTE toolbar — мобильде .adm-topbar-дың астынан шығуы үшін (файлдың соңында,
+   каскадта басым болу үшін әдейі осында орналастырылған). */
+
+/* ============================================================
+   Editor UX Redesign — Word/Docs стиліндегі редактор
+   ============================================================ */
+
+/* 1. Ықшам header */
+
+/* 2. Ribbon: екі қатар, sticky, терракотаның екі реңкі */
+/* 2-қатар: форматтау — сәл қоюлау реңк; ескі sticky/жиек ережелерін басамыз */
+
+/* 3. Split Publish батырмасы */ /* caret жоқ болса (тарих) — толық дөңгелек */
+
+/* 4. Editor — «ақ парақ» */
+
+/* Background Tasks — оң жақ төменгі бұрыштағы фондық тапсырмалар */
+
+
+/* --- Редизайн жалғасы: панель қайталанбауы, sticky түзетулер, мобиль --- */
+/* Ribbon бар бетте helpers енгізетін «Панельді жасыру»/шеткі тұтқа жасырылады (ribbon-дағы тумблер жеткілікті) */
+
+/* Оң панель мен sticky ribbon қабаттаспауы үшін */
+
+/* Тар панельде медиа торлары бір бағанға */
+
+/* Сол жақ мәзір rail күйінде (64px) де .adm-main margin-left арқылы дұрыс ығысады —
+   editor-top/ribbon full-bleed есептеулері қосымша түзетусіз дұрыс жұмыс істейді. */
+
+/* Мобиль: adm-main padding 18px 16px — full-bleed соған сай */
+
+/* --- Оң панель: VS Code инспекторы стиліндегі скролл моделі ---
+   Панельдің өз скроллбары ЖОҚ (overflow:hidden), биіктігі тұрақты.
+   Ашық секция қалған кеңістікті алып (flex-grow, анимациямен), скролл
+   тек соның денесінде. Жабық секцияларда скролл мүлдем көрінбейді. */
+
+/* Фондық тапсырма аяқталғанда «Көру» сілтемесі */
+
+/* --- Оң панель: drill-in режимі ---
+   Секция ашылғанда панельде ТЕК сол секция көрінеді (жоғарыдан бастап,
+   бүкіл панель биіктігін алады); жабылғанда барлық секция тізімі оралады. */
+
+/* --- RTE контекст-мәзірі --- */
+
+/* --- RTE сілтеме диалогы --- */
+
+/* --- Қысқа хабар (toast) --- */
+
+/* ============================================================
+   Мобиль редактор (≤768px) — заманауи, мәтінге басым интерфейс.
+   Тек мобильде; десктопқа әсер етпейді. mob-editbar/sheet элементтерін JS жасайды.
+   ============================================================ */
+
+@media (max-width:768px){
+  /* 1) Десктоп ribbon (тіл карточкалары + екі қатар) мобильде толық жасырылады */
+  /* Ескі full-bleed тақырып жолағын да жасырамыз — оның орнына mob-head */
+
+  /* 2) Бекітілген мобиль редактор жолағы: header + бір қатар toolbar */
+
+  /* 3) Toolbar — бір қатар, көлденең сырғанақ */
+
+  /* 4) Контент mob-editbar астынан басталады (52+48=100px) */ /* бұрынғы жалпы мобиль топбар — редакторда керек емес */
+
+  /* 5) Редакторға максимум орын: карточка әрлеуін азайтамыз */ /* десктоп padding-inline формуласын басамыз */
+
+  /* 6) Оң панель (деректер) — редактордан кейін, бұрынғыдай аккордеон тізім */
+
+  /* ---- Bottom Sheet ---- */
+}
+
+/* --- RTE: кестелер --- */
+
+/* --- Кесте тор-таңдағышы (Word-стиль) --- */
+
+/* --- Сурет диалогының қосымшалары --- */
+
+/* ============================================================
+   Статистика беті
+   ============================================================ */
+
+/* Жоғарғы қатар: күнделікті үрдіс графигі (негізгі, кең) + дереккөз бойынша (тар бүйір карточка) */
+
+/* ==============================================================
+   Баптаулар беті — жеке ашылып-жиналатын блоктар (.settings-acc)
+   .sec-acc-дан ӘДЕЙІ бөлек компонент: .sec-acc басқа беттерде
+   (мыс. профиль) «десктопта әрқашан ашық» тәртібін сақтауы керек,
+   ал мұнда, керісінше, КЕЗ КЕЛГЕН экран өлшемінде нағыз аккордеон —
+   бет ашылғанда бәрі жабық, бірнешеуін қатар ашуға болады, өлшемі
+   мәтінге қарай бейімделеді, ашылу/жабылу жұмсақ анимациямен жүреді
+   (grid-template-rows 0fr↔1fr трюгі — қосымша кітапханасыз, жеңіл CSS).
+   ============================================================== */
+
+/* Құпиясөз өрісіндегі «көру» батырмасы (assets/pw-toggle.js) */
+
+/* Кіру беті: Google батырмасы, «немесе» бөлгіші, 2FA код өрісі */
+
+/* Аккаунт баптаулары: екі сатылы растау (Authenticator) */
+
+/* Аккаунт беті: санат тақырыптары, бейдж, ені (аккордеон — .settings-acc) */
+
+/* Басылым редакторы: мұқаба жүктеу */
+
+/* ============================================================
+   Атаулы күндер (Баптаулар → «Атаулы күндер» блогы)
+   Түстер жария сайттағы .nday-c--* (assets/css/style.css) түстерімен бірдей.
+   ============================================================ */
+/* Жинақы (сақталған) жол */
+/* Өңдеу формасы — тек ашық жолда */
+
+/* Атаулы күн — алдын ала қарау терезесі (сайттағы .nday / .nday-dlg көрінісін қайталайды) */
+
+/* Атаулы күн — беттің мазмұнына арналған шағын мәтін редакторы */
+/* Бет мекенжайы (slug) өрісі */
+/* Алдын ала қарау: арнайы беттің көрінісі */
+
+/* Алдын ала қарау: сайттың нағыз басты беті (iframe, масштабталған браузер терезесі) */
+
+/* Мерекелік әсерлер кестесі (атаулы күндерден тәуелсіз) */
+/* Әсер жолынан ашылған алдын ала қарау — тек басты бет */
+
+/* «Карта қабаттары» ашылмалы мәзірі (құралдардағы карталар; assets/js/app.js → AqmBasemaps) */
+.bm-layers{position:relative}
+.bm-trigger{position:relative;display:flex;align-items:center;justify-content:center;width:34px;height:34px;padding:0;border:2px solid rgba(0,0,0,.2);border-radius:4px;background:#fff;color:#222;background-clip:padding-box;cursor:pointer}
+.bm-trigger:hover{background-color:#f4f4f4}
+.bm-layers.is-open .bm-trigger{color:var(--terr)}
+.bm-trigger:focus-visible,.bm-opt:focus-visible{outline:2px solid var(--terr);outline-offset:1px}
+.bm-tip{position:absolute;right:calc(100% + 9px);top:50%;transform:translate(4px,-50%);padding:5px 9px;border-radius:5px;background:rgba(34,29,22,.92);color:#fff;font-size:12px;font-weight:600;line-height:1.2;white-space:nowrap;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .12s,transform .12s,visibility .12s}
+.bm-tip::after{content:'';position:absolute;left:100%;top:50%;transform:translateY(-50%);border:5px solid transparent;border-left-color:rgba(34,29,22,.92)}
+.bm-trigger:hover .bm-tip,.bm-trigger:focus-visible .bm-tip{opacity:1;visibility:visible;transform:translate(0,-50%)}
+.bm-layers.is-open .bm-tip{opacity:0;visibility:hidden}
+.bm-menu-title{padding:5px 8px 7px;margin-bottom:4px;border-bottom:1px solid var(--line);font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+.bm-menu{position:absolute;right:0;top:calc(100% + 6px);min-width:210px;padding:5px;background:var(--white);border:1px solid var(--line);border-radius:9px;box-shadow:0 8px 28px rgba(0,0,0,.24)}
+.bm-menu[hidden]{display:none}
+.bm-opt{display:flex;align-items:center;gap:10px;width:100%;padding:7px 8px;border:0;border-radius:6px;background:transparent;color:var(--ink);font:13px/1.2 inherit;font-family:inherit;text-align:left;cursor:pointer}
+.bm-opt + .bm-opt{margin-top:2px}
+.bm-opt:hover{background:var(--paper2)}
+.bm-opt.is-active{font-weight:600}
+.bm-opt-label{flex:1}
+.bm-radio{width:15px;height:15px;flex:none;border-radius:50%;border:2px solid var(--line)}
+.bm-opt.is-active .bm-radio{border-color:var(--terr);background:var(--terr);box-shadow:inset 0 0 0 3px var(--white)}
+.bm-sw{width:30px;height:22px;flex:none;border-radius:4px;border:1px solid rgba(0,0,0,.18)}
+.bm-sw--std{background:linear-gradient(135deg,#f2efe9 0 38%,#aad3df 38% 52%,#f2efe9 52% 70%,#f7c8a0 70% 76%,#e6e1d4 76%)}
+.bm-sw--sat{background:radial-gradient(circle at 30% 35%,#6f7a4f 0 22%,transparent 23%),radial-gradient(circle at 72% 70%,#4d5a3a 0 26%,transparent 27%),linear-gradient(135deg,#8a8361,#5d6646 55%,#3f4a35)}
+.bm-sw--topo{background:repeating-radial-gradient(circle at 65% 40%,#e9dcb8 0 3px,#c9a46d 3px 4px),#e9dcb8}

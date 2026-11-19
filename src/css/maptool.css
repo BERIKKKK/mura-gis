@@ -1,14 +1,10 @@
-/* Карта құралдарының ортақ интерфейс қабығы («карта бірінші»): Қорғау аймағы (tool-qorgau.php),
-   Координат (tool-koordinat.php). Бет экран биіктігіне бекітіледі; жоғарғы жолақ (.qa-top),
+/* Mura GIS: карта интерфейсінің қабығы («карта бірінші»). Бет экран биіктігіне бекітіледі; жоғарғы жолақ (.qa-top),
    Liquid Glass құралдар жолағы (.qa-tb), поповерлер мен «⋯» мәзірі (.qa-pop, .qa-mi),
    бүйірлік панельдер (.qa-drawer; мобильде — төменнен шығатын drawer), шартты белгілер, хабарлама.
-   Құралға тән стильдер — әр беттің өз <style> блогында. «Құралдарға қайту» батырмасы — admin.css (.tool-back). */
+   Қызметке тән стильдер — index.html ішіндегі <style> блогында. */
 
 /* ===== Бет: экран биіктігіне бекітілген, тік скроллсыз ===== */
 html.qa-full,html.qa-full body{height:100%;overflow:hidden}
-html.qa-full .adm-content{height:100vh;height:100dvh}
-html.qa-full .adm-main{flex:1 1 auto;min-height:0;padding:0;display:flex;flex-direction:column;overflow:hidden}
-html.qa-full .adm-main > .flash{margin:8px 12px 0}
 .qa-app{--qa-glass:rgba(252,250,245,.78);--qa-glass-strong:rgba(252,250,245,.92);--qa-glass-line:rgba(255,255,255,.55);
   --qa-shadow:0 6px 24px rgba(34,29,22,.14),0 1px 3px rgba(34,29,22,.10);--qa-blur:blur(18px) saturate(150%);
   --qa-drawer-w:420px;--qa-gap:10px;--qa-top:64px;--qa-bottom:62px;--qa-right:var(--qa-gap);
@@ -16,12 +12,11 @@ html.qa-full .adm-main > .flash{margin:8px 12px 0}
 .qa-app.is-fs{position:fixed;inset:0;z-index:2000}
 @media(min-width:1600px){.qa-app{--qa-drawer-w:460px}}
 /* Қауіпсіз аймақтар: алдыңғы камера ойығы, жүйе жолақтары, iPhone «үй» индикаторы.
-   env() мәндері бет viewport-fit=cover қосқанда ғана нөлден өзгеше (tool-qorgau.php) — басқа беттерге зиянсыз.
+   env() мәндері бет viewport-fit=cover қосқанда ғана нөлден өзгеше (index.html).
    Толық экранда жоғарғы шегініс те қосылады — жоғарғы жолақ камера аймағына түспейді. */
 .qa-app{padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
 .qa-app.is-fs,.qa-app:fullscreen{padding-top:env(safe-area-inset-top,0px);background:var(--white)}
 .qa-app:-webkit-full-screen{padding-top:env(safe-area-inset-top,0px);background:var(--white)}
-html.qa-full .adm-topbar{padding-top:max(12px,env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 
 /* ===== Жоғарғы навигациялық жолақ ===== */
 .qa-top{flex:0 0 auto;display:flex;align-items:center;gap:10px;min-height:54px;padding:7px 14px;background:var(--white);border-bottom:1px solid var(--line);min-width:0}
@@ -163,7 +158,7 @@ html.qa-full .adm-topbar{padding-top:max(12px,env(safe-area-inset-top,0px));padd
 }
 @media(max-width:420px){.qa-row2,.qa-dist{grid-template-columns:1fr}}
 
-/* Сайт картасының хабарламасы («Карта қабаттары» мәзірі — admin.css) */
+/* Карта қабаттарының хабарламасы («Карта қабаттары» мәзірі — base.css) */
 .bm-notice{position:absolute;left:10px;right:10px;bottom:28px;z-index:3;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 12px;border-radius:8px;background:var(--white);border:1px solid var(--line);box-shadow:0 4px 18px rgba(0,0,0,.22);font-size:13px}
 .bm-notice-text{flex:1 1 180px}
 .bm-notice-back{border:0;border-radius:6px;background:var(--terr);color:#fff;font:inherit;font-weight:600;padding:6px 10px;cursor:pointer}
