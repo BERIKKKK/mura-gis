@@ -1,11 +1,12 @@
 /* Mura GIS — негізгі процесс.
    Интерфейс src/ ішінен mura://app/ мекенжайымен беріледі (тұрақты origin: localStorage, fetch, CORS дұрыс жұмыс істейді).
-   mura://app/api — сақталған аймақтар (main/store.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
+   mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
 const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { Store } = require('./store');
+const { MarksStore } = require('./marks');
 const updates = require('./updates');
 
 const SRC = path.join(__dirname, '..', 'src');
@@ -20,8 +21,30 @@ if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
 let win = null;
 let store = null;
+let marks = null;
 
 ipcMain.on('mura:version', e => { e.returnValue = app.getVersion(); });
+
+/* Ескерткіштер тізімін PDF-ке айналдыру: бет дайын HTML-ді жібереді, ол жасырын терезеде (JavaScript-сіз)
+   ашылып, Chromium-ның өз баспа қозғалтқышымен A4 PDF болады. Файлды сақтау — беттің өзінде (жүктеу терезесі). */
+ipcMain.handle('mura:pdf', async (e, html) => {
+  if (!String(e.senderFrame && e.senderFrame.url || '').startsWith('mura://app/')) throw new Error('Рұқсат жоқ');
+  if (typeof html !== 'string' || html.length > 20e6) throw new Error('Құжат тым үлкен');
+  const tmp = path.join(app.getPath('temp'), 'mura-pdf-' + process.pid + '-' + Date.now() + '.html');
+  fs.writeFileSync(tmp, html);
+  const w = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true, spellcheck: false } });
+  try {
+    await w.loadFile(tmp);
+    return await w.webContents.printToPDF({
+      pageSize: 'A4', printBackground: true, preferCSSPageSize: true,
+      displayHeaderFooter: true, headerTemplate: '<span></span>',
+      footerTemplate: '<div style="width:100%;text-align:center;font:9px Times New Roman,serif;color:#444"><span class="pageNumber"></span></div>',
+    });
+  } finally {
+    w.destroy();
+    fs.rm(tmp, { force: true }, () => {});
+  }
+});
 
 function serveFile(urlPath) {
   const rel = decodeURIComponent(urlPath).replace(/^\/+/, '') || 'index.html';
@@ -137,11 +160,13 @@ app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(
 
 app.whenReady().then(() => {
   store = new Store(path.join(app.getPath('userData'), 'data'));
+  marks = new MarksStore(store.dir);
 
   protocol.handle('mura', req => {
     const u = new URL(req.url);
     if (u.host !== 'app') return new Response('Not found', { status: 404 });
     if (u.pathname === '/api') return store.handle(req);
+    if (u.pathname === '/marks') return marks.handle(req);
     return serveFile(u.pathname);
   });
 

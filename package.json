@@ -15,7 +15,8 @@
     "dist:linux": "electron-builder --linux --publish never",
     "release:win": "electron-builder --win --publish always",
     "release:linux": "electron-builder --linux --publish always",
-    "smoke": "electron scripts/smoke.js"
+    "smoke": "electron scripts/smoke.js",
+    "smoke:marks": "electron scripts/smoke-marks.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"

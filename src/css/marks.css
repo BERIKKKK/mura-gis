@@ -1,0 +1,61 @@
+/* Mura GIS: «Белгі қою» — ескерткіш белгілері (marks/*.js). Қорғау аймағының стильдеріне (maptool.css) тимейді. */
+.qa-map.is-marking, .qa-map.is-marking .leaflet-grab { cursor: crosshair; }
+/* Шекара нүктесін қою не сызғыш режимінде белгілер басуды картаға өткізеді — шекара нүктесі белгінің үстіне де қойылады */
+.qa-map.is-adding .mk-pin, .qa-map.is-ruler .mk-pin { pointer-events: none; }
+.qa-map.is-adding .mk-pin, .qa-map.is-ruler .mk-pin { opacity: .8; }
+
+/* ---------- Картадағы белгі ---------- */
+.mk-pin { --mk: #7a3fb0; }
+.mk-pin--a { --mk: #8a4a1c; }   /* археология */
+.mk-pin--s { --mk: #1d6f8c; }   /* қала құрылысы және сәулет */
+.mk-pin--e { --mk: #5b3fa6; }   /* ансамбльдер мен кешендер */
+.mk-pin--k { --mk: #0f7a4f; }   /* киелі объектілер */
+.mk-pin--m { --mk: #a3266b; }   /* монументтік өнер */
+.mk-pin svg { display: block; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5)); }
+.mk-pin-b { fill: var(--mk); stroke: #fff; stroke-width: 2; }
+.mk-pin.is-pre .mk-pin-b { stroke-dasharray: 3 2; }
+.mk-pin.is-excl .mk-pin-b { fill: #8d8778; }
+.mk-pin b { position: absolute; left: 0; top: 4px; width: 26px; text-align: center; font: 700 11px/16px system-ui, 'Segoe UI', sans-serif; color: #fff; pointer-events: none; letter-spacing: -.02em; }
+.mk-tip { font: 600 12px/1.25 system-ui, 'Segoe UI', sans-serif; padding: 3px 7px; border-radius: 6px; }
+.mk-tip.is-perm { background: rgba(255, 255, 255, .9); box-shadow: 0 1px 3px rgba(0, 0, 0, .35); border: 0; }
+
+/* Шартты белгілер */
+.mk-leg { display: inline-flex; align-items: center; }
+.mk-leg-pin { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #8a4a1c; border: 1.5px solid #fff; box-shadow: 0 0 0 1px #8a4a1c; }
+
+/* Құралдар жолағы */
+body.mura .mk-group .qa-total { margin-left: 4px; }
+
+/* ---------- Белгі терезесі ---------- */
+.mk-dlg-back { z-index: 3200; }
+.qa-dlg.mk-dlg { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 16px 18px 14px; }
+.mk-dlg h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 16px; }
+.mk-dlg label { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 3px; }
+.mk-dlg input, .mk-dlg select, .mk-dlg textarea { width: 100%; font-size: 13.5px; }
+.mk-dlg textarea { min-height: 52px; resize: vertical; }
+.mk-dlg .qa-f { margin-bottom: 9px; }
+.mk-dlg .mk-coords input { font-family: ui-monospace, Consolas, monospace; }
+.mk-coordok { margin: -4px 0 9px; font-family: ui-monospace, Consolas, monospace; }
+.mk-key { color: var(--steppe); }
+.mk-law { font-weight: 400; color: var(--soft); }
+.mk-req { color: var(--terr); }
+.mk-err { margin: 0 0 10px; color: var(--terr); font-weight: 600; font-size: 12.5px; }
+.mk-dlg .qa-dlg-btns { align-items: center; }
+.mk-dlg .mk-sp { flex: 1 1 auto; }
+.mk-dlg .lnk { font-size: 13px; font-weight: 600; }
+
+/* ---------- Белгілер панелі ---------- */
+.mk-filters { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.mk-filters select { width: 100%; min-width: 0; padding: 4px 6px; font-size: 12.5px; }
+.mk-drawer .qa-selbar { flex-wrap: wrap; gap: 6px 14px; }
+.mk-dhead { margin: 6px 0 -2px; font-size: 11.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--soft); }
+.mk-card { align-items: flex-start; }
+.mk-dot { flex: 0 0 auto; width: 12px; height: 12px; margin-top: 4px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #8a4a1c; }
+.mk-dot--s { background: #1d6f8c; } .mk-dot--e { background: #5b3fa6; } .mk-dot--k { background: #0f7a4f; } .mk-dot--m { background: #a3266b; }
+.mk-st { font-weight: 600; }
+.mk-st--prelim, .mk-st--archreg { color: #9a6a00; }
+.mk-st--excluded { color: var(--terr); }
+.mk-cc { font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; }
+.mk-exp { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(34, 29, 22, .10); }
+.mk-exp textarea { min-height: 48px; font-size: 13px; }
+@media (max-width: 520px) { .mk-filters { grid-template-columns: 1fr; } }

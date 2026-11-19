@@ -102,6 +102,7 @@ copy(path.join(SITE, 'admin/assets/koordinat/vendor/LICENSE-fflate'), 'vendor/LI
 <title>Mura GIS</title>
 <link rel="stylesheet" href="css/admin.css">
 <link rel="stylesheet" href="css/desktop.css">
+<link rel="stylesheet" href="css/marks.css">
 </head>
 <body class="mura">
 ${html.trim()}
@@ -111,8 +112,10 @@ ${html.trim()}
 <script src="js/basemaps.js"></script>
 <script>window.QA_FFLATE = 'vendor/fflate.js'; window.QA_API = 'mura://app/api?v=1';</script>
 <script src="js/desktop.js"></script>
+<script src="marks/marks-dom.js"></script>
 <script type="module" src="qorgau/ui.js"></script>
 <script type="module" src="qorgau/app.js"></script>
+<script type="module" src="marks/marks.js"></script>
 </body>
 </html>
 `;
