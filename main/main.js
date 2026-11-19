@@ -145,8 +145,8 @@ app.whenReady().then(() => {
     return serveFile(u.pathname);
   });
 
-  // OpenStreetMap / OpenTopoMap тайл саясаты: бағдарламаны анықтайтын User-Agent
-  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://*.tile.openstreetmap.org/*', 'https://tile.openstreetmap.org/*', 'https://*.tile.opentopomap.org/*'] }, (d, cb) => {
+  // OpenStreetMap / OpenTopoMap / nakarte.me тайл саясаты: бағдарламаны анықтайтын User-Agent
+  session.defaultSession.webRequest.onBeforeSendHeaders({ urls: ['https://*.tile.openstreetmap.org/*', 'https://tile.openstreetmap.org/*', 'https://*.tile.opentopomap.org/*', 'https://tiles.nakarte.me/*', 'https://*.tiles.nakarte.me/*'] }, (d, cb) => {
     d.requestHeaders['User-Agent'] = UA;
     cb({ requestHeaders: d.requestHeaders });
   });

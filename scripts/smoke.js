@@ -56,10 +56,15 @@ async function run(win) {
   r.layers = await js(`(async () => {
     const pick = t => [...document.querySelectorAll('.mura-opt')].find(o => o.textContent.includes(t)).click();
     const out = {};
-    for (const t of ['Esri World Topo', 'Спутник', 'OpenTopoMap']) {
+    for (const t of ['Esri World Topo', 'Спутник', 'OpenTopoMap', 'Генштаб 1:1', 'Генштаб (КСРО']) {
       pick(t); await new Promise(r => setTimeout(r, 2500));
       out[t] = (document.querySelector('.qa-map').classList.contains('is-sat') ? 'sat' : 'std') + ' / сызба фоны: ' + document.getElementById('qaSchemeBase').textContent;
     }
+    // Генштаб: нақты масштабы z13 — картаны 4 деңгей кішірейтеміз
+    for (let i = 0; i < 4; i++) { document.querySelector('.leaflet-control-zoom-out').click(); await new Promise(r => setTimeout(r, 500)); }
+    await new Promise(r => setTimeout(r, 3000));
+    out.gshTiles = [...document.querySelectorAll('.leaflet-tile-loaded')].filter(i => i.src.includes('nakarte')).length;
+    out.onMap = [...document.querySelectorAll('.qa-map .leaflet-layer')].map(l => { const i = l.querySelector('img'); return (i ? new URL(i.src).host : '-') + ' z' + getComputedStyle(l).zIndex + ' op' + getComputedStyle(l).opacity; });
     pick('Атаулар'); await new Promise(r => setTimeout(r, 2000));
     out.saved = localStorage.getItem('mura.basemap') + ' ' + localStorage.getItem('mura.overlays');
     out.notice = !!document.querySelector('.bm-notice');
@@ -71,6 +76,7 @@ async function run(win) {
     f.elements.url.value = 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png';
     f.requestSubmit(); await new Promise(r => setTimeout(r, 1500));
     out.custom = !!document.querySelector('.mura-dlg') ? 'терезе жабылмады' : localStorage.getItem('mura.basemap') + ' | ' + [...document.querySelectorAll('.mura-opt')].map(o => o.textContent).filter(t => t.includes('Тест')).join();
+    pick('Генштаб (КСРО'); await new Promise(r => setTimeout(r, 3000));   // скриншот — Генштаб картасымен
     return out;
   })()`);
   fs.writeFileSync(shot.replace(/.png$/, '-otm.png'), (await win.webContents.capturePage()).toPNG());

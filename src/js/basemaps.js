@@ -28,6 +28,14 @@
     { id: 'esri-topo', kind: 'std', label: 'Esri World Topo', sw: 'topo2',
       url: ESRI + 'World_Topo_Map/MapServer/tile/{z}/{y}/{x}', maxNative: 19,
       attribution: '© Esri, HERE, Garmin, OpenStreetMap' },
+    // Кеңестік Бас штаб (Генштаб) топокарталары — nakarte.me тайл-серверінен (AtloMaps мозаикасы: 1:100 000 → 1:50 000,
+    // бүкіл КСРО аумағы, нақты масштаб z13-ке дейін). Ақтөбе облысы толық қамтылған (2026-11-19 тексерілді).
+    { id: 'gsh', kind: 'std', label: 'Генштаб (КСРО топокартасы)', sw: 'gsh',
+      url: 'https://tiles.nakarte.me/topomapper/{z}/{x}/{y}', maxNative: 13,
+      attribution: 'Генштаб КСРО · AtloMaps · <a href="https://nakarte.me">nakarte.me</a>' },
+    { id: 'gsh1m', kind: 'std', label: 'Генштаб 1:1 000 000', sw: 'gsh',
+      url: 'https://{s}.tiles.nakarte.me/topo001m/{z}/{x}/{y}', subdomains: 'abc', tms: true, maxNative: 10,
+      attribution: 'Генштаб КСРО · <a href="https://nakarte.me">nakarte.me</a>' },
     { id: 'sat', kind: 'sat', label: 'Спутник (Esri)', sw: 'sat',
       url: SAT_URL, maxNative: 18, probe: true,
       attribution: '© Esri, Maxar, Earthstar Geographics' },
@@ -53,7 +61,7 @@
     if (url.indexOf('{-y}') >= 0) { url = url.replace('{-y}', '{y}'); tms = true; }
     var o = {
       attribution: d.attribution || '', maxZoom: 20, maxNativeZoom: d.maxNative || 18,
-      zIndex: d.overlay ? 5 : 1, opacity: d.opacity != null ? d.opacity : 1, tms: tms,
+      zIndex: d.overlay ? 5 : 1, opacity: d.opacity != null ? d.opacity : 1, tms: tms || !!d.tms,
     };
     if (d.subdomains) o.subdomains = d.subdomains;
     if (d.kind === 'sat') o.className = 'sat-tiles';
