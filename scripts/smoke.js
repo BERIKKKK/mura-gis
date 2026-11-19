@@ -38,13 +38,16 @@ async function run(win) {
     out.save = s.ok ? 'ok ' + s.id : s.error;
     const l = await (await fetch(QA_API + '&op=list', { method: 'POST', body: new FormData() })).json();
     out.listed = l.items ? l.items.length : l.error;
-    out.title = document.querySelector('.qa-top h1').textContent;
-    out.brand = !!document.querySelector('.mura-brand');
+    out.title = document.title; out.oldTop = !!document.querySelector('.qa-top');
+    out.status = document.getElementById('muraRec').textContent + ' | ' + document.getElementById('muraScale').textContent; out.panelBtns = !!document.querySelector('.mura-bar #qaOpenInfo');
     return out;
   })()`);
   await new Promise(res => setTimeout(res, 2500));
   const img = await win.webContents.capturePage();
   fs.writeFileSync(shot, img.toPNG());
+  await js("document.getElementById('qaOpenInfo').click()");
+  await new Promise(res => setTimeout(res, 1200));
+  fs.writeFileSync(shot.replace(/.png$/, '-panel.png'), (await win.webContents.capturePage()).toPNG());
   const file = path.join(tmp, 'data', 'qorgau.json');
   r.tilesLoaded = await js("document.querySelectorAll('.leaflet-tile-loaded').length");
   r.requests = tiles;

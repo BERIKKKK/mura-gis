@@ -1,10 +1,48 @@
-/* Mura GIS: сайттың әкімші панелінсіз (сол жақ мәзірсіз) жұмыс үстелі терезесіне бейімдеу.
-   Құралдың өз стильдері — css/maptool.css және index.html ішіндегі <style> (сайттан көшірілген). */
+/* Mura GIS: жұмыс үстелі интерфейсі. Құралдың өз стильдері — css/maptool.css және index.html ішіндегі <style> (сайттан көшірілген);
+   мұнда сайттан айырмашылықтары: жоғарғы жолақ жоқ, құралдар жолағы терезеге бекітілген, панельдер шетке жабысқан, төменде күй жолағы. */
 html, body { height: 100%; }
-body.mura { display: flex; flex-direction: column; overflow: hidden; background: var(--paper2); }
+body.mura { display: flex; flex-direction: column; overflow: hidden; background: var(--paper2); font-size: 14px; }
 body.mura .qa-app { flex: 1 1 auto; min-height: 0; }
 
-.mura-brand { display: inline-flex; align-items: center; gap: 8px; flex: 0 0 auto; color: var(--ink); font-weight: 700; font-size: 14px; letter-spacing: .01em; padding-right: 12px; border-right: 1px solid var(--line); }
-.mura-brand img { width: 26px; height: 26px; border-radius: 7px; display: block; }
-.mura-brand small { font-weight: 500; font-size: 11.5px; color: var(--soft); }
-@media (max-width: 700px) { .mura-brand span, .mura-brand small { display: none; } .mura-brand { padding-right: 8px; } }
+/* Картаның үстіндегі элементтер енді құралдар жолағының астынан емес, картаның жоғарғы жиегінен басталады.
+   (ui.js --qa-top мәнін жолақтың биіктігінен есептейді — жолақ картадан тыс болғандықтан, оны бекітеміз.) */
+body.mura .qa-app { --qa-top: 10px !important; --qa-gap: 8px; }
+
+/* ===== Құралдар жолағы: терезенің жоғарғы жағына бекітілген ===== */
+body.mura .qa-tb.mura-bar {
+  position: relative; z-index: 900; top: auto; left: auto; right: auto; flex: 0 0 auto;
+  border-radius: 0; padding: 5px 8px; gap: 6px;
+  background: var(--white); border: 0; border-bottom: 1px solid var(--line); box-shadow: 0 1px 4px rgba(34, 29, 22, .06);
+}
+body.mura .mura-bar .qa-tbtn { height: 34px; min-width: 34px; border-radius: 8px; font-size: 13px; }
+body.mura .mura-bar .qa-tbtn.qa-save { padding: 0 14px; }
+body.mura .mura-bar .qa-tright { gap: 4px; }
+body.mura .mura-panels { margin-right: 6px; padding-right: 8px; border-right: 1px solid rgba(34, 29, 22, .14); }
+body.mura .mura-bar .qa-total { font-size: 11px; font-weight: 700; background: var(--paper2); color: var(--ink); border-radius: 99px; padding: 2px 7px; line-height: 1.2; }
+body.mura .mura-bar .qa-tbtn[aria-expanded="true"] { background: var(--ink); color: var(--paper); }
+body.mura .mura-bar .qa-tbtn[aria-expanded="true"] .qa-total { background: rgba(255, 255, 255, .2); color: #fff; }
+
+/* ===== Бүйірлік панельдер: картаның оң жиегіне жабысқан ===== */
+@media (min-width: 768px) {
+  body.mura .qa-drawer { top: 0; right: 0; bottom: 0; border-radius: 0; border-top: 0; border-right: 0; border-bottom: 0;
+    background: var(--white); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: -4px 0 18px rgba(34, 29, 22, .10); }
+}
+body.mura .qa-pop { border-radius: 10px; }
+
+/* ===== Төменгі күй жолағы ===== */
+.mura-status {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 0; height: 26px; padding: 0 4px 0 10px;
+  background: var(--white); border-top: 1px solid var(--line); color: var(--soft);
+  font: 12px/1 system-ui, 'Segoe UI', Roboto, Arial, sans-serif; white-space: nowrap; overflow: hidden; user-select: none;
+}
+.mura-st-rec { display: inline-flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mura-st-rec strong { color: var(--ink); }
+.mura-st-rec .qa-dirty { font-size: 11px; padding: 1px 7px; }
+.mura-st-sp { flex: 1 1 auto; }
+.mura-st-cell { padding: 0 10px; border-left: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+#muraCursor { font-family: ui-monospace, Consolas, monospace; min-width: 250px; }
+.mura-st-ver { color: #9a917f; }
+@media (max-width: 900px) { #muraCursor { min-width: 0; } .mura-st-ver { display: none; } }
+
+/* Толық экранда күй жолағы да бірге қалады */
+body.mura .qa-app.is-fs, body.mura .qa-app:fullscreen { display: flex; flex-direction: column; }

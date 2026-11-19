@@ -32,7 +32,7 @@ function serveFile(urlPath) {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1400, height: 900, minWidth: 720, minHeight: 520,
+    width: 1400, height: 900, minWidth: 820, minHeight: 540,
     title: 'Mura GIS',
     icon: path.join(SRC, 'img', 'icon.png'),
     backgroundColor: '#ebe5d8',
@@ -50,7 +50,6 @@ function createWindow() {
   win.webContents.on('will-navigate', (e, url) => {
     if (!url.startsWith('mura://app/')) { e.preventDefault(); if (/^https?:/i.test(url)) shell.openExternal(url); }
   });
-  win.on('page-title-updated', e => e.preventDefault());
 }
 
 function buildMenu() {
