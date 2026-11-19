@@ -1,0 +1,180 @@
+/* Карта құралдарының ортақ интерфейс қабығы («карта бірінші»): Қорғау аймағы (tool-qorgau.php),
+   Координат (tool-koordinat.php). Бет экран биіктігіне бекітіледі; жоғарғы жолақ (.qa-top),
+   Liquid Glass құралдар жолағы (.qa-tb), поповерлер мен «⋯» мәзірі (.qa-pop, .qa-mi),
+   бүйірлік панельдер (.qa-drawer; мобильде — төменнен шығатын drawer), шартты белгілер, хабарлама.
+   Құралға тән стильдер — әр беттің өз <style> блогында. «Құралдарға қайту» батырмасы — admin.css (.tool-back). */
+
+/* ===== Бет: экран биіктігіне бекітілген, тік скроллсыз ===== */
+html.qa-full,html.qa-full body{height:100%;overflow:hidden}
+html.qa-full .adm-content{height:100vh;height:100dvh}
+html.qa-full .adm-main{flex:1 1 auto;min-height:0;padding:0;display:flex;flex-direction:column;overflow:hidden}
+html.qa-full .adm-main > .flash{margin:8px 12px 0}
+.qa-app{--qa-glass:rgba(252,250,245,.78);--qa-glass-strong:rgba(252,250,245,.92);--qa-glass-line:rgba(255,255,255,.55);
+  --qa-shadow:0 6px 24px rgba(34,29,22,.14),0 1px 3px rgba(34,29,22,.10);--qa-blur:blur(18px) saturate(150%);
+  --qa-drawer-w:420px;--qa-gap:10px;--qa-top:64px;--qa-bottom:62px;--qa-right:var(--qa-gap);
+  flex:1 1 auto;min-height:0;display:flex;flex-direction:column;background:var(--paper2)}
+.qa-app.is-fs{position:fixed;inset:0;z-index:2000}
+@media(min-width:1600px){.qa-app{--qa-drawer-w:460px}}
+/* Қауіпсіз аймақтар: алдыңғы камера ойығы, жүйе жолақтары, iPhone «үй» индикаторы.
+   env() мәндері бет viewport-fit=cover қосқанда ғана нөлден өзгеше (tool-qorgau.php) — басқа беттерге зиянсыз.
+   Толық экранда жоғарғы шегініс те қосылады — жоғарғы жолақ камера аймағына түспейді. */
+.qa-app{padding:0 env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.qa-app.is-fs,.qa-app:fullscreen{padding-top:env(safe-area-inset-top,0px);background:var(--white)}
+.qa-app:-webkit-full-screen{padding-top:env(safe-area-inset-top,0px);background:var(--white)}
+html.qa-full .adm-topbar{padding-top:max(12px,env(safe-area-inset-top,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* ===== Жоғарғы навигациялық жолақ ===== */
+.qa-top{flex:0 0 auto;display:flex;align-items:center;gap:10px;min-height:54px;padding:7px 14px;background:var(--white);border-bottom:1px solid var(--line);min-width:0}
+.qa-top h1{margin:0;font-size:19px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.qa-st{flex:0 1 auto;min-width:0;display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:12px;border-left:1px solid var(--line)}
+.qa-st strong{color:var(--ink);overflow:hidden;text-overflow:ellipsis}
+.qa-dirty{flex:0 0 auto;font-size:11.5px;font-weight:600;color:#7a4612;background:#f6e7d2;border-radius:99px;padding:1px 8px}
+.qa-topbtns{margin-left:auto;display:flex;gap:8px;flex:0 0 auto}
+.qa-hbtn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--white);color:var(--ink);font:600 14px/1 inherit;font-family:inherit;cursor:pointer;white-space:nowrap}
+.qa-hbtn:hover{background:var(--paper2)}
+.qa-hbtn[aria-expanded="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.qa-hbtn .qa-total{font-size:11.5px;font-weight:700;background:var(--paper2);color:var(--ink);border-radius:99px;padding:2px 7px;line-height:1.2}
+.qa-hbtn[aria-expanded="true"] .qa-total{background:rgba(255,255,255,.18);color:#fff}
+@media(max-width:900px){.qa-st{display:none}}
+@media(max-width:600px){
+  .qa-top{padding:6px 10px;gap:8px;min-height:50px}
+  .qa-top h1{font-size:17px}
+  .qa-hbtn{padding:0 10px}
+  .qa-hbtn .qa-hl{display:none}
+}
+
+/* ===== Карта жұмыс кеңістігі ===== */
+.qa-stage{position:relative;flex:1 1 auto;min-height:0;overflow:hidden}
+.qa-map{position:absolute;inset:0;z-index:0;background:var(--paper2)}
+
+.qa-map .leaflet-pane,.qa-map .leaflet-top,.qa-map .leaflet-bottom{z-index:1!important}
+.qa-map .leaflet-control{z-index:2!important}
+/* Карта басқару элементтері қалқымалы панельдердің астында қалмауы үшін ығысады */
+.qa-map .leaflet-top{top:var(--qa-top)}
+.qa-map .leaflet-bottom{bottom:var(--qa-bottom)}
+.qa-map .leaflet-right{right:calc(var(--qa-right) - var(--qa-gap))}
+.qa-map .map-fs-ctl{display:none}            /* толық экран — бүкіл жұмыс аймағына (құралдар жолағымен бірге) */
+.qa-map .leaflet-control-attribution{border-radius:6px 0 0 0;font-size:10.5px}
+
+/* ===== Liquid Glass ===== */
+.qa-glass{background:var(--qa-glass);-webkit-backdrop-filter:var(--qa-blur);backdrop-filter:var(--qa-blur);border:1px solid var(--qa-glass-line);box-shadow:var(--qa-shadow)}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.qa-glass{background:var(--qa-glass-strong)}}
+@media (prefers-reduced-transparency:reduce){.qa-glass{background:var(--white);-webkit-backdrop-filter:none;backdrop-filter:none}}
+
+/* ===== Құралдар жолағы (бір қатар, ешқашан тасымалданбайды) ===== */
+.qa-tb{position:absolute;z-index:600;top:var(--qa-gap);left:var(--qa-gap);right:var(--qa-right);display:flex;flex-wrap:nowrap;align-items:center;gap:6px;min-width:0;padding:6px;border-radius:16px}
+.qa-tmain{flex:1 1 auto;min-width:0;display:flex;flex-wrap:nowrap;align-items:center;gap:2px}
+.qa-tgroup{display:flex;flex-wrap:nowrap;align-items:center;gap:2px;flex:0 0 auto}
+.qa-tgroup:not([hidden]) ~ .qa-tgroup:not([hidden]){margin-left:4px;padding-left:6px;border-left:1px solid rgba(34,29,22,.14)}
+.qa-tright{flex:0 0 auto;display:flex;align-items:center;gap:6px}
+.qa-tbtn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:38px;min-width:38px;padding:0 10px;border:0;border-radius:11px;background:transparent;color:var(--ink);font:600 13.5px/1 system-ui,'Segoe UI',Roboto,Arial,sans-serif;white-space:nowrap;cursor:pointer;flex:0 0 auto;transition:background .12s,color .12s}
+.qa-tbtn:hover{background:rgba(34,29,22,.08)}
+.qa-tbtn:active{background:rgba(34,29,22,.14)}
+.qa-tbtn:focus-visible,.qa-hbtn:focus-visible,.qa-mi:focus-visible,.qa-ib:focus-visible{outline:2px solid var(--terr);outline-offset:1px}
+.qa-tbtn[aria-pressed="true"]{background:var(--terr);color:#fff}
+.qa-tbtn[aria-expanded="true"]{background:rgba(34,29,22,.12)}
+.qa-tbtn:disabled{opacity:.4;cursor:not-allowed}
+.qa-tv{font-variant-numeric:tabular-nums;font-weight:700}
+.qa-tbtn.is-icon .qa-tl{display:none}
+.qa-tbtn.is-icon{padding:0 8px}
+
+.qa-save{background:var(--terr);color:#fff;padding:0 14px}
+.qa-save:hover{background:#933a18}
+.qa-save:disabled{opacity:.6}
+.qa-save.is-dirty::after{content:'';position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:#ffd36b;box-shadow:0 0 0 2px var(--terr)}
+.qa-save.is-busy .qa-ic{animation:qa-spin .9s linear infinite}
+.qa-save.is-busy .qa-ic path,.qa-save.is-busy .qa-ic rect{display:none}
+.qa-save.is-busy .qa-ic{border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;width:16px;height:16px;box-sizing:border-box}
+@keyframes qa-spin{to{transform:rotate(360deg)}}
+@media(max-width:600px){.qa-save .qa-tl{display:none}.qa-save{padding:0 10px}}
+/* Түсіндірме (tooltip) — тінтуірмен меңзегенде */
+@media (hover:hover) and (pointer:fine){
+  .qa-tbtn[data-tip]::after{content:attr(data-tip);position:absolute;top:calc(100% + 8px);left:50%;transform:translate(-50%,-3px);padding:5px 9px;border-radius:6px;background:rgba(34,29,22,.92);color:#fff;font:600 12px/1.25 system-ui,sans-serif;white-space:nowrap;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .12s,transform .12s;z-index:5}
+  .qa-tbtn[data-tip]:hover::after,.qa-tbtn[data-tip]:focus-visible::after{opacity:1;visibility:visible;transform:translate(-50%,0)}
+  .qa-tmain .qa-tgroup:first-child .qa-tbtn:first-child::after{left:0;transform:none}
+  .qa-tright .qa-tbtn[data-tip]::after{left:auto;right:0;transform:none}
+  .qa-tbtn[aria-expanded="true"]::after{display:none}
+}
+
+/* ===== Қалқымалы терезелер (поповер) мен «⋯» мәзірі ===== */
+.qa-pop{position:absolute;z-index:700;top:calc(var(--qa-top) - 4px);left:var(--qa-gap);width:min(440px,calc(100% - 2 * var(--qa-gap)));max-height:calc(100% - var(--qa-top) - var(--qa-gap));overflow:auto;padding:14px 16px;border-radius:16px;font-size:13.5px;overscroll-behavior:contain}
+.qa-pop h3{margin:0 0 10px;font-size:14.5px;display:flex;align-items:center;gap:8px}
+.qa-pop h3 .qa-ib{margin-left:auto}
+.qa-more{left:auto;right:var(--qa-right);width:min(300px,calc(100% - 2 * var(--qa-gap)));padding:6px}
+.qa-mi{display:flex;align-items:center;gap:10px;width:100%;min-height:40px;padding:8px 10px;border:0;border-radius:10px;background:transparent;color:var(--ink);font:500 14px/1.25 inherit;font-family:inherit;text-align:left;cursor:pointer}
+.qa-mi:hover{background:rgba(34,29,22,.08)}
+.qa-mi[aria-pressed="true"]{color:var(--terr);font-weight:700}
+.qa-mi .qa-ic{flex:0 0 auto}
+.qa-mi small{margin-left:auto;color:var(--soft);font-size:12px}
+.qa-mi--danger{color:var(--terr)}
+.qa-msep{height:1px;margin:5px 6px;background:rgba(34,29,22,.12)}
+.qa-mhead{padding:6px 10px 4px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+.qa-ib{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;flex:0 0 auto;border:0;border-radius:9px;background:transparent;color:var(--ink);cursor:pointer}
+.qa-ib:hover{background:rgba(34,29,22,.08)}
+
+/* ===== Хабарлама, алдын ала көрініс белгісі ===== */
+.qa-float-msg{position:absolute;z-index:550;top:var(--qa-top);left:56px;right:calc(var(--qa-right) + 46px);display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.qa-float-msg > *{pointer-events:auto}
+.qa-msg{margin:0;padding:8px 12px;border-radius:10px;font-size:13px;font-weight:600;box-shadow:var(--qa-shadow);max-width:560px}
+.qa-msg--warn{background:#f6e7d2;color:#7a4612}
+.qa-msg--err{background:#f8dcd5;color:#8b2a12}
+.qa-chip{display:inline-flex;align-items:center;gap:8px;padding:4px 4px 4px 12px;border-radius:99px;font-size:13px;max-width:100%}
+.qa-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qa-chip .lnk{font-size:13px;font-weight:600;white-space:nowrap}
+
+/* ===== Шартты белгілер (Leaflet басқару элементі) ===== */
+.qa-legend{padding:6px 10px;border-radius:12px;font-size:11.5px;line-height:1.5;color:var(--ink)}
+.qa-legend span{display:flex;align-items:center;white-space:nowrap}
+.qa-sw{display:inline-block;width:20px;height:0;border-top:4px solid;vertical-align:middle;margin-right:6px;border-radius:2px}
+.qa-count{font-weight:700;margin-top:2px;padding-top:3px;border-top:1px solid rgba(34,29,22,.12)}
+.qa-count.is-bad{color:var(--terr)}
+@media(max-width:600px){.qa-legend{font-size:10.5px;padding:5px 8px}.qa-sw{width:14px}}
+
+/* ===== Бүйірлік панельдер (мобильде — төменнен шығатын drawer) ===== */
+.qa-drawer{position:absolute;z-index:650;top:var(--qa-gap);right:var(--qa-gap);bottom:var(--qa-gap);width:min(var(--qa-drawer-w),calc(100% - 2 * var(--qa-gap)));display:flex;flex-direction:column;border-radius:18px;overflow:hidden;background:var(--qa-glass-strong)}
+.qa-dh{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:12px 10px 10px 18px;border-bottom:1px solid rgba(34,29,22,.10)}
+.qa-dh h2{margin:0;font-size:17px;display:flex;align-items:center;gap:8px;min-width:0}
+.qa-dh .qa-ib{margin-left:auto}
+.qa-db{flex:1 1 auto;min-height:0;overflow:auto;padding:14px 18px 18px;overscroll-behavior:contain}
+.qa-df{flex:0 0 auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid rgba(34,29,22,.10);background:rgba(252,250,245,.6)}
+.qa-df .qa-grow{margin-left:auto}
+.qa-sec + .qa-sec{margin-top:18px;padding-top:16px;border-top:1px solid rgba(34,29,22,.10)}
+.qa-sec h3{margin:0 0 10px;font-size:14.5px}
+.qa-drawer input,.qa-drawer select,.qa-drawer textarea{background:rgba(255,255,255,.9)}
+.qa-drawer label{font-size:13px}
+.qa-row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.qa-f{margin-bottom:10px}
+.qa-f textarea{min-height:70px;resize:vertical;font-size:13.5px}
+.qa-hint{font-size:12px;color:var(--soft);margin:3px 0 0}
+
+.qa-check{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:400;cursor:pointer;margin:0}
+.qa-check input{width:auto;margin:0}
+.qa-app .btn--sm{padding:6px 12px;font-size:13px;margin-top:0}
+.qa-drawer .btn[disabled],.qa-pop .btn[disabled]{opacity:.45;cursor:not-allowed}
+.qa-app .tbl{min-width:0}
+.qa-app .tbl th:last-child,.qa-app .tbl td.actions{min-width:0}
+.qa-tablewrap{overflow-x:auto;margin:0 -4px}
+@media(max-width:767px){
+  /* --qa-kb — экрандағы пернетақтаның биіктігі (ui.js; тек оны viewport өзі ескермейтін браузерлерде) */
+  .qa-drawer{top:auto;left:0;right:0;bottom:var(--qa-kb,0px);width:auto;max-height:min(80%,calc(100% - 56px - var(--qa-kb,0px)));border-radius:18px 18px 0 0;border-bottom:0}
+  .qa-drawer::before{content:'';position:absolute;top:6px;left:50%;width:38px;height:4px;margin-left:-19px;border-radius:2px;background:rgba(34,29,22,.22)}
+  .qa-dh{padding-top:16px}
+  .qa-db{padding:12px 14px 16px}
+}
+@media(max-width:420px){.qa-row2,.qa-dist{grid-template-columns:1fr}}
+
+/* Сайт картасының хабарламасы («Карта қабаттары» мәзірі — admin.css) */
+.bm-notice{position:absolute;left:10px;right:10px;bottom:28px;z-index:3;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 12px;border-radius:8px;background:var(--white);border:1px solid var(--line);box-shadow:0 4px 18px rgba(0,0,0,.22);font-size:13px}
+.bm-notice-text{flex:1 1 180px}
+.bm-notice-back{border:0;border-radius:6px;background:var(--terr);color:#fff;font:inherit;font-weight:600;padding:6px 10px;cursor:pointer}
+.bm-notice-close{border:0;background:transparent;color:var(--soft);font-size:18px;line-height:1;cursor:pointer}
+
+.qa-toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:3000;max-width:min(560px,calc(100vw - 32px));background:var(--steppe);color:#fff;padding:10px 16px;border-radius:12px;font-size:13.5px;font-weight:600;box-shadow:0 6px 24px rgba(0,0,0,.28)}
+.qa-toast.is-err{background:var(--terr)}
+/* Бет ішіндегі растау терезесі (browser confirm() толық экраннан шығарады) */
+.qa-dlg-back{position:fixed;inset:0;z-index:3500;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(34,29,22,.32)}
+.qa-dlg{width:min(420px,100%);padding:18px 18px 14px;border-radius:16px;background:var(--qa-glass-strong,rgba(252,250,245,.96))}
+.qa-dlg-msg{margin:0 0 16px;font-size:14.5px;line-height:1.45;color:var(--ink)}
+.qa-dlg-btns{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.qa-dlg-btns .btn{margin-top:0;min-height:38px}
+[hidden]{display:none!important}

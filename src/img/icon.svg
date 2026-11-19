@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2c4a3e"/>
+      <stop offset="1" stop-color="#1b2e26"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
+  <!-- Ескерткіш шекарасы және одан сыртқа ығысқан үш аймақ -->
+  <path d="M128 30 L222 92 L196 210 L66 214 L34 100 Z" fill="none" stroke="#d6261f" stroke-width="9" stroke-linejoin="round"/>
+  <path d="M128 60 L196 104 L176 188 L82 191 L59 110 Z" fill="none" stroke="#5b73ff" stroke-width="9" stroke-linejoin="round"/>
+  <path d="M128 88 L172 117 L159 168 L98 170 L83 120 Z" fill="none" stroke="#f2d02b" stroke-width="9" stroke-linejoin="round"/>
+  <path d="M128 114 L148 128 L142 151 L114 152 L107 131 Z" fill="#2fbf55" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
+</svg>

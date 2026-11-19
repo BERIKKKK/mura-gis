@@ -1,0 +1,87 @@
+{
+  "name": "mura-gis",
+  "productName": "Mura GIS",
+  "version": "1.0.0",
+  "description": "Mura GIS — тарих және мәдениет ескерткіштерінің қорғау аймақтарын есептейтін жұмыс үстелі бағдарламасы",
+  "main": "main/main.js",
+  "author": "BERIKKKK",
+  "homepage": "https://github.com/BERIKKKK/mura-gis",
+  "private": true,
+  "scripts": {
+    "sync": "node scripts/sync-from-site.mjs",
+    "icon": "electron scripts/make-icon.js",
+    "start": "electron .",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
+    "release:win": "electron-builder --win --publish always",
+    "release:linux": "electron-builder --linux --publish always",
+    "smoke": "electron scripts/smoke.js"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.11"
+  },
+  "devDependencies": {
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
+    "leaflet": "1.9.4"
+  },
+  "build": {
+    "appId": "kz.aktobenasledie.muragis",
+    "productName": "Mura GIS",
+    "copyright": "© BERIKKKK",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main/**",
+      "src/**",
+      "package.json"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "BERIKKKK",
+        "repo": "mura-gis",
+        "releaseType": "release"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Mura GIS",
+      "artifactName": "MuraGIS-Setup-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "MuraGIS-Portable-${version}.${ext}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Science",
+      "icon": "build/icon.png",
+      "artifactName": "MuraGIS-${version}-${arch}.${ext}"
+    }
+  }
+}
