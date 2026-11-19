@@ -1,7 +1,8 @@
 /* Mura GIS: жұмыс үстелі қабығы.
    Құралдың өз коды (qorgau/*.js) сайттағымен бірдей — мұнда тек интерфейсті бағдарламаға бейімдейміз.
    Бұл файл qorgau/ui.js пен app.js модульдерінен БҰРЫН орындалады, сондықтан DOM-ды солар іске қосылмай тұрып өзгертеміз:
-     • сайттың жоғарғы жолағы (.qa-top) алынады; «Мәліметтер» мен «Сақталған аймақтар» құралдар жолағына көшеді;
+     • сайттың жоғарғы жолағы (.qa-top) алынады; құралдар жолағы жұмыс реті бойынша қайта топталады,
+       «Мәліметтер» мен «Қорғау аймақтары» (сайттағы «Сақталған аймақтар») соған көшеді, «Аяқтау» батырмасы қосылады;
      • құралдар жолағы картаның үстінде қалқымайды — терезенің жоғарғы жағына бекітіледі;
      • жазба күйі («Жаңа жазба», «Сақталмаған өзгерістер») төменгі күй жолағына және терезе атауына шығады;
      • күй жолағында курсордың координатасы мен карта масштабы көрсетіледі. */
@@ -20,23 +21,42 @@
   bar.classList.add('mura-bar');
   app.insertBefore(bar, stage);
 
-  // «Мәліметтер» және «Сақталған аймақтар» → құралдар жолағының оң жағы (сақтау батырмасының алдында)
-  var right = bar.querySelector('.qa-tright');
-  var grp = document.createElement('div');
-  grp.className = 'qa-tgroup mura-panels';
-  grp.setAttribute('role', 'group');
-  grp.setAttribute('aria-label', 'Панельдер');
-  [['qaOpenInfo', 'Мәліметтер: ескерткіш, аймақ өлшемдері, нәтиже'], ['qaOpenSaved', 'Сақталған аймақтар']].forEach(function (p) {
+  /* ---------- Құралдар жолағы жұмыс реті бойынша ----------
+     [Белгілер — marks/marks-dom.js қосады] → [Қорғау аймағы: шекара — Нүкте қою, Болдырмау, Ретке келтіру, Тіктөртбұрыш, Нүктелер, Аяқтау]
+     → [Қорғау аймағы: деректер — Мәліметтер, Қорғау аймақтары, Экспорт] → [Өлшеу] → [Көрініс: Сыйғызу, Толық экран] … ⋯, Сақтау */
+  var tmain = $('qaTmain');
+  var gBorder = $('qaAddMode').closest('.qa-tgroup'), gData = $('qaPtsBtn').closest('.qa-tgroup'), gMeasure = $('qaRuler').closest('.qa-tgroup');
+  gBorder.setAttribute('aria-label', 'Қорғау аймағы: шекара');
+  gData.setAttribute('aria-label', 'Қорғау аймағы: деректер');
+  gBorder.classList.add('mura-zone');
+  gData.classList.add('mura-zone');
+  gBorder.appendChild($('qaPtsBtn'));
+  // «Аяқтау»: шекара белгіленген соң — мәліметтер терезесі және сақтау (js/zone-dialog.js)
+  var fin = document.createElement('button');
+  fin.type = 'button'; fin.className = 'qa-tbtn mura-finish'; fin.id = 'qaFinish';
+  fin.setAttribute('data-prio', '0'); fin.setAttribute('aria-label', 'Аяқтау');
+  fin.setAttribute('data-tip', 'Аяқтау: шекара дайын — мәліметтерді толтырып, сақтау');
+  fin.disabled = true;
+  fin.innerHTML = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8 12.3l2.7 2.7L16.2 9.4"/></svg><span class="qa-tl">Аяқтау</span>';
+  gBorder.appendChild(fin);
+  // «Мәліметтер» және «Қорғау аймақтары» (бұрынғы «Сақталған аймақтар») — қорғау аймағының деректер тобына, «Экспорттың» алдына
+  [['qaOpenInfo', 'Мәліметтер: ескерткіш, аймақ өлшемдері, нәтиже', 'Мәліметтер', '3'], ['qaOpenSaved', 'Қорғау аймақтары: сақталған жазбалар, біріктіру', 'Қорғау аймақтары', '3']].forEach(function (p) {
     var b = $(p[0]);
     if (!b) return;
     b.className = 'qa-tbtn';
     b.setAttribute('data-tip', p[1]);
+    b.setAttribute('aria-label', p[2]);
+    b.setAttribute('data-prio', p[3]);
     b.removeAttribute('title');
     var lbl = b.querySelector('.qa-hl');
-    if (lbl) lbl.className = 'qa-tl';
-    grp.appendChild(b);
+    if (lbl) { lbl.className = 'qa-tl'; lbl.textContent = p[2]; }
+    gData.insertBefore(b, $('qaExportBtn'));
   });
-  right.insertBefore(grp, right.firstChild);
+  tmain.insertBefore(gData, gMeasure);
+  var st = $('qaPanelSavedT');
+  if (st && st.lastChild && st.lastChild.nodeType === 3) st.lastChild.textContent = 'Қорғау аймақтары';
+  var sq = $('qaSavedQ');
+  if (sq) sq.setAttribute('aria-label', 'Қорғау аймақтарынан іздеу');
 
   /* ---------- Төменгі күй жолағы ---------- */
   var sb = document.createElement('footer');

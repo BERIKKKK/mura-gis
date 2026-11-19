@@ -17,7 +17,10 @@ body.mura .qa-tb.mura-bar {
 body.mura .mura-bar .qa-tbtn { height: 34px; min-width: 34px; border-radius: 8px; font-size: 13px; }
 body.mura .mura-bar .qa-tbtn.qa-save { padding: 0 14px; }
 body.mura .mura-bar .qa-tright { gap: 4px; }
-body.mura .mura-panels { margin-right: 6px; padding-right: 8px; border-right: 1px solid rgba(34, 29, 22, .14); }
+/* «Аяқтау» — шекара дайын болғанда белсенді (js/zone-dialog.js) */
+body.mura .mura-bar .mura-finish:not([disabled]) { color: #1f7a35; font-weight: 600; }
+body.mura .mura-bar .mura-finish:not([disabled]):hover { background: #e6f3e9; }
+body.mura .mura-bar .mura-finish[disabled] { opacity: .45; cursor: default; }
 body.mura .mura-bar .qa-total { font-size: 11px; font-weight: 700; background: var(--paper2); color: var(--ink); border-radius: 99px; padding: 2px 7px; line-height: 1.2; }
 body.mura .mura-bar .qa-tbtn[aria-expanded="true"] { background: var(--ink); color: var(--paper); }
 body.mura .mura-bar .qa-tbtn[aria-expanded="true"] .qa-total { background: rgba(255, 255, 255, .2); color: #fff; }

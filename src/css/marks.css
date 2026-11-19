@@ -66,3 +66,12 @@ body.mura .qa-app:has(#qaCoordBar[hidden]) .qa-map .leaflet-bottom.leaflet-right
 @media (min-width: 1300px) { body.mura .qa-map .leaflet-bottom.leaflet-right { bottom: 0; } }
 body.mura .qa-map .leaflet-bottom.leaflet-right .leaflet-control-attribution { margin: 0; }
 body.mura .qa-map .leaflet-bottom.leaflet-right .qa-legend { margin-bottom: 6px; }
+
+/* ---------- Қорғау аймағын «Аяқтау» терезесі (js/zone-dialog.js) — «Мәліметтер» бөлімдері уақытша осында ---------- */
+.qa-dlg.zd-dlg { width: min(640px, 100%); }
+.zd-dlg .qa-sec + .qa-sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(34, 29, 22, .10); }
+.zd-dlg .qa-sec h3, .zd-dlg .zd-h { margin: 0 0 8px; font-size: 14px; }
+.zd-dlg .zd-h { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(34, 29, 22, .10); }
+.zd-dlg input, .zd-dlg select, .zd-dlg textarea { background: rgba(255, 255, 255, .9); }
+.zd-dlg .qa-tablewrap { margin-bottom: 12px; }
+.zd-dlg .qa-dlg-btns { position: sticky; bottom: -14px; margin: 0 -18px -14px; padding: 10px 18px 14px; background: #fbf9f4; border-top: 1px solid rgba(34, 29, 22, .10); }

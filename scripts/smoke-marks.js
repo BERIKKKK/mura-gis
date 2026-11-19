@@ -79,6 +79,22 @@ async function run(win) {
     M.openPanel(); await wait(200);
     out.panels += ' → marks hidden=' + document.getElementById('mkPanel').hidden + ', info hidden=' + document.getElementById('qaPanelInfo').hidden;
 
+    // Құралдар жолағының реті және «Аяқтау» → мәліметтер терезесі → сақтау
+    M.closePanel();
+    out.toolbar = [...document.querySelectorAll('#qaTmain .qa-tgroup')].map(g => [...g.querySelectorAll('.qa-tbtn')].map(b => b.id.replace(/^(qa|mk)/, '')).join(',')).join(' | ');
+    out.savedLabel = document.querySelector('#qaOpenSaved .qa-tl').textContent + ' / ' + document.getElementById('qaPanelSavedT').textContent;
+    out.finish0 = document.getElementById('qaFinish').disabled;
+    document.getElementById('qaSample').click(); await wait(1200);
+    out.finish1 = document.getElementById('qaFinish').disabled;
+    document.getElementById('qaFinish').click(); await wait(200);
+    const zd = document.querySelector('.zd-dlg');
+    out.zdFields = !!(zd && zd.contains(document.getElementById('qaName')) && zd.contains(document.getElementById('qaD1')) && zd.contains(document.getElementById('qaRes')));
+    out.zdAddOff = document.getElementById('qaAddMode').getAttribute('aria-pressed');
+    document.getElementById('qaName').value = ''; zd.requestSubmit(); await wait(100);
+    out.zdNoName = document.getElementById('zdErr').textContent;
+    document.getElementById('qaName').value = 'Аяқтау тесті қорымы'; document.getElementById('qaName').dispatchEvent(new Event('input'));
+    zd.requestSubmit(); await wait(1500);
+    out.zdAfter = 'dialog ' + !!document.querySelector('.zd-dlg') + ', loaded ' + __qa.state.loadedName + ', panelBack ' + document.getElementById('qaPanelInfo').contains(document.getElementById('qaName')) + ', saved ' + document.getElementById('qaSavedCount').textContent;
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());
@@ -93,6 +109,9 @@ async function run(win) {
   await js("(__marks.openDialog(__marks.items.find(m => m.name.includes('ІҮ'))), 0)");
   await new Promise(res => setTimeout(res, 500));
   fs.writeFileSync(shot.replace(/\.png$/, '-dlg.png'), (await win.webContents.capturePage()).toPNG());
+  await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); __marks.closePanel(); MuraZone.openDialog(); 0");
+  await new Promise(res => setTimeout(res, 500));
+  fs.writeFileSync(shot.replace(/.png$/, '-zone.png'), (await win.webContents.capturePage()).toPNG());
   r.files = tmp;
   r.storeFile = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'marks.json'), 'utf8')).length + ' белгі';
   console.log(JSON.stringify(r, null, 1));

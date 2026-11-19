@@ -117,6 +117,7 @@ ${html.trim()}
 <script type="module" src="qorgau/ui.js"></script>
 <script type="module" src="qorgau/app.js"></script>
 <script type="module" src="marks/marks.js"></script>
+<script type="module" src="js/zone-dialog.js"></script>
 </body>
 </html>
 `;
