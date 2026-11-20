@@ -60,6 +60,8 @@ npm run dist:win  # Windows орнатқышы → dist/
 - `src/marks/` — «Ескерткіштер» қызметі; `src/routes/` — «Маршруттар» (`graph.js` — желі және жол іздеу, `tracks.js` — GPX/KML/GeoJSON); `src/js/` — қызметтер жолағы (`services.js`), карта қабаттары, оң жақ мәзір, жұмыс үстелі қабығы т.б.;
 - `src/vendor/` — Leaflet, fflate (офлайн жұмыс үшін жергілікті көшірмелер).
 
+Архитектуралық қағидалар — [`CLAUDE.md`](CLAUDE.md), даму жоспары — [`docs/ROADMAP.md`](docs/ROADMAP.md).
+
 ### Жаңа нұсқа шығару
 
 1. `npm test` және `npm run smoke` (қажет болса `smoke:marks`, `smoke:routes`).
