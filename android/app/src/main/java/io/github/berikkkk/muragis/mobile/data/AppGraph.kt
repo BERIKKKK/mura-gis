@@ -25,6 +25,7 @@ class AppGraph(val context: Context) {
     val mapsDir: File = File(context.filesDir, "maps").apply { mkdirs() }
     val exportsDir: File = File(context.cacheDir, "exports").apply { mkdirs() }
     val settings = Settings(context)
+    val recorder = TrackRecorder(settings)
 
     @Volatile var db: AndroidSqlDb = AndroidSqlDb.openReadWrite(dbFile); private set
     @Volatile var store: LocalStore = LocalStore(db, deviceUser()); private set

@@ -16,6 +16,8 @@ import io.github.berikkkk.muragis.core.db.LayerRole
 import io.github.berikkkk.muragis.core.db.LocalStore
 import io.github.berikkkk.muragis.core.db.MapLayer
 import io.github.berikkkk.muragis.core.geo.Bounds
+import io.github.berikkkk.muragis.core.geo.Coords
+import io.github.berikkkk.muragis.core.geo.Geo
 import io.github.berikkkk.muragis.core.gpkg.MuraProject
 import io.github.berikkkk.muragis.core.io.FormatException
 import io.github.berikkkk.muragis.core.io.ImportedMonument
@@ -32,6 +34,8 @@ import io.github.berikkkk.muragis.core.model.Monument
 import io.github.berikkkk.muragis.core.model.MonumentType
 import io.github.berikkkk.muragis.core.model.Route
 import io.github.berikkkk.muragis.core.model.RoutePoint
+import io.github.berikkkk.muragis.core.model.Vehicle
+import io.github.berikkkk.muragis.core.routing.RouteNetwork
 import io.github.berikkkk.muragis.core.model.Sorting
 import io.github.berikkkk.muragis.core.model.Status
 import io.github.berikkkk.muragis.core.model.ValidationException
@@ -41,12 +45,14 @@ import io.github.berikkkk.muragis.mobile.MuraApp
 import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.data.AndroidSqlDb
 import io.github.berikkkk.muragis.mobile.data.Prefs
+import io.github.berikkkk.muragis.mobile.data.TrackRec
 import io.github.berikkkk.muragis.mobile.map.RasterSpec
 import io.github.berikkkk.muragis.mobile.map.StyleBuilder
 import io.github.berikkkk.muragis.mobile.util.Connectivity
 import io.github.berikkkk.muragis.mobile.util.LocationTracker
 import io.github.berikkkk.muragis.mobile.work.DownloadWorker
 import io.github.berikkkk.muragis.mobile.work.ImportMapWorker
+import io.github.berikkkk.muragis.mobile.work.TrackService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,7 +66,36 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 
-enum class Tab { MONUMENTS, ROUTES, MAPS, SETTINGS }
+/** Толық экранды мәзірдің беттері. */
+enum class MenuPage { ROOT, MONUMENTS, ROUTES, COORDS, SETTINGS }
+
+/** Картаның үстіндегі төменгі парақтар (бір мезгілде біреуі). */
+sealed interface Sheet {
+    data class Copy(val lat: Double, val lon: Double, val title: String) : Sheet
+    data object Layers : Sheet
+    data object Plan : Sheet
+    data object TrackStop : Sheet
+    data object Pin : Sheet
+}
+
+/** Картаның ортасындағы нысана арқылы нүкте таңдау: жаңа ескерткіш не маршруттың А/Б нүктесі. */
+enum class Pick { MONUMENT, PLAN_A, PLAN_B }
+
+/** Маршрут құрудың басы/соңы. [markId] — ескерткіш болса (желіде ескерткіш түйіні ретінде ізделеді). */
+data class PlanPoint(val lat: Double, val lon: Double, val label: String, val markId: String? = null, val gps: Boolean = false)
+
+/** Алдын ала есептелетін маршрут (А → Б). Жолды жазудан бөлек: ол нақты қозғалысты тіркейді. */
+data class RoutePlan(
+    val a: PlanPoint? = null,
+    val b: PlanPoint? = null,
+    val vehicle: Vehicle = Vehicle.OFFROAD,
+    val wet: Boolean = false,
+    val result: RouteNetwork.Result? = null,
+    val busy: Boolean = false,
+)
+
+/** Қолмен енгізілген (не іздеуден табылған) нүкте. */
+data class InputPin(val lat: Double, val lon: Double)
 
 /** Хабарлама: жол ресурсы + аргументтер (интерфейс тілінде көрсетіледі). */
 data class UiMessage(@StringRes val res: Int, val args: List<Any> = emptyList(), val error: Boolean = false)
@@ -97,7 +132,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val prefs: StateFlow<Prefs> = g.settings.prefs
     val online: StateFlow<Boolean> = connectivity.online
 
-    private val _tab = MutableStateFlow(Tab.MONUMENTS); val tab: StateFlow<Tab> = _tab
+    private val _menu = MutableStateFlow<MenuPage?>(null); val menu: StateFlow<MenuPage?> = _menu
+    private val _sheet = MutableStateFlow<Sheet?>(null); val sheet: StateFlow<Sheet?> = _sheet
+    private val _plan = MutableStateFlow<RoutePlan?>(null); val plan: StateFlow<RoutePlan?> = _plan
+    private val _pin = MutableStateFlow<InputPin?>(null); val pin: StateFlow<InputPin?> = _pin
+    /** «Дәлдеу»: камера GPS нүктесіне ереді; картаны саусақпен жылжытқанда өшеді. */
+    private val _follow = MutableStateFlow(false); val follow: StateFlow<Boolean> = _follow
+    val track: StateFlow<TrackRec?> = g.recorder.state
     private val _monuments = MutableStateFlow<List<Monument>>(emptyList()); val monuments: StateFlow<List<Monument>> = _monuments
     private val _routes = MutableStateFlow<List<Route>>(emptyList()); val routes: StateFlow<List<Route>> = _routes
     private val _layers = MutableStateFlow<List<MapLayer>>(emptyList()); val layers: StateFlow<List<MapLayer>> = _layers
@@ -111,8 +152,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _pending = MutableStateFlow<PendingPoints?>(null); val pending: StateFlow<PendingPoints?> = _pending
     private val _mapImport = MutableStateFlow<MapImportReport?>(null); val mapImport: StateFlow<MapImportReport?> = _mapImport
     private val _busy = MutableStateFlow(false); val busy: StateFlow<Boolean> = _busy
-    /** Нүкте қою режимі: картаның ортасындағы нысана арқылы дәл орналастыру. */
-    private val _placing = MutableStateFlow(false); val placing: StateFlow<Boolean> = _placing
+    /** Нүкте таңдау режимі: картаның ортасындағы нысана арқылы дәл орналастыру. */
+    private val _pick = MutableStateFlow<Pick?>(null); val pick: StateFlow<Pick?> = _pick
     private val _messages = MutableSharedFlow<UiMessage>(extraBufferCapacity = 8); val messages = _messages.asSharedFlow()
     private val _backups = MutableStateFlow<List<File>>(emptyList()); val backups: StateFlow<List<File>> = _backups
 
@@ -140,6 +181,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun msg(@StringRes r: Int, vararg a: Any, error: Boolean = false) { _messages.tryEmit(UiMessage(r, a.toList(), error)) }
+    fun toast(@StringRes r: Int, vararg a: Any) = msg(r, *a)
+    private fun str(@StringRes r: Int, vararg a: Any): String = getApplication<Application>().getString(r, *a)
 
     private fun io(block: suspend () -> Unit) = viewModelScope.launch(Dispatchers.IO) {
         try { block() } catch (e: Exception) { msg(R.string.msg_error, e.message ?: e.javaClass.simpleName, error = true) }
@@ -155,17 +198,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun refreshJobs() = io { _jobs.value = g.layers.jobs(); _layers.value = g.layers.layers() }
 
-    fun setTab(t: Tab) { _tab.value = t; if (t != Tab.ROUTES && _edit.value == null) _selectedRoute.value = null }
+    /* ======================= Навигация: мәзір және парақтар ======================= */
+    fun openMenu(p: MenuPage = MenuPage.ROOT) { _menu.value = p; _sheet.value = null }
+    fun closeMenu() { _menu.value = null }
+    fun openSheet(s: Sheet?) { _sheet.value = s }
+    fun setFollow(on: Boolean) { _follow.value = on }
 
     /* ======================= Ескерткіштер ======================= */
     fun setFilter(f: MonumentFilter) { _filter.value = f }
     fun select(id: String?) { _selected.value = id }
     fun monument(id: String?): Monument? = id?.let { i -> _monuments.value.firstOrNull { it.id == i } }
 
-    fun openEditor(m: Monument?) { _editor.value = m; _placing.value = false }
+    fun openEditor(m: Monument?) { _editor.value = m; _pick.value = null }
     fun newMonumentAt(lat: Double, lon: Double) = openEditor(Monument(id = "", lat = lat, lon = lon))
     fun closeEditor() { _editor.value = null }
-    fun setPlacing(on: Boolean) { _placing.value = on }
+    fun setPick(p: Pick?) { _pick.value = p; if (p != null) { _sheet.value = null; _menu.value = null } }
 
     fun saveMonument(m: Monument, done: (Boolean) -> Unit) = io {
         try {
@@ -199,8 +246,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /* ======================= Маршруттар ======================= */
     fun selectRoute(id: String?) { _selectedRoute.value = id }
 
-    fun startNewRoute() { _edit.value = RouteEdit(Route(id = ""), emptyList()); _selectedRoute.value = null; _tab.value = Tab.ROUTES; saveDraft() }
-    fun editRoute(id: String) { _routes.value.firstOrNull { it.id == id }?.let { _edit.value = RouteEdit(it, it.points); _tab.value = Tab.ROUTES; saveDraft() } }
+    fun startNewRoute() { _edit.value = RouteEdit(Route(id = ""), emptyList()); _selectedRoute.value = null; _menu.value = null; _sheet.value = null; saveDraft() }
+    fun editRoute(id: String) { _routes.value.firstOrNull { it.id == id }?.let { _edit.value = RouteEdit(it, it.points); _menu.value = null; _sheet.value = null; saveDraft() } }
 
     private fun change(f: (RouteEdit) -> RouteEdit) {
         val e = _edit.value ?: return
@@ -283,10 +330,134 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val a = o.getJSONArray("pts")
             val pts = (0 until a.length()).map { i -> a.getJSONArray(i).let { RoutePoint(it.getDouble(0), it.getDouble(1), it.optString(2).ifEmpty { null }) } }
             _edit.value = RouteEdit(base, pts)
-            _tab.value = Tab.ROUTES
             msg(R.string.msg_draft_restored)
         }
     }
+
+    /* ======================= Маршрут құру (А → Б, сақталған маршруттар желісі бойынша) ======================= */
+    private var netCache: Triple<List<Route>, List<Monument>, RouteNetwork>? = null
+    private fun network(): RouteNetwork {
+        val rs = _routes.value; val ms = _monuments.value
+        netCache?.let { (r, m, n) -> if (r === rs && m === ms) return n }
+        return RouteNetwork.build(rs, ms).also { netCache = Triple(rs, ms, it) }
+    }
+
+    fun gpsPoint(): PlanPoint? = location.location.value?.let { PlanPoint(it.latitude, it.longitude, str(R.string.my_location), gps = true) }
+    fun monumentPoint(id: String): PlanPoint? = monument(id)?.let { PlanPoint(it.lat, it.lon, it.name.display(prefs.value.dataLang), markId = it.id) }
+    fun pinPoint(): PlanPoint? = _pin.value?.let { PlanPoint(it.lat, it.lon, str(R.string.input_point)) }
+
+    /** Маршрут құру парағын ашу. [to] берілсе — Б нүктесі (мыс. ескерткіш карточкасынан «Осы жерге маршрут»). */
+    fun openPlan(to: PlanPoint? = null) {
+        val cur = _plan.value
+        _plan.value = if (to != null) RoutePlan(a = cur?.a ?: gpsPoint(), b = to, vehicle = cur?.vehicle ?: Vehicle.OFFROAD, wet = cur?.wet ?: false)
+        else cur ?: RoutePlan(a = gpsPoint())
+        _selectedRoute.value = null
+        _menu.value = null
+        _sheet.value = Sheet.Plan
+    }
+
+    fun setPlanPoint(isA: Boolean, p: PlanPoint?) { _plan.value = (_plan.value ?: RoutePlan()).let { if (isA) it.copy(a = p, result = null) else it.copy(b = p, result = null) } }
+    fun swapPlan() { _plan.value = _plan.value?.let { it.copy(a = it.b, b = it.a, result = null) } }
+    fun setPlanOptions(vehicle: Vehicle, wet: Boolean) {
+        val p = _plan.value ?: return
+        _plan.value = p.copy(vehicle = vehicle, wet = wet, result = null)
+        if (p.result != null) buildPlan()
+    }
+
+    /** Картадағы нысана арқылы таңдалған А/Б нүктесі. */
+    fun pickPlanAt(lat: Double, lon: Double) {
+        val isA = _pick.value == Pick.PLAN_A
+        _pick.value = null
+        setPlanPoint(isA, PlanPoint(lat, lon, str(R.string.map_point_label, Coords.decimal(lat, 5), Coords.decimal(lon, 5))))
+        _sheet.value = Sheet.Plan
+    }
+
+    fun buildPlan() {
+        val p = _plan.value ?: return
+        val a = p.a ?: return; val b = p.b ?: return
+        _plan.value = p.copy(busy = true, result = null)
+        io {
+            val r = runCatching {
+                network().findPath(RouteNetwork.End(a.lat, a.lon, a.markId), RouteNetwork.End(b.lat, b.lon, b.markId), RouteNetwork.Options(p.vehicle, p.wet))
+            }
+            _plan.value = _plan.value?.copy(result = r.getOrNull(), busy = false)
+            r.exceptionOrNull()?.let { throw it }
+        }
+    }
+
+    fun clearPlan() { _plan.value = null; _sheet.value = null }
+
+    /** Есептелген маршрутты сақтау: қалыпты маршрут ретінде (кейін өңдеуге болады). */
+    fun savePlan() = io {
+        val p = _plan.value ?: return@io
+        val r = p.result as? RouteNetwork.Result.Ok ?: return@io
+        val lang = prefs.value.dataLang
+        val pts = Geo.simplify(r.fullCoords, 2.0)
+        val route = Route(
+            name = Localized.EMPTY.with(lang, (p.a?.label ?: "") + " → " + (p.b?.label ?: "")),
+            aName = Localized.EMPTY.with(lang, p.a?.label ?: ""), bName = Localized.EMPTY.with(lang, p.b?.label ?: ""),
+            vehicle = p.vehicle,
+            points = pts.mapIndexed { i, q -> RoutePoint(q.lat, q.lon, if (i == 0) p.a?.markId else if (i == pts.size - 1) p.b?.markId else null) },
+        )
+        val saved = store.saveRoute(route)
+        _routes.value = store.routes()
+        _plan.value = null
+        _sheet.value = null
+        _selectedRoute.value = saved.id
+        msg(R.string.msg_saved)
+    }
+
+    /* ======================= Жолды жазу (трек) ======================= */
+    fun startTrack() {
+        g.recorder.start()
+        TrackService.start(getApplication())
+        _follow.value = true
+        msg(R.string.msg_rec_started)
+    }
+
+    /** «Тоқтату»: жазу кідіртіледі, шешім парағы ашылады (сақтау / жалғастыру / жою). */
+    fun askStopTrack() {
+        g.recorder.pause()
+        TrackService.stop(getApplication())
+        _sheet.value = Sheet.TrackStop
+    }
+
+    fun resumeTrack() {
+        g.recorder.resume()
+        TrackService.start(getApplication())
+        _sheet.value = null
+    }
+
+    fun discardTrack() {
+        TrackService.stop(getApplication())
+        g.recorder.clear()
+        _sheet.value = null
+        msg(R.string.msg_track_deleted)
+    }
+
+    /** Трек маршрут ретінде сақталады (жұмыс үстелімен үйлесімді); extra-дағы «mura_kind: track» — тек тізімде бөлек көрсету үшін. */
+    fun saveTrack() = io {
+        val t = g.recorder.state.value ?: return@io
+        if (t.points.size < 2) { msg(R.string.err_track_short, error = true); return@io }
+        val lang = prefs.value.dataLang
+        val started = java.time.Instant.ofEpochMilli(t.startedAt).atZone(java.time.ZoneId.systemDefault())
+        val title = str(R.string.track_name, started.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")))
+        val extra = JSONObject().put(TRACK_KIND_KEY, TRACK_KIND).put("recorded_at", java.time.Instant.ofEpochMilli(t.startedAt).toString())
+            .put("duration_s", t.elapsedMs() / 1000).toString()
+        val saved = store.saveRoute(Route(name = Localized.EMPTY.with(lang, title), points = Geo.simplify(t.points, 3.0).map { RoutePoint(it.lat, it.lon) }, extra = extra))
+        withContext(Dispatchers.Main) {
+            TrackService.stop(getApplication())
+            g.recorder.clear()
+            _sheet.value = null
+        }
+        _routes.value = store.routes()
+        _selectedRoute.value = saved.id
+        msg(R.string.msg_track_saved)
+    }
+
+    /* ======================= Координата енгізу, енгізілген нүкте ======================= */
+    fun showPin(lat: Double, lon: Double) { _pin.value = InputPin(lat, lon); _menu.value = null; _sheet.value = null; _follow.value = false }
+    fun clearPin() { _pin.value = null; _sheet.value = null }
 
     /* ======================= Карта қабаттары ======================= */
     private fun pickBase(ls: List<MapLayer>, on: Boolean, p: Prefs): MapLayer? {
@@ -598,6 +769,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         g.restoreBackup(f)
         reloadAll()
         msg(R.string.msg_backup_restored)
+    }
+
+    companion object {
+        const val TRACK_KIND_KEY = "mura_kind"
+        const val TRACK_KIND = "track"
+        fun isTrack(r: Route): Boolean = r.extra.contains(TRACK_KIND) && runCatching { JSONObject(r.extra).optString(TRACK_KIND_KEY) == TRACK_KIND }.getOrDefault(false)
     }
 
     fun rememberCamera(lat: Double, lon: Double, zoom: Double) = g.settings.update { it.copy(lastLat = lat, lastLon = lon, lastZoom = zoom) }

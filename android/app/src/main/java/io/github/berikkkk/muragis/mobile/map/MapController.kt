@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.PointF
 import android.view.MotionEvent
 import io.github.berikkkk.muragis.core.geo.Bounds
+import io.github.berikkkk.muragis.core.geo.LatLon
 import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Monument
 import io.github.berikkkk.muragis.core.model.Route
@@ -36,6 +37,9 @@ interface MapEvents {
     fun onCameraIdle(lat: Double, lon: Double, zoom: Double)
     /** Өңдеу режимі қосулы ма (нүкте қосу/жылжыту). */
     fun isEditingRoute(): Boolean
+    /** Пайдаланушы картаны саусақпен жылжытты (GPS-ке еру режимін өшіру үшін). */
+    fun onUserGesture() {}
+    fun onPinTap() {}
 }
 
 /**
@@ -62,6 +66,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             m.setMaxZoomPreference(20.0)
             m.addOnMapClickListener { p -> handleTap(p); true }
             m.addOnMapLongClickListener { p -> events.onMapLongPress(p.latitude, p.longitude); true }
+            m.addOnCameraMoveStartedListener { reason -> if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) events.onUserGesture() }
             m.addOnCameraIdleListener {
                 val c = m.cameraPosition
                 c.target?.let { t -> events.onCameraIdle(t.latitude, t.longitude, c.zoom) }
@@ -87,6 +92,9 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             s.addImage("cl-100", SymbolIcons.cluster("99+", cs))
             s.addImage("cl-1k", SymbolIcons.cluster("999+", cs))
             ensureVertexImages(editPoints.size)
+            val ps = (30 * density).toInt()
+            s.addImage("plan-a", SymbolIcons.vertex(ctx.getString(io.github.berikkkk.muragis.mobile.R.string.point_a), ps, Color.rgb(35, 36, 31), Color.WHITE))
+            s.addImage("plan-b", SymbolIcons.vertex(ctx.getString(io.github.berikkkk.muragis.mobile.R.string.point_b), ps, Color.rgb(34, 81, 201), Color.WHITE))
             data.forEach { (k, v) -> s.getSourceAs<GeoJsonSource>(k)?.setGeoJson(v) }
         }
     }
@@ -162,6 +170,29 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         push(StyleBuilder.SRC_LOC, fc(a))
     }
 
+    private fun line(pts: List<LatLon>, props: JSONObject) = JSONObject().put("type", "Feature").put("properties", props)
+        .put("geometry", JSONObject().put("type", "LineString").put("coordinates", JSONArray(pts.map { JSONArray(listOf(it.lon, it.lat)) })))
+
+    /** Есептелген маршрут: желі бойындағы бөлік және желіден тыс түзу бөліктер; А/Б нүктелері. */
+    fun setPlan(main: List<LatLon>, off: List<List<LatLon>>, a: LatLon?, b: LatLon?) {
+        val f = JSONArray()
+        if (main.size >= 2) f.put(line(main, JSONObject().put("off", 0)))
+        off.filter { it.size >= 2 }.forEach { f.put(line(it, JSONObject().put("off", 1))) }
+        push(StyleBuilder.SRC_PLAN, fc(f))
+        val p = JSONArray()
+        a?.let { p.put(point(it.lon, it.lat, JSONObject().put("icon", "plan-a"))) }
+        b?.let { p.put(point(it.lon, it.lat, JSONObject().put("icon", "plan-b"))) }
+        push(StyleBuilder.SRC_PLAN_PTS, fc(p))
+    }
+
+    fun setTrack(pts: List<LatLon>) {
+        push(StyleBuilder.SRC_TRACK, fc(JSONArray().apply { if (pts.size >= 2) put(line(pts, JSONObject())) }))
+    }
+
+    fun setPin(p: LatLon?) {
+        push(StyleBuilder.SRC_PIN, fc(JSONArray().apply { if (p != null) put(point(p.lon, p.lat, JSONObject())) }))
+    }
+
     /* ---------- Басу ---------- */
     private fun handleTap(p: LatLng) {
         val m = map ?: return
@@ -176,6 +207,10 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             val z = runCatching { src.getClusterExpansionZoom(f) }.getOrDefault((m.cameraPosition.zoom + 2).toInt())
             m.animateCamera(CameraUpdateFactory.newLatLngZoom(p, z.toDouble() + 0.5))
             return
+        }
+        if (!events.isEditingRoute()) {
+            val pb = android.graphics.RectF(sp.x - 16 * density, sp.y - 16 * density, sp.x + 16 * density, sp.y + 16 * density)
+            if (m.queryRenderedFeatures(pb, StyleBuilder.LYR_PIN).isNotEmpty()) { events.onPinTap(); return }
         }
         m.queryRenderedFeatures(box, StyleBuilder.LYR_MON).firstOrNull()?.getStringProperty("id")?.let { events.onMonumentTap(it); return }
         if (!events.isEditingRoute()) {
@@ -260,6 +295,17 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         if (b.west == b.east && b.south == b.north) { moveTo(b.south, b.west, 15.0); return }
         val lb = LatLngBounds.Builder().include(LatLng(b.north, b.east)).include(LatLng(b.south, b.west)).build()
         m.animateCamera(CameraUpdateFactory.newLatLngBounds(lb, (paddingDp * density).toInt()), 600)
+    }
+
+    fun zoomBy(delta: Double) {
+        val m = map ?: return
+        m.animateCamera(CameraUpdateFactory.zoomBy(delta), 250)
+    }
+
+    /** Камераны жылжыту, масштабты өзгертпей (GPS-ке еру режимі). */
+    fun follow(lat: Double, lon: Double) {
+        val m = map ?: return
+        m.animateCamera(CameraUpdateFactory.newLatLng(LatLng(lat, lon)), 400)
     }
 
     fun center(): Pair<Double, Double>? = map?.cameraPosition?.target?.let { it.latitude to it.longitude }

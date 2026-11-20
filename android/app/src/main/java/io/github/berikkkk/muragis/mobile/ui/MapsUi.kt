@@ -4,7 +4,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.border
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,16 +86,19 @@ import io.github.berikkkk.muragis.mobile.map.MapController
 import kotlin.math.roundToInt
 
 @Composable
-fun MapsPane(vm: MainViewModel, controller: MapController, act: MainActivity) {
+fun MapsPane(vm: MainViewModel, controller: MapController, act: MainActivity, onClose: () -> Unit) {
     var area by remember { mutableStateOf<MapLayer?>(null) }   // жүктеу аумағын таңдау режимі (дереккөз)
     Box(Modifier.fillMaxSize()) {
         if (area != null) DownloadAreaSelector(vm, area!!, controller, act) { area = null }
-        else LayersSheet(vm, controller, onDownload = { area = it })
+        else {
+            Box(Modifier.matchParentSize().background(Chrome.scrim).clickable(remember { MutableInteractionSource() }, indication = null, onClick = onClose))
+            LayersSheet(vm, controller, onDownload = { area = it }, onClose = onClose)
+        }
     }
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.BoxScope.LayersSheet(vm: MainViewModel, controller: MapController, onDownload: (MapLayer) -> Unit) {
+private fun androidx.compose.foundation.layout.BoxScope.LayersSheet(vm: MainViewModel, controller: MapController, onDownload: (MapLayer) -> Unit, onClose: () -> Unit) {
     val layers by vm.layers.collectAsState()
     val jobs by vm.jobs.collectAsState()
     val online by vm.online.collectAsState()
@@ -109,6 +114,12 @@ private fun androidx.compose.foundation.layout.BoxScope.LayersSheet(vm: MainView
     Surface(tonalElevation = 2.dp, shadowElevation = 8.dp, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
         modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().heightIn(max = 520.dp)) {
         LazyColumn(Modifier.padding(horizontal = 12.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.layers_title), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onClose) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
+                }
+            }
             item {
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     AssistChip(onClick = { if (downloadable.isEmpty()) noDownloadInfo = true else if (downloadable.size == 1) onDownload(downloadable.first()) else noDownloadInfo = true },

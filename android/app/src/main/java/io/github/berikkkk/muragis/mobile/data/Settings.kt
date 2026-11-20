@@ -19,6 +19,10 @@ data class Prefs(
     val lastLon: Double = 67.0,
     val lastZoom: Double = 4.5,
     val coordFormatDms: Boolean = false,
+    /** Zoom және «Белгі қою» батырмалары картаның сол жағында (әдепкі — оң жақ). */
+    val zoomLeft: Boolean = false,
+    /** Құралдар панелі экранның жоғарғы жағында (әдепкі — төменде). */
+    val barTop: Boolean = false,
 )
 
 class Settings(context: Context) {
@@ -36,6 +40,8 @@ class Settings(context: Context) {
         lastLon = sp.getFloat("lastLon", 67f).toDouble(),
         lastZoom = sp.getFloat("lastZoom", 4.5f).toDouble(),
         coordFormatDms = sp.getBoolean("coordDms", false),
+        zoomLeft = sp.getBoolean("zoomLeft", false),
+        barTop = sp.getBoolean("barTop", false),
     )
 
     fun update(f: (Prefs) -> Prefs) {
@@ -46,6 +52,7 @@ class Settings(context: Context) {
             .putString("offlineBaseId", p.offlineBaseId)
             .putFloat("lastLat", p.lastLat.toFloat()).putFloat("lastLon", p.lastLon.toFloat()).putFloat("lastZoom", p.lastZoom.toFloat())
             .putBoolean("coordDms", p.coordFormatDms)
+            .putBoolean("zoomLeft", p.zoomLeft).putBoolean("barTop", p.barTop)
             .apply()
         _prefs.value = p
     }
@@ -54,6 +61,11 @@ class Settings(context: Context) {
     var routeDraft: String?
         get() = sp.getString("routeDraft", null)
         set(v) { sp.edit().putString("routeDraft", v).apply() }
+
+    /** Жазылып жатқан трек (қосымша кенет жабылса, келесі ашылғанда кідіртілген күйде қалпына келеді). */
+    var trackDraft: String?
+        get() = sp.getString("trackDraft", null)
+        set(v) { sp.edit().putString("trackDraft", v).apply() }
 
     var lastBackup: Long
         get() = sp.getLong("lastBackup", 0L)
