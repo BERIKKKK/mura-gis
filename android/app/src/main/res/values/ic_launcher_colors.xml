@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Белгіше фоны — жұмыс үстеліндегі логотип тайлының түсі (src/img/icon.svg: #353535) -->
+    <color name="ic_launcher_background">#353535</color>
+</resources>
