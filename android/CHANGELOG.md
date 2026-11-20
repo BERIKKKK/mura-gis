@@ -3,7 +3,7 @@
 Android нұсқасы жұмыс үстеліндегі Mura GIS-тен (`v*` тегтері) **бөлек** нұсқаланады: тегтері — `android/vX.Y.Z`,
 нұсқасы — `android/version.properties`. Пішім: [Keep a Changelog](https://keepachangelog.com/), [SemVer](https://semver.org/).
 
-## [1.0.0-alpha.1] — жарияланбаған
+## [1.0.0-alpha.1] — 2026-11-20
 
 Алғашқы альфа нұсқа. Негізі — жұмыс үстеліндегі Mura GIS **v1.3.1** (деректер пішімдері мен анықтамалықтары).
 
