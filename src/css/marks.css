@@ -106,3 +106,12 @@ body.mura .qa-map .leaflet-bottom.leaflet-right .qa-legend { margin-bottom: 6px;
 .mk-ident { color: #2f6db5 !important; }
 #mkIFile { width: auto; flex: 0 0 auto; max-width: 46%; }
 #mkIFile[hidden] { display: none; }
+
+/* Белгілерді таңдау және топпен өшіру */
+.mk-selbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; font-size: 12.5px; color: var(--soft); min-height: 30px; }
+.mk-selbar[hidden] { display: none; }
+.mk-selbar .qa-check { font-size: 12.5px; }
+.mk-selbar .mk-seldel { margin: 0 0 0 auto; min-height: 30px; background: #fff; color: var(--terr); border: 1px solid #e2a184; }
+.mk-selbar .mk-seldel:hover { background: #fbeee6; }
+.mk-card > input[data-sel] { width: auto; margin: 4px 0 0; flex: 0 0 auto; }
+.mk-card.is-sel { border-color: var(--sand); background: #fbf3e6; }

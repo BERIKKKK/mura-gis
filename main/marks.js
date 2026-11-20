@@ -2,7 +2,7 @@
    Қорғау аймақтарынан (zones қабаты) бөлек сақталады — екі функция бір-біріне тимейді.
    Клиент (src/marks/marks.js): POST mura://app/marks?op=list|save|delete|import
      save   — FormData data = бір белгі (JSON), id болса — жаңартылады;
-     delete — FormData id;
+     delete — FormData id (бірнешеуі — үтір арқылы);
      import — FormData data = белгілер тізімі (JSON), id бірдей болса жаңасы қалады;
      ilist / iadd / idel — импортталған нүктелер (KML, KMZ, GPX). Олар белгі емес — «Сәйкестендіру»
        арқылы белгі ретінде сақталғанда ғана тізімнен алынады (idel); жобаның imports қабаты. iadd: data = [{ name, desc, lat, lon, file, folder }],
@@ -100,12 +100,14 @@ class MarksStore {
     return id;
   }
 
+  /** Бір белгіні не бірнешеуін (id-лер үтір арқылы) өшіру; өшірілгендер саны. */
   remove(id) {
+    const ids = new Set(String(id || '').split(',').map(s => s.trim()).filter(Boolean));
     const items = this.load();
-    const i = items.findIndex(x => x.id === String(id || ''));
-    if (i < 0) throw new Error('Белгі табылмады.');
-    items.splice(i, 1);
-    this.write(items);
+    const left = items.filter(x => !ids.has(x.id));
+    if (left.length === items.length) throw new Error('Белгі табылмады.');
+    this.write(left);
+    return items.length - left.length;
   }
 
   /** Тізімді қосу (GeoJSON-нан не басқа компьютерден): id бірдей болса — жаңасы қалады, id жоғы — жаңа белгі. */
@@ -142,7 +144,7 @@ class MarksStore {
       if (op === 'iadd') { const r = this.addImports(fd.get('data')); return out({ ok: true, ...r, imports: this.loadImports() }); }
       if (op === 'idel') { this.removeImports(fd.get('id')); return out({ ok: true, imports: this.loadImports() }); }
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
-      if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, items: this.list() }); }
+      if (op === 'delete') { const removed = this.remove(fd.get('id')); return out({ ok: true, removed, items: this.list() }); }
       if (op === 'import') { const r = this.importMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
       return out({ ok: false, error: 'Белгісіз әрекет.' });
     } catch (e) {

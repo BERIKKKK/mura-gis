@@ -81,6 +81,8 @@
       '</div>' +
       '<div class="qa-selbar"><label class="qa-check"><input type="checkbox" id="mkShow" checked> Картада көрсету</label>' +
         '<label class="qa-check"><input type="checkbox" id="mkLabels"> Атаулары</label><span id="mkInfo"></span></div>' +
+      '<div class="mk-selbar" id="mkSelBar"><label class="qa-check"><input type="checkbox" id="mkSelAll"> Барлығын таңдау</label>' +
+        '<span id="mkSelInfo"></span><button type="button" class="btn btn--sm mk-seldel" id="mkSelDel" hidden>Таңдалғандарды өшіру</button></div>' +
       '<div class="qa-slist" id="mkList"><div class="qa-empty">Жүктелуде…</div></div>' +
       '<section class="qa-sec mk-exp" aria-labelledby="mkExpT">' +
         '<h3 id="mkExpT">Ескерткіштер тізімін экспорттау</h3>' +
