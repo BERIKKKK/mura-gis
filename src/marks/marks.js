@@ -6,7 +6,7 @@
      • белгілер панелі мен «Мәліметтер» / «Сақталған аймақтар» / «Нүктелер» панельдері бірін-бірі жабады.
    Интерфейс бөліктері — marks/marks-dom.js, экспорт — marks/export.js, сұрыптау — marks/sort.js. */
 import { parseOne, genitive } from '../qorgau/app.js';
-import { sortMarks, arabizeRoman, compareText, compareNames } from './sort.js';
+import { sortMarks, arabizeRoman, compareText, compareNames, matchesText } from './sort.js';
 import { parseGeoFile, parseGeojsonPoints, isMuraMarks } from './geofiles.js';
 import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, sections, coordLines, nameCell } from './export.js';
 
@@ -377,7 +377,7 @@ function filtered() {
     if (fd && (fd === '—' ? m.district : m.district !== fd)) return false;
     if (ft && m.type !== ft) return false;
     if (fs && m.status !== fs) return false;
-    if (q && !([m.name, m.name_ru, m.period, m.period_ru, m.place, m.place_ru, m.district, arabizeRoman(m.name), arabizeRoman(m.name_ru)].join(' ')).toLocaleLowerCase('kk').includes(q)) return false;
+    if (q && !matchesText([m.name, m.name_ru, m.period, m.period_ru, m.place, m.place_ru, m.district].filter(Boolean).join(' '), q)) return false;
     return true;
   }));
 }

@@ -8,6 +8,7 @@
    Интерфейс бөліктері — routes/routes-dom.js, қызметтер жолағы — js/services.js. */
 import { buildNetwork, findPath, lineLength, nearestOnLine, VEHICLES, SEASONS, vehicleOf, seasonOf } from './graph.js';
 import { parseTrackFile, toGpx, toGeojson } from './tracks.js';
+import { compareNames } from '../marks/sort.js';
 
 const $ = id => document.getElementById(id);
 const L = globalThis.L;
@@ -25,7 +26,7 @@ const tx = (kk, ru) => (globalThis.MuraI18n && globalThis.MuraI18n.ru ? ru : kk)
 const km = m => (m / 1000).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' км';
 const fmtTime = s => { const m = Math.max(1, Math.round(s / 60)); return m < 60 ? m + ' мин' : Math.floor(m / 60) + tx(' сағ', ' ч') + (m % 60 ? ' ' + (m % 60) + ' мин' : ''); };
 const today = () => new Date().toISOString().slice(0, 10);
-const cmpKk = (a, b) => String(a).localeCompare(String(b), 'kk');
+const cmpKk = (a, b) => compareNames(a, b);
 
 function toast(msg, err) {
   const t = $('qaToast');

@@ -9,6 +9,7 @@
    шекараның еш нүктесі белгіленген қашықтықтан жақын емес). Экспорт: GeoJSON, PNG сызба, DOCX.
    Өлшеу құралдары: азимут көрсеткіші, қабырғаны дәл бұрышқа (45°, 90° т.б.) туралау, сызықтарға
    магниттелетін перпендикуляр сызғыш, циркуль. Бәрі браузерде жүреді. */
+import { compareNames, matchesText } from '../marks/sort.js';
 
 const L = globalThis.L;
 const $ = id => document.getElementById(id);
@@ -1530,7 +1531,7 @@ function sortRecords(list, l = UI) {
   return list.slice().sort((a, b) => {
     const da = ds(a), db = ds(b);
     if (!da !== !db) return da ? -1 : 1;
-    return collator.compare(da, db) || collator.compare(String(nm(a)), String(nm(b)));
+    return collator.compare(da, db) || compareNames(nm(a), nm(b));
   });
 }
 
@@ -2102,13 +2103,12 @@ const TYPE_SHORT = RU
 const SORT_KEY = 'qa-saved-sort';
 const savedQ = $('qaSavedQ'), savedSort = $('qaSavedSort');
 try { const v = localStorage.getItem(SORT_KEY); if (v && [...savedSort.options].some(o => o.value === v)) savedSort.value = v; } catch (e) { /* елемейміз */ }
-const lc = s => String(s ?? '').toLocaleLowerCase('kk');
 /** Көрсетілетін жазбалар: іздеу сүзгісі + таңдалған сұрыптау («Аудан, атауы» — біріктірілген құжаттағы рет). */
 function viewRecords() {
-  const q = lc(savedQ.value.trim());
-  const list = q ? saved.filter(r => { const f = r.fields || {}; return [r.name, r.district, f.place, f.desc, f.period].some(v => lc(v).includes(q)); }) : saved;
+  const q = savedQ.value.trim();
+  const list = q ? saved.filter(r => { const f = r.fields || {}; return [r.name, r.district, f.place, f.desc, f.period].some(v => matchesText(v, q)); }) : saved;
   if (savedSort.value === 'date') return list.slice().sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
-  if (savedSort.value === 'name') return list.slice().sort((a, b) => collator.compare(String(a.name || ''), String(b.name || '')));
+  if (savedSort.value === 'name') return list.slice().sort((a, b) => compareNames(a.name, b.name));
   return sortRecords(list);
 }
 savedQ.addEventListener('input', renderSaved);
