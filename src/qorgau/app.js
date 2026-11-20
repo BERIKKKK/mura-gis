@@ -1964,7 +1964,10 @@ function showFromInputs() {
 }
 function clearTemp() { tempLayer.clearLayers(); $('qaInClear').hidden = true; }
 $('qaInGo').addEventListener('click', showFromInputs);
-$('qaInClear').addEventListener('click', clearTemp);
+$('qaInClear').addEventListener('click', () => {    // нүкте жабылса — координата өрістері де босайды
+  clearTemp();
+  inLatEl.value = ''; inLonEl.value = ''; previewInputs(); inLatEl.focus();
+});
 inLatEl.addEventListener('input', previewInputs);
 inLonEl.addEventListener('input', previewInputs);
 function addFromInputs() {

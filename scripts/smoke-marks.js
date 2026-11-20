@@ -129,6 +129,8 @@ async function run(win) {
     out.ctxPaste = (pb.disabled ? 'disabled' : 'enabled ' + pb.querySelector('small').textContent);
     pb.click(); await wait(300);
     out.ctxPasted = document.getElementById('qaInLat').value + ' / ' + document.getElementById('qaInLon').value;
+    document.getElementById('qaInClear').click(); await wait(100);          // уақытша нүкте жабылды → өрістер бос
+    out.inClear = JSON.stringify(document.getElementById('qaInLat').value + document.getElementById('qaInLon').value) + ', × hidden ' + document.getElementById('qaInClear').hidden;
     out.exportHidden = getComputedStyle(document.getElementById('qaExportBtn')).display;
     document.getElementById('qaOpenSaved').click(); await wait(300);
     out.savedActs2 = [...document.querySelector('.qa-sc-act').querySelectorAll('button')].filter(b => getComputedStyle(b).display !== 'none').map(b => b.textContent).join(', ');
