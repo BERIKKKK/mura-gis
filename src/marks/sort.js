@@ -22,7 +22,18 @@ function uniRoman(ch) {
   return null;
 }
 
-const VALID = /^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/;
+/* Мыңдаған белгіні сұрыптағанда әр салыстыруда атауды қайта талдамау үшін — жолдың нәтижесі есте сақталады (таза функциялар). */
+function memo(fn, max = 60000) {
+  const cache = new Map();
+  return s => {
+    const k = String(s ?? '');
+    let v = cache.get(k);
+    if (v === undefined) { if (cache.size >= max) cache.clear(); v = fn(k); cache.set(k, v); }
+    return v;
+  };
+}
+
+const VALID =/^M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})$/;
 const VAL = { I: 1, V: 5, X: 10, L: 50, C: 100, D: 500, M: 1000 };
 function romanValue(r) {
   let n = 0;
@@ -60,15 +71,14 @@ const WORD_RE = /[\p{L}Ⅰ-ⅿ]+/gu;
 const DASHES = '-‐‑‒–—―';
 
 /** Атаудағы рим цифрларын араб цифрларына айналдыру: «Қабантау-ІҮ қорғаны» → «Қабантау-4 қорғаны». */
-export function arabizeRoman(s) {
-  const str = String(s ?? '');
+export const arabizeRoman = memo(str => {
   return str.replace(WORD_RE, (w, off) => {
     const prev = str[off - 1] || '', next = str[off + w.length] || '';
     if (/[\p{N}]/u.test(prev) || /[\p{N}]/u.test(next)) return w;   // «12ХI» сияқты аралас жазу — өзгертпейміз
     const n = romanToken(w, prev !== '' && DASHES.includes(prev), next === '.');
     return n == null ? w : String(n);
   });
-}
+});
 
 /** Іздеу: сұраныс мәтінде бар ма — рим цифрлары қай әліппен жазылса да (ІV = IV = IY = 4). */
 export function matchesText(text, query) {
@@ -82,16 +92,14 @@ export function matchesText(text, query) {
 }
 
 /** Атау бойынша сұрыптау кілті: рим цифрлары → сан, сызықшалар → бос орын, тырнақшалар алынады. */
-export function nameKey(s) {
-  return arabizeRoman(s).replace(/[‐‑‒–—―-]+/g, ' ').replace(/[«»"“”„'’]/g, '').replace(/\s+/g, ' ').trim();
-}
+export const nameKey = memo(s => arabizeRoman(s).replace(/[‐‑‒–—―-]+/g, ' ').replace(/[«»"“”„'’]/g, '').replace(/\s+/g, ' ').trim());
 
 /* Қазақ әліпбиі бойынша салыстыру. Electron-ның ICU-ында «kk» ережесі жоқ (ru/root ережесінде І, Ү т.б. басқа орында),
    сондықтан ретті өзіміз береміз: А Ә Б В Г Ғ Д Е Ё Ж З И Й К Қ Л М Н Ң О Ө П Р С Т У Ұ Ү Ф Х Һ Ц Ч Ш Щ Ъ Ы І Ь Э Ю Я.
    Сандар — мәнімен (2 < 10), бос орын мен тыныс белгілері — әріптерден бұрын, латын әріптері — кириллден кейін. */
 const KK = 'аәбвгғдеёжзийкқлмнңоөпрстуұүфхһцчшщъыіьэюя';
 const RANK = new Map([...KK].map((c, i) => [c, i]));
-const tokens = s => String(s ?? '').toLocaleLowerCase('kk').normalize('NFC').match(/\d+|[\s\S]/gu) || [];
+const tokens = memo(s => s.toLocaleLowerCase('kk').normalize('NFC').match(/\d+|[\s\S]/gu) || []);
 function rank(ch) {
   if (RANK.has(ch)) return 1000 + RANK.get(ch);
   if (/\s/.test(ch)) return 0;

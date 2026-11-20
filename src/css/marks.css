@@ -97,7 +97,7 @@ body.mura .qa-map .leaflet-bottom.leaflet-right .qa-legend { margin-bottom: 6px;
 .mk-tabn { display: inline-block; min-width: 18px; padding: 1px 6px; margin-left: 3px; border-radius: 99px; background: var(--paper2); font-size: 11px; text-align: center; }
 .mk-tabs button.has-new .mk-tabn { background: #2f6db5; color: #fff; }
 .mk-imphint { margin: 0 0 10px; }
-.mk-imp { display: flex; align-items: center; justify-content: center; }
+.mk-imp, .leaflet-marker-icon.mk-imp { display: flex; align-items: center; justify-content: center; }   /* leaflet.css-тің display: block-ынан күштірек */
 .mk-imp > span { width: 16px; height: 16px; border-radius: 50%; border: 2px dashed #2f6db5; background: rgba(255, 255, 255, .92); color: #2f6db5;
   font: 700 10px/12px system-ui, sans-serif; text-align: center; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .mk-imp--inline { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; }

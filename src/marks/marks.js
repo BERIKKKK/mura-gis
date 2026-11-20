@@ -8,6 +8,7 @@
 import { parseOne, genitive } from '../qorgau/app.js';
 import { sortMarks, arabizeRoman, compareText, compareNames, matchesText } from './sort.js';
 import { parseGeoFile, parseGeojsonPoints, isMuraMarks } from './geofiles.js';
+import { culledLayer, progressiveList } from './culled.js';
 import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, sections, coordLines, nameCell } from './export.js';
 
 const $ = id => document.getElementById(id);
@@ -31,6 +32,7 @@ const store = {
 };
 
 let items = [];               // барлық белгілер (сақталғандары)
+let sorted = null;            // items құжат ретімен (sortMarks) — items өзгергенде ғана қайта сұрыпталады
 let imports = [];             // импортталған, әлі сәйкестендірілмеген нүктелер (KML, KMZ, GPX)
 const selected = new Set();   // тізімде таңдалған белгілер (топпен өшіру)
 let marking = false;          // «Белгі қою» режимі
@@ -51,8 +53,8 @@ async function api(op, data) {
   const r = await fetch(API + '&op=' + op, { method: 'POST', body: fd });
   const j = await r.json();
   if (!j.ok) throw new Error(j.error || tx('Сақтау қатесі', 'Ошибка сохранения'));
-  if (Array.isArray(j.items)) { items = j.items; render(); }
-  if (Array.isArray(j.imports)) { imports = j.imports; renderImports(); }
+  if (Array.isArray(j.items)) { items = j.items; sorted = null; render(true); }
+  if (Array.isArray(j.imports)) { imports = j.imports; renderImports(true); }
   return j;
 }
 async function saveMark(m) {
@@ -61,8 +63,6 @@ async function saveMark(m) {
 }
 
 /* ======================= Карта қабаты ======================= */
-const layer = L.layerGroup();
-const markers = new Map();    // id → L.marker
 /* Шартты белгілер: түрі — symbols/*.svg (QGIS параметрлі SVG), түсі — санатына қарай (6-бап).
    QGIS-тің param(fill) / param(outline) мәндері санат түсімен ауыстырылады, қалған param(…) — әдепкі мәнімен. */
 const SYM = {};
@@ -89,25 +89,47 @@ function pinIcon(m) {
     html: symbolSvg(m.type, m.category, w),
   });
 }
+/* Белгілер картаға culled.js арқылы салынады: көрініп тұрған аумақтағысы ғана — SVG белгі, тым көп болса — canvas-тағы дөңгелек.
+   Оқиғалар белгінің id-і бойынша ағымдағы жазбаны алады (items жаңарғанда белгі қайта жасалмауы мүмкін). */
+const byId = new Map();
+const cur = id => byId.get(id);
+const passThrough = () => mapEl.classList.contains('is-adding') || mapEl.classList.contains('is-ruler');
+const markSig = m => m.lat + ',' + m.lon + '|' + m.type + '|' + m.category + '|' + m.status + '|' + view(m).name;
+function makePin(m0) {
+  const id = m0.id, labels = $('mkLabels').checked;
+  const mk = L.marker([m0.lat, m0.lon], { icon: pinIcon(m0), draggable: marking, keyboard: true, title: '', riseOnHover: true, autoPan: true });
+  mk.bindTooltip(esc(view(m0).name), { direction: 'top', permanent: labels, className: 'mk-tip' + (labels ? ' is-perm' : '') });
+  mk.on('click', () => { const m = cur(id); if (!dragging && m) openDialog(m); });
+  mk.on('contextmenu', ev => { L.DomEvent.preventDefault(ev.originalEvent); const m = cur(id); if (m) globalThis.MuraCtx?.forMark(m, ev); });
+  mk.on('dragstart', () => { dragging = true; });
+  mk.on('dragend', async () => {
+    setTimeout(() => { dragging = false; }, 50);
+    const m = cur(id), p = mk.getLatLng();
+    if (!m) return;
+    try { await saveMark({ ...m, lat: p.lat, lon: p.lng }); toast(tx('«' + view(m).name + '» жылжытылды: ', 'Метка «' + view(m).name + '» перемещена: ') + coordLines({ lat: p.lat, lon: p.lng }).join(', ')); }
+    catch (e) { toast(e.message, true); mk.setLatLng([m.lat, m.lon]); }
+  });
+  return mk;
+}
+function makeDot(m0, renderer) {
+  const st = categoryOf(m0.category), excl = m0.status === 'excluded', id = m0.id;
+  const c = L.circleMarker([m0.lat, m0.lon], { renderer, radius: 5, weight: 1.5, color: st.outline, fillColor: st.fill, opacity: excl ? 0.55 : 1, fillOpacity: excl ? 0.45 : 0.95 });
+  c.bindTooltip(esc(view(m0).name), { direction: 'top', className: 'mk-tip', offset: [0, -4] });
+  // Шекара нүктесін қою / сызғыш режимінде басу картаға өтеді (DOM белгілердегі pointer-events: none сияқты)
+  c.on('click', ev => { if (passThrough()) return; L.DomEvent.stopPropagation(ev); const m = cur(id); if (m && !dragging) openDialog(m); });
+  c.on('contextmenu', ev => {
+    if (passThrough()) return;
+    L.DomEvent.stopPropagation(ev); L.DomEvent.preventDefault(ev.originalEvent);
+    const m = cur(id); if (m) globalThis.MuraCtx?.forMark(m, ev);
+  });
+  return c;
+}
+const marksView = culledLayer(map, { limit: 500, sig: markSig, pin: makePin, dot: makeDot });
+const layer = marksView.layer;
 function drawMarkers() {
-  layer.clearLayers();
-  markers.clear();
-  const labels = $('mkLabels').checked;
-  for (const m of items) {
-    const mk = L.marker([m.lat, m.lon], { icon: pinIcon(m), draggable: marking, keyboard: true, title: '', riseOnHover: true, autoPan: true });
-    mk.bindTooltip(esc(view(m).name), { direction: 'top', permanent: labels, className: 'mk-tip' + (labels ? ' is-perm' : '') });
-    mk.on('click', () => { if (!dragging) openDialog(m); });
-    mk.on('contextmenu', ev => { L.DomEvent.preventDefault(ev.originalEvent); globalThis.MuraCtx?.forMark(m, ev); });
-    mk.on('dragstart', () => { dragging = true; });
-    mk.on('dragend', async () => {
-      setTimeout(() => { dragging = false; }, 50);
-      const p = mk.getLatLng();
-      try { await saveMark({ ...m, lat: p.lat, lon: p.lng }); toast(tx('«' + view(m).name + '» жылжытылды: ', 'Метка «' + view(m).name + '» перемещена: ') + coordLines({ lat: p.lat, lon: p.lng }).join(', ')); }
-      catch (e) { toast(e.message, true); drawMarkers(); }
-    });
-    mk.addTo(layer);
-    markers.set(m.id, mk);
-  }
+  byId.clear();
+  for (const m of items) byId.set(m.id, m);
+  marksView.setData(items);
 }
 function paintLayerVisibility() {
   const on = $('mkShow').checked;
@@ -130,7 +152,7 @@ function setMarking(on) {
   modeBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
   modeBtn.dataset.tip = on ? 'Белгі қою: қосулы — картаны басыңыз (Esc — өшіру)' : 'Белгі қою: картаны басып ескерткішті белгілеңіз';
   mapEl.classList.toggle('is-marking', on);
-  for (const mk of markers.values()) { if (mk.dragging) (on ? mk.dragging.enable() : mk.dragging.disable()); }
+  marksView.eachPin(mk => { mk.options.draggable = on; if (mk.dragging) (on ? mk.dragging.enable() : mk.dragging.disable()); });
 }
 modeBtn.addEventListener('click', () => setMarking(!marking));
 // Шекара нүктесін қою, сызғыш не циркуль қосылса — белгі қою өшеді
@@ -308,9 +330,8 @@ async function removeMark(m) {
 }
 function flyTo(m) {
   if (!$('mkShow').checked) { $('mkShow').checked = true; paintLayerVisibility(); }
+  map.once('moveend', () => { marksView.syncNow(); marksView.pin(m.id)?.openTooltip(); });
   map.flyTo([m.lat, m.lon], Math.max(map.getZoom(), 15), { duration: 0.6 });
-  const mk = markers.get(m.id);
-  if (mk) setTimeout(() => mk.openTooltip(), 650);
 }
 
 /* Координата панелі: «Белгі» — енгізілген координатадан жаңа белгі */
@@ -363,15 +384,18 @@ const fillSel = (id, list) => { $(id).insertAdjacentHTML('beforeend', list.map(x
 fillSel('mkFType', TYPES);
 fillSel('mkFStatus', STATUSES);
 fillSel('mkFCat', CATEGORIES.slice().sort((a, b) => a.order - b.order).map(c => ({ v: c.v || '—', label: c.label })));
-for (const id of ['mkQ', 'mkFCat', 'mkFOblast', 'mkFDistrict', 'mkFType', 'mkFStatus']) $(id).addEventListener(id === 'mkQ' ? 'input' : 'change', () => render());
+/** Іздеу өрісі: әр әріпте емес, теру тоқтағанда (мыңдаған белгіде тізім әр басуда қайта салынбайды). */
+const debounce = (fn, ms) => { let t = 0; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
+for (const id of ['mkQ', 'mkFCat', 'mkFOblast', 'mkFDistrict', 'mkFType', 'mkFStatus']) $(id).addEventListener(id === 'mkQ' ? 'input' : 'change', id === 'mkQ' ? debounce(() => render(), 180) : () => render());
 $('mkShow').addEventListener('change', paintLayerVisibility);
-$('mkLabels').addEventListener('change', () => { store.set('mk-labels', $('mkLabels').checked ? '1' : '0'); drawMarkers(); });
+$('mkLabels').addEventListener('change', () => { store.set('mk-labels', $('mkLabels').checked ? '1' : '0'); marksView.rebuild(); });
 $('mkLabels').checked = store.get('mk-labels') === '1';
 
 function filtered() {
   const fo = $('mkFOblast').value, fc = $('mkFCat').value;
   const q = $('mkQ').value.trim().toLocaleLowerCase('kk'), fd = $('mkFDistrict').value, ft = $('mkFType').value, fs = $('mkFStatus').value;
-  return sortMarks(items.map(view).filter(m => {
+  if (!sorted) sorted = sortMarks(items.map(view));
+  return sorted.filter(m => {
     if (fc && (m.category || '—') !== fc) return false;
     if (fo && (m.oblast || '') !== fo) return false;
     if (fd && (fd === '—' ? m.district : m.district !== fd)) return false;
@@ -379,7 +403,7 @@ function filtered() {
     if (fs && m.status !== fs) return false;
     if (q && !matchesText([m.name, m.name_ru, m.period, m.period_ru, m.place, m.place_ru, m.district].filter(Boolean).join(' '), q)) return false;
     return true;
-  }));
+  });
 }
 
 let titleAuto = true;
@@ -398,10 +422,12 @@ $('mkTitleAuto').addEventListener('click', () => { titleAuto = true; paintTitle(
 // Құжат тілі ауысса — тізім атауы сол тілде қайта құрастырылады
 document.addEventListener('mura:doclang', () => { titleAuto = true; paintTitle(filtered()); });
 
-function render() {
+const paintMarkList = progressiveList($('mkList'));
+/** changed — items өзгерді (картадағы белгілер жаңарады); сүзгі өзгергенде тек панель тізімі қайта салынады. */
+function render(changed) {
   $('mkCount').textContent = items.length;
   $('mkTabN').textContent = items.length;
-  drawMarkers();
+  if (changed) drawMarkers();
   // Облыс сүзгісі (бірден көп облыс болса ғана көрінеді) және аудан сүзгісі — бар белгілердің мәндері
   const os = $('mkFOblast'), oc = os.value;
   const obs = [...new Set(items.map(m => m.oblast).filter(Boolean))].sort(compareText);
@@ -425,11 +451,13 @@ function render() {
   const box = $('mkList');
   if (!items.length) { box.innerHTML = '<div class="qa-empty">Әзірге белгі жоқ. Құралдар жолағындағы «Белгі қою» батырмасын басып, картадан ескерткіштің орнын белгілеңіз.</div>'; return; }
   if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай белгі табылмады.</div>'; return; }
-  let html = '', lastD = null;
+  // Карточкалар бөлшектеп салынады (progressiveList): мыңдаған карточка бірден DOM-ға қосылмайды
+  // (генератор: карточканың HTML-і тек көрсетілерде ғана құрастырылады)
   const multiOb = new Set(list.map(m => m.oblast || '')).size > 1;
-  let lastC = null;
   const multiC = new Set(list.map(m => categoryOf(m.category).v)).size > 1;
-  for (const m of list) {
+  let lastD = null, lastC = null;
+  paintMarkList((function* () { for (const m of list) {
+    let html = '';
     const c = categoryOf(m.category);
     if (multiC && c.v !== lastC) { html += '<div class="mk-chead"><i style="background:' + c.fill + ';border-color:' + c.outline + '"></i>' + esc(c.label) + '</div>'; lastC = c.v; lastD = null; }
     const sh = (n, r) => (REG ? REG.show(n, r) : n);
@@ -446,8 +474,8 @@ function render() {
       '<div class="qa-sc-act"><button type="button" class="lnk" data-act="edit">Өңдеу</button><button type="button" class="lnk" data-act="go">Картадан көрсету</button>' +
       '<button type="button" class="lnk" data-act="zone" title="Осы ескерткіштің қорғау аймағын белгілеу: мәліметтері белгіден алынады">Қорғау аймағы</button>' +
       '<button type="button" class="lnk lnk--danger" data-act="del">Өшіру</button></div></div></div>';
-  }
-  box.innerHTML = html;
+    yield html;
+  } })(), list.length);
 }
 /* ---------- Таңдау және топпен өшіру ---------- */
 function paintSel(list = filtered()) {
@@ -607,30 +635,44 @@ function setTab(t) {
 panelEl.addEventListener('click', e => { const b = e.target.closest('[data-mktab]'); if (b) setTab(b.dataset.mktab); });
 
 /* ---------- Импортталған нүктелер: карта қабаты ---------- */
-const impLayer = L.layerGroup();
-function impIcon() {
-  return L.divIcon({ className: 'mk-imp', iconSize: [18, 18], iconAnchor: [9, 9], tooltipAnchor: [0, -9], html: '<span>?</span>' });
+const impIcon = L.divIcon({ className: 'mk-imp', iconSize: [18, 18], iconAnchor: [9, 9], tooltipAnchor: [0, -9], html: '<span>?</span>' });
+const impById = new Map();
+const impTip = x => esc(x.name || '(атаусыз)') + '<small>импортталған · сәйкестендірілмеген</small>';
+function impMenu(id) {
+  return ev => {
+    const x = impById.get(id);
+    if (!x) return;
+    const oe = ev.originalEvent;
+    L.DomEvent.preventDefault(oe);
+    globalThis.MuraCtx?.openMenu(oe.clientX, oe.clientY, esc(x.name || '(атаусыз)'), [
+      { label: 'Сәйкестендіру', hint: 'белгі ретінде мәліметтерін толтыру', icon: '<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/>', run: () => identify(x) },
+      { label: 'Координатаны көшіру', hint: x.lat.toFixed(7) + ', ' + x.lon.toFixed(7), icon: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', run: () => (globalThis.mura?.clipWrite ? globalThis.mura.clipWrite(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7)) : navigator.clipboard.writeText(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7))) },
+      'sep',
+      { label: 'Импорттан өшіру', icon: '<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/>', run: () => removeImport(x) },
+    ]);
+  };
 }
+function makeImpPin(x) {
+  const labels = $('mkImpLabels').checked, menuAt = impMenu(x.id);
+  const mk = L.marker([x.lat, x.lon], { icon: impIcon, keyboard: false, riseOnHover: true });
+  mk.bindTooltip(impTip(x), { direction: 'top', permanent: labels, className: 'mk-tip mk-imptip' + (labels ? ' is-perm' : '') });
+  mk.on('click', menuAt);
+  mk.on('contextmenu', menuAt);
+  return mk;
+}
+function makeImpDot(x, renderer) {
+  const c = L.circleMarker([x.lat, x.lon], { renderer, radius: 4, weight: 1.5, color: '#2f6db5', fillColor: '#fff', fillOpacity: 0.9 });
+  c.bindTooltip(impTip(x), { direction: 'top', className: 'mk-tip mk-imptip', offset: [0, -3] });
+  const menuAt = impMenu(x.id);
+  for (const t of ['click', 'contextmenu']) c.on(t, ev => { if (passThrough()) return; L.DomEvent.stopPropagation(ev); menuAt(ev); });
+  return c;
+}
+const impView = culledLayer(map, { limit: 500, sig: x => x.lat + ',' + x.lon + '|' + x.name, pin: makeImpPin, dot: makeImpDot });
+const impLayer = impView.layer;
 function drawImports() {
-  impLayer.clearLayers();
-  const labels = $('mkImpLabels').checked;
-  for (const x of imports) {
-    const mk = L.marker([x.lat, x.lon], { icon: impIcon(), keyboard: false, riseOnHover: true });
-    mk.bindTooltip(esc(x.name || '(атаусыз)') + '<small>импортталған · сәйкестендірілмеген</small>', { direction: 'top', permanent: labels, className: 'mk-tip mk-imptip' + (labels ? ' is-perm' : '') });
-    const menuAt = ev => {
-      const oe = ev.originalEvent;
-      L.DomEvent.preventDefault(oe);
-      globalThis.MuraCtx?.openMenu(oe.clientX, oe.clientY, esc(x.name || '(атаусыз)'), [
-        { label: 'Сәйкестендіру', hint: 'белгі ретінде мәліметтерін толтыру', icon: '<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/>', run: () => identify(x) },
-        { label: 'Координатаны көшіру', hint: x.lat.toFixed(7) + ', ' + x.lon.toFixed(7), icon: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', run: () => (globalThis.mura?.clipWrite ? globalThis.mura.clipWrite(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7)) : navigator.clipboard.writeText(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7))) },
-        'sep',
-        { label: 'Импорттан өшіру', icon: '<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/>', run: () => removeImport(x) },
-      ]);
-    };
-    mk.on('click', menuAt);
-    mk.on('contextmenu', menuAt);
-    mk.addTo(impLayer);
-  }
+  impById.clear();
+  for (const x of imports) impById.set(x.id, x);
+  impView.setData(imports);
 }
 function paintImpVisibility() {
   const on = $('mkImpShow').checked;
@@ -638,8 +680,8 @@ function paintImpVisibility() {
   if (!on && map.hasLayer(impLayer)) map.removeLayer(impLayer);
 }
 $('mkImpShow').addEventListener('change', paintImpVisibility);
-$('mkImpLabels').addEventListener('change', drawImports);
-for (const id of ['mkIQ', 'mkIFile']) $(id).addEventListener(id === 'mkIQ' ? 'input' : 'change', () => renderImports());
+$('mkImpLabels').addEventListener('change', () => impView.rebuild());
+for (const id of ['mkIQ', 'mkIFile']) $(id).addEventListener(id === 'mkIQ' ? 'input' : 'change', id === 'mkIQ' ? debounce(() => renderImports(), 180) : () => renderImports());
 
 /** Сәйкестендіру: импортталған нүкте — жаңа белгі терезесі (атауы, сипаттамасы, координатасы алдын ала толтырылған);
     сақталғанда нүкте импорттан алынады. */
@@ -665,10 +707,11 @@ function filteredImports() {
   return imports.filter(x => (!ff || x.file === ff) && (!q || (x.name + ' ' + x.desc + ' ' + x.file + ' ' + x.folder).toLocaleLowerCase('kk').includes(q)))
     .sort((a, b) => compareText(a.file, b.file) || compareText(a.folder, b.folder) || compareNames(a.name, b.name));
 }
-function renderImports() {
+const paintImpList = progressiveList($('mkImpList'));
+function renderImports(changed) {
   $('mkTabI').textContent = imports.length;
   $('mkTabImpB').classList.toggle('has-new', imports.length > 0);
-  drawImports();
+  if (changed) drawImports();
   const fs = $('mkIFile'), cur = fs.value, files = [...new Set(imports.map(x => x.file).filter(Boolean))].sort(compareText);
   fs.innerHTML = '<option value="">Барлық файл</option>' + files.map(f => '<option' + (f === cur ? ' selected' : '') + '>' + esc(f) + '</option>').join('');
   fs.hidden = files.length < 2;
@@ -679,8 +722,10 @@ function renderImports() {
   const box = $('mkImpList');
   if (!imports.length) { box.innerHTML = '<div class="qa-empty">Импортталған нүкте жоқ. Құралдар жолағындағы «Импорт» арқылы KML, KMZ, GPX не GeoJSON файлын таңдаңыз.</div>'; return; }
   if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай нүкте табылмады.</div>'; return; }
-  let html = '', last = null;
-  for (const x of list.slice(0, 1000)) {
+  let last = null;
+  const shown = list.slice(0, 1000);
+  paintImpList((function* () { for (const x of shown) {
+    let html = '';
     const g = x.file + (x.folder ? ' · ' + x.folder : '');
     if (g !== last) { html += '<div class="mk-dhead">' + esc(g || 'Файл көрсетілмеген') + '</div>'; last = g; }
     html += '<div class="qa-sc mk-card mk-impcard" data-iid="' + esc(x.id) + '"><span class="mk-imp mk-imp--inline"><span>?</span></span>' +
@@ -689,9 +734,8 @@ function renderImports() {
       '<div class="qa-sc-meta mk-cc">' + esc(coordLines(x).join(', ')) + '</div>' +
       '<div class="qa-sc-act"><button type="button" class="lnk mk-ident" data-iact="ident">Сәйкестендіру</button><button type="button" class="lnk" data-iact="go">Картадан көрсету</button>' +
       '<button type="button" class="lnk lnk--danger" data-iact="del">Өшіру</button></div></div></div>';
-  }
-  if (list.length > 1000) html += '<div class="qa-empty">' + tx('Тағы ' + (list.length - 1000) + ' нүкте — іздеу не файл сүзгісін қолданыңыз.', 'Ещё точек: ' + (list.length - 1000) + ' — воспользуйтесь поиском или фильтром по файлу.') + '</div>';
-  box.innerHTML = html;
+    yield html;
+  } })(), shown.length, list.length > 1000 ? '<div class="qa-empty">' + tx('Тағы ' + (list.length - 1000) + ' нүкте — іздеу не файл сүзгісін қолданыңыз.', 'Ещё точек: ' + (list.length - 1000) + ' — воспользуйтесь поиском или фильтром по файлу.') + '</div>' : '');
 }
 $('mkImpList').addEventListener('click', e => {
   const b = e.target.closest('[data-iact]'), card = e.target.closest('[data-iid]');

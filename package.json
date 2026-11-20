@@ -19,7 +19,8 @@
     "smoke": "electron scripts/smoke.js",
     "smoke:marks": "electron scripts/smoke-marks.js",
     "smoke:routes": "electron scripts/smoke-routes.js",
-    "smoke:ru": "electron scripts/smoke-ru.js"
+    "smoke:ru": "electron scripts/smoke-ru.js",
+    "smoke:perf": "electron scripts/smoke-perf.js"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
