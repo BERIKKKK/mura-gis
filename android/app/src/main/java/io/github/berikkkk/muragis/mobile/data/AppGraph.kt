@@ -8,6 +8,7 @@ import io.github.berikkkk.muragis.core.db.LayerRole
 import io.github.berikkkk.muragis.core.db.LayerStore
 import io.github.berikkkk.muragis.core.db.LocalStore
 import io.github.berikkkk.muragis.core.db.MapLayer
+import io.github.berikkkk.muragis.core.packages.Catalog
 import io.github.berikkkk.muragis.core.server.LocalTileServer
 import io.github.berikkkk.muragis.core.server.TileProvider
 import io.github.berikkkk.muragis.core.sources.OfflinePolicy
@@ -26,6 +27,9 @@ class AppGraph(val context: Context) {
     val exportsDir: File = File(context.cacheDir, "exports").apply { mkdirs() }
     val settings = Settings(context)
     val recorder = TrackRecorder(settings)
+    /** Тегін офлайн карта пакеттерінің каталогы (assets/maps/catalog.json — қолданбамен бірге таратылады). */
+    val catalog: Catalog = runCatching { context.assets.open("maps/catalog.json").use { Catalog.parse(it.readBytes().toString(Charsets.UTF_8)) } }
+        .getOrElse { Catalog(emptyList()) }
 
     @Volatile var db: AndroidSqlDb = AndroidSqlDb.openReadWrite(dbFile); private set
     @Volatile var store: LocalStore = LocalStore(db, deviceUser()); private set
@@ -33,7 +37,12 @@ class AppGraph(val context: Context) {
     val backups = Backups(File(context.filesDir, "backups"), dbFile)
 
     @Volatile var tiles: TileRegistry = TileRegistry(layers); private set
-    val server: LocalTileServer = LocalTileServer(TileProvider { id, z, x, y -> tiles.tile(id, z, x, y) })
+    // [tiles] қалпына келтіруде ауысуы мүмкін — әр сұраныста ағымдағысына жүгінеміз (тайл, пакет ресурсы, қосымша жиын)
+    val server: LocalTileServer = LocalTileServer(object : TileProvider {
+        override fun tile(layerId: String, z: Int, x: Int, y: Int) = tiles.tile(layerId, z, x, y)
+        override fun resource(layerId: String, path: String) = tiles.resource(layerId, path)
+        override fun extraTile(layerId: String, set: String, z: Int, x: Int, y: Int) = tiles.extraTile(layerId, set, z, x, y)
+    })
 
     init {
         seedBuiltInLayers()

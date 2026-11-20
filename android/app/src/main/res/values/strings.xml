@@ -367,4 +367,34 @@
     <string name="place_on_map">Картада белгілеу</string>
     <string name="pick_editor_hint">Ескерткіштің орны: картаны жылжытып, нысананы жаңа орынға қойыңыз не GPS орнын алыңыз. Енгізілген мәліметтер сақталады.</string>
     <string name="none_dash">—</string>
+    <!-- Карта қабаттары панелі: санаттар, күйлер, офлайн пакеттер -->
+    <string name="cat_basic">Негізгі карталар</string>
+    <string name="cat_topo">Топокарталар</string>
+    <string name="cat_satellite">Спутниктік түсірілімдер</string>
+    <string name="cat_historic">Тарихи карталар</string>
+    <string name="cat_user">Қолданушы карталары</string>
+    <string name="state_online">Онлайн</string>
+    <string name="state_online_off">Онлайн · қазір интернет жоқ</string>
+    <string name="state_downloaded">Жүктелді</string>
+    <string name="state_local">Жергілікті файл</string>
+    <string name="state_active">Таңдалған карта</string>
+    <string name="hist_gsh_meta">1970–1980 жж. · КСРО аумағы, 1:100 000–1:200 000 · nakarte.me (AtloMaps)</string>
+    <string name="hist_gsh1m_meta">1970–1980 жж. · КСРО аумағы, 1:1 000 000 · nakarte.me</string>
+    <string name="regions_hint">Дайын аумақты таңдаңыз, содан кейін қажетті карта түрін жүктеңіз. Карталар тегін, интернетсіз жұмыс істейді.</string>
+    <string name="region_maps">%1$d карта · %2$s</string>
+    <string name="free_space">Құрылғыда бос орын: %1$s</string>
+    <string name="pkg_size">Көлемі: %1$s</string>
+    <string name="pkg_date">Дерек күні: %1$s</string>
+    <string name="pkg_source">Дереккөз: %1$s</string>
+    <string name="pkg_coverage">Қамту аумағы: %1$s</string>
+    <string name="pkg_download">Жүктеу</string>
+    <string name="pkg_open">Картаны ашу</string>
+    <string name="custom_area">Өз дереккөзімнен аумақ таңдау</string>
+    <string name="err_no_space">Құрылғыда орын жеткіліксіз</string>
+    <string name="st_waiting_network">байланыс күтілуде</string>
+    <string name="job_bytes">%1$s · %2$d%% · %3$s / %4$s</string>
+    <string name="err_verify">Жүктелген файл тексеруден өтпеді — қайта жүктеңіз</string>
+    <string name="not_downloaded_here">Бұл аумақтың картасы жүктелмеген</string>
+    <string name="import_options">Импорт баптаулары: қалта, TMS, EPSG:3395</string>
+    <string name="map_details">Карта туралы</string>
 </resources>

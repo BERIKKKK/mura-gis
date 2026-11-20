@@ -36,6 +36,10 @@ import io.github.berikkkk.muragis.core.model.MonumentType
 import io.github.berikkkk.muragis.core.model.Route
 import io.github.berikkkk.muragis.core.model.RoutePoint
 import io.github.berikkkk.muragis.core.model.Vehicle
+import io.github.berikkkk.muragis.core.packages.Catalog
+import io.github.berikkkk.muragis.core.packages.CatalogPackage
+import io.github.berikkkk.muragis.core.packages.MapCategory
+import io.github.berikkkk.muragis.core.packages.MapPackage
 import io.github.berikkkk.muragis.core.routing.RouteNetwork
 import io.github.berikkkk.muragis.core.model.Sorting
 import io.github.berikkkk.muragis.core.model.Status
@@ -53,6 +57,7 @@ import io.github.berikkkk.muragis.mobile.util.Connectivity
 import io.github.berikkkk.muragis.mobile.util.LocationTracker
 import io.github.berikkkk.muragis.mobile.work.DownloadWorker
 import io.github.berikkkk.muragis.mobile.work.ImportMapWorker
+import io.github.berikkkk.muragis.mobile.work.PackageDownloadWorker
 import io.github.berikkkk.muragis.mobile.work.TrackService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -166,8 +171,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val effectiveBase: StateFlow<MapLayer?> = combine(_layers, online, prefs) { ls, on, p -> pickBase(ls, on, p) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    val styleJson: StateFlow<String> = combine(effectiveBase, _layers, online, prefs) { base, ls, on, p -> buildStyle(base, ls, on, p) }
+    /** Интерфейс тілі орысша ма (векторлық карталардағы жазулар тілі осыған қарай). */
+    private val _uiRu = MutableStateFlow(false)
+    fun setUiLang(ru: Boolean) { _uiRu.value = ru }
+
+    val styleJson: StateFlow<String> = combine(effectiveBase, _layers, online, prefs, _uiRu) { base, ls, on, p, ru -> buildStyle(base, ls, on, p, ru) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    /** Тегін офлайн карта пакеттерінің каталогы. */
+    val catalog: Catalog get() = g.catalog
+
+    /**
+     * Карта ортасы көрсетіліп тұрған офлайн картаның (жүктелген пакет не импортталған файл) қамту аумағынан тыс па —
+     * «Бұл аумақтың картасы жүктелмеген» хабары үшін.
+     */
+    val outsideOffline: StateFlow<Boolean> = combine(effectiveBase, prefs) { base, p ->
+        val b = base?.takeIf { it.isOffline }?.bounds
+        b != null && !b.contains(p.lastLat, p.lastLon)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private val store: LocalStore get() = g.store
 
@@ -490,10 +511,49 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (l.isOffline) StyleBuilder.offlineSpec(l, g.server.template(l.id))
         else g.sourceOf(l)?.let { StyleBuilder.onlineSpec(l, it) }
 
-    private fun buildStyle(base: MapLayer?, ls: List<MapLayer>, on: Boolean, p: Prefs): String {
+    private fun buildStyle(base: MapLayer?, ls: List<MapLayer>, on: Boolean, p: Prefs, ru: Boolean): String {
         val overlays = ls.filter { it.role == LayerRole.OVERLAY && it.visible && isAvailable(it, on) }.sortedBy { it.sort }.mapNotNull { spec(it) }
-        return StyleBuilder.build(base?.let { spec(it) }, overlays, p.cluster)
+        // Векторлық офлайн пакет: стилі, қаріптері мен белгішелері пакеттің өзінен (жергілікті сервер арқылы)
+        val vector = base?.takeIf { it.isOffline && it.format == LayerFormat.MBTILES && File(it.path).isFile }
+            ?.let { b -> packageStyle(b.id)?.let { MapPackage.resolveStyle(it, g.server.baseUrl, b.id, ru) } }
+        return StyleBuilder.build(base?.let { spec(it) }, overlays, p.cluster, vector)
     }
+
+    private val styleCache = HashMap<String, String?>()
+    private fun packageStyle(id: String): String? = synchronized(styleCache) { styleCache.getOrPut(id) { g.tiles.packageStyle(id) } }
+
+    /** Қабаттың санаты («Карта қабаттары» панеліндегі топ). */
+    fun categoryOf(l: MapLayer): MapCategory = MapCategory.of(l, g.catalog)
+
+    /** Жүктелген пакеттің каталогтағы жазбасы (атауы екі тілде, дереккөзі, лицензиясы). */
+    fun packageOf(l: MapLayer): CatalogPackage? = Catalog.packageIdOf(l.sourceId)?.let { g.catalog.pkg(it) }
+
+    /** Құрылғыдағы бос орын (карта файлдары сақталатын жерде). */
+    fun freeSpace(): Long = runCatching { android.os.StatFs(g.mapsDir.path).availableBytes }.getOrDefault(0L)
+
+    /** Пакет жүктелген не жүктеліп жатыр ма. */
+    fun packageState(p: CatalogPackage): Pair<MapLayer?, DownloadJob?> {
+        val sid = Catalog.sourceIdOf(p)
+        return _layers.value.firstOrNull { it.sourceId == sid && File(it.path).isFile } to
+            _jobs.value.firstOrNull { it.sourceId == sid && it.state != JobState.COMPLETED && it.state != JobState.CANCELLED }
+    }
+
+    /** Каталогтағы пакетті жүктеуді бастау (алдын ала бос орын тексеріледі). */
+    fun startPackageDownload(p: CatalogPackage, lang: Lang) = io {
+        val (layer, job) = packageState(p)
+        if (layer != null || job != null) return@io
+        if (p.size > 0 && freeSpace() < p.size + 32L * 1024 * 1024) { msg(R.string.err_no_space, error = true); return@io }
+        val j = DownloadJob(sourceId = Catalog.sourceIdOf(p), layerId = Ids.newId(), title = p.title.of(lang), bounds = p.bounds,
+            minZoom = p.minZoom, maxZoom = p.maxZoom, total = p.size)
+        g.layers.saveJob(j)
+        PackageDownloadWorker.enqueue(getApplication(), j.id)
+        _jobs.value = g.layers.jobs()
+        msg(R.string.msg_download_started)
+    }
+
+    private fun isPackageJob(j: DownloadJob) = Catalog.packageIdOf(j.sourceId) != null
+    private fun stopWorker(j: DownloadJob) = if (isPackageJob(j)) PackageDownloadWorker.stop(getApplication(), j.id) else DownloadWorker.stop(getApplication(), j.id)
+    private fun startWorker(j: DownloadJob) = if (isPackageJob(j)) PackageDownloadWorker.enqueue(getApplication(), j.id) else DownloadWorker.enqueue(getApplication(), j.id)
 
     fun setBase(id: String) = io {
         for (l in g.layers.layers()) if (l.role == LayerRole.BASE && (l.visible != (l.id == id))) g.layers.save(l.copy(visible = l.id == id))
@@ -534,7 +594,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val l = g.layers.layer(id) ?: return@io
         if (l.kind == LayerKind.ONLINE && !l.id.startsWith("b-")) { g.layers.delete(id) }
         else if (l.isOffline) {
-            g.layers.jobs().filter { it.layerId == id }.forEach { DownloadWorker.stop(getApplication(), it.id); g.layers.deleteJob(it.id) }
+            g.layers.jobs().filter { it.layerId == id }.forEach { stopWorker(it); g.layers.deleteJob(it.id) }
+            synchronized(styleCache) { styleCache.remove(id) }
+            if (g.settings.prefs.value.offlineBaseId == id) g.settings.update { it.copy(offlineBaseId = "") }
+            // Өшірілген негізгі карта таңдаулы болса — кіріктірілген онлайн картаға қайту
+            if (l.visible && l.role == LayerRole.BASE) g.layers.layer("b-osm")?.let { g.layers.save(it.copy(visible = true)) }
             g.tiles.invalidate(id)
             File(l.path).delete()
             g.layers.delete(id)
@@ -583,14 +647,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun pauseDownload(id: String) = io {
-        g.layers.job(id)?.let { g.layers.saveJob(it.copy(state = JobState.PAUSED)) }
-        DownloadWorker.stop(getApplication(), id)
+        val j = g.layers.job(id) ?: return@io
+        g.layers.saveJob(j.copy(state = JobState.PAUSED))
+        stopWorker(j)
         _jobs.value = g.layers.jobs()
     }
 
     fun resumeDownload(id: String) = io {
-        g.layers.job(id)?.let { g.layers.saveJob(it.copy(state = JobState.QUEUED, error = "")) }
-        DownloadWorker.enqueue(getApplication(), id)
+        val j = g.layers.job(id) ?: return@io
+        g.layers.saveJob(j.copy(state = JobState.QUEUED, error = ""))
+        startWorker(j)
         _jobs.value = g.layers.jobs()
     }
 
@@ -598,8 +664,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun cancelDownload(id: String) = io {
         val j = g.layers.job(id) ?: return@io
         g.layers.saveJob(j.copy(state = JobState.CANCELLED))
-        DownloadWorker.stop(getApplication(), id)
+        stopWorker(j)
         kotlinx.coroutines.delay(500)
+        if (isPackageJob(j)) PackageDownloadWorker.partFile(g.mapsDir, j).delete()
         g.layers.layer(j.layerId)?.let { l -> g.tiles.invalidate(l.id); File(l.path).delete(); g.layers.delete(l.id) }
         g.layers.deleteJob(id)
         _jobs.value = g.layers.jobs(); _layers.value = g.layers.layers()
