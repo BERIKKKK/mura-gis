@@ -1,14 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2c4a3e"/>
-      <stop offset="1" stop-color="#1b2e26"/>
-    </linearGradient>
-  </defs>
-  <rect x="8" y="8" width="240" height="240" rx="56" fill="url(#bg)"/>
-  <!-- Ескерткіш шекарасы және одан сыртқа ығысқан үш аймақ -->
-  <path d="M128 30 L222 92 L196 210 L66 214 L34 100 Z" fill="none" stroke="#d6261f" stroke-width="9" stroke-linejoin="round"/>
-  <path d="M128 60 L196 104 L176 188 L82 191 L59 110 Z" fill="none" stroke="#5b73ff" stroke-width="9" stroke-linejoin="round"/>
-  <path d="M128 88 L172 117 L159 168 L98 170 L83 120 Z" fill="none" stroke="#f2d02b" stroke-width="9" stroke-linejoin="round"/>
-  <path d="M128 114 L148 128 L142 151 L114 152 L107 131 Z" fill="#2fbf55" stroke="#ffffff" stroke-width="5" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-labelledby="title">
+  <title id="title">Mura GIS</title>
+  <rect id="tile" x="40" y="42" width="1171" height="1170" rx="211" fill="#353535"/>
+
+  <g id="mausoleum" fill="#B28E72">
+    <path id="dome" d="M676 103C548 224 475 380 454 537l59 12 2 40c56 10 104 13 162 11 68-2 125-13 220-30-3-168-94-335-221-467Z"/>
+    <path id="drum" d="M515 607c56 10 105 12 163 11 68-1 123-15 219-32v84l-328 71-49-3Z"/>
+    <path id="entrance" d="m247 516 246 47 15 414-86-12V735c0-54-18-100-60-130-37 27-54 74-54 121v224l-53-7Z"/>
+    <path id="wall" d="m521 769 494-106 1 226-488 87Z"/>
+  </g>
+
+  <g id="map" fill="#FFFFFF">
+    <path id="parcel-left" d="M244 877v15l-110 34 384 187 10 20L100 926a2 2 0 0 1 .2-3.8Z"/>
+    <path id="parcel-right" d="m1027 852 127 41a2 2 0 0 1 .1 3.8L550 1133l12-20 555-217-90-29Z"/>
+    <path id="location-pin" fill-rule="evenodd" d="M539 1014c-24 0-43 18-43 41 0 18 10 33 43 83 33-50 43-65 43-83 0-23-19-41-43-41Zm0 22a19 19 0 1 1 0 38 19 19 0 0 1 0-38Z"/>
+  </g>
 </svg>
