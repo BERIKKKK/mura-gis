@@ -49,6 +49,10 @@ data class MapLayer(
     val role: LayerRole = LayerRole.BASE,
     val sort: Int = 0,
     val sizeBytes: Long = 0,
+    /** Пайдаланушы қосқан онлайн дереккөз: «офлайн сақтауға құқығым бар» деп растаған ба. */
+    val offlineRight: Boolean = false,
+    /** Тайлдардың проекциясы (EPSG:3857 не EPSG:3395 — SAS.Planet-тегі Яндекс). */
+    val projection: String = "EPSG:3857",
     val createdAt: String = Ids.now(),
 ) {
     val isOffline get() = kind != LayerKind.ONLINE
@@ -91,6 +95,7 @@ class LayerStore(private val db: SqlDb) {
         attribution = r.string("attribution") ?: "", license = r.string("license") ?: "", tileFormat = r.string("tile_format") ?: "",
         tms = (r.long("tms") ?: 0L) != 0L, opacity = r.double("opacity") ?: 1.0, visible = (r.long("visible") ?: 0L) != 0L,
         role = LayerRole.of(r.string("role")), sort = r.long("sort")?.toInt() ?: 0, sizeBytes = r.long("size_bytes") ?: 0L,
+        offlineRight = (r.long("offline_right") ?: 0L) != 0L, projection = r.string("projection") ?: "EPSG:3857",
         createdAt = r.string("created_at") ?: "",
     )
 
@@ -99,10 +104,10 @@ class LayerStore(private val db: SqlDb) {
 
     fun save(l: MapLayer) {
         val cols = listOf("id", "kind", "format", "title", "url", "path", "source_id", "min_zoom", "max_zoom", "bounds", "attribution",
-            "license", "tile_format", "tms", "opacity", "visible", "role", "sort", "size_bytes", "created_at")
+            "license", "tile_format", "tms", "opacity", "visible", "role", "sort", "size_bytes", "offline_right", "projection", "created_at")
         db.exec("INSERT OR REPLACE INTO map_layers (" + cols.joinToString(",") + ") VALUES (" + cols.joinToString(",") { "?" } + ")", listOf(
             l.id, l.kind.code, l.format.code, l.title, l.url, l.path, l.sourceId, l.minZoom.toLong(), l.maxZoom.toLong(), l.bounds?.encode() ?: "",
-            l.attribution, l.license, l.tileFormat, if (l.tms) 1L else 0L, l.opacity, if (l.visible) 1L else 0L, l.role.code, l.sort.toLong(), l.sizeBytes, l.createdAt,
+            l.attribution, l.license, l.tileFormat, if (l.tms) 1L else 0L, l.opacity, if (l.visible) 1L else 0L, l.role.code, l.sort.toLong(), l.sizeBytes, if (l.offlineRight) 1L else 0L, l.projection, l.createdAt,
         ))
     }
 

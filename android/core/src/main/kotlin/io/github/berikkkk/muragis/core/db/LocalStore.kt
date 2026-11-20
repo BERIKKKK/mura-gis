@@ -62,6 +62,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                     attribution TEXT NOT NULL DEFAULT '', license TEXT NOT NULL DEFAULT '', tile_format TEXT NOT NULL DEFAULT '',
                     tms INTEGER NOT NULL DEFAULT 0, opacity REAL NOT NULL DEFAULT 1, visible INTEGER NOT NULL DEFAULT 0,
                     role TEXT NOT NULL DEFAULT 'base', sort INTEGER NOT NULL DEFAULT 0, size_bytes INTEGER NOT NULL DEFAULT 0,
+                    offline_right INTEGER NOT NULL DEFAULT 0, projection TEXT NOT NULL DEFAULT 'EPSG:3857',
                     created_at TEXT NOT NULL DEFAULT '')""")
                 db.exec("""CREATE TABLE IF NOT EXISTS download_jobs (
                     id TEXT PRIMARY KEY NOT NULL, source_id TEXT NOT NULL, layer_id TEXT NOT NULL, title TEXT NOT NULL,

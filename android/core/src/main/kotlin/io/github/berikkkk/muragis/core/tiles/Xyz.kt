@@ -40,6 +40,25 @@ object XyzScanner {
     private val STD = Regex("^(.*?/)?(\\d{1,2})/(\\d{1,8})/(\\d{1,8})\\.(png|jpe?g|webp)$", RegexOption.IGNORE_CASE)
     private val SAS = Regex("^(.*?/)?z(\\d{1,2})/(\\d{1,5})/x(\\d{1,8})/(\\d{1,5})/y(\\d{1,8})\\.(png|jpe?g|webp)$", RegexOption.IGNORE_CASE)
 
+    /** Бір жолды талдау: тайл болса — (құрылым, префикс, z, x, y, кеңейтім). */
+    data class Parsed(val layout: XyzLayout, val prefix: String, val z: Int, val x: Int, val y: Int, val ext: String)
+
+    fun parse(raw: String): Parsed? {
+        val p = raw.replace('\\', '/')
+        val s = SAS.matchEntire(p)
+        if (s != null) {
+            val z = s.groupValues[2].toInt() - 1
+            val x = s.groupValues[4].toInt(); val y = s.groupValues[6].toInt()
+            if (z < 0 || s.groupValues[3].toInt() != x / 1024 || s.groupValues[5].toInt() != y / 1024) return null
+            if (z > 24 || x >= (1 shl z) || y >= (1 shl z)) return null
+            return Parsed(XyzLayout.SASPLANET, s.groupValues[1], z, x, y, s.groupValues[7].lowercase())
+        }
+        val m = STD.matchEntire(p) ?: return null
+        val z = m.groupValues[2].toInt(); val x = m.groupValues[3].toInt(); val y = m.groupValues[4].toInt()
+        if (z > 24 || x >= (1 shl z) || y >= (1 shl z)) return null
+        return Parsed(XyzLayout.STANDARD, m.groupValues[1], z, x, y, m.groupValues[5].lowercase())
+    }
+
     private class Acc { var minX = Int.MAX_VALUE; var maxX = -1; var minY = Int.MAX_VALUE; var maxY = -1 }
 
     /** paths — түбірге қатысты жолдар ('/' бөлгішпен). Тайл табылмаса — FormatException. */
@@ -50,20 +69,8 @@ object XyzScanner {
         val acc = HashMap<Int, Acc>()
         var count = 0L
         for (raw in paths) {
-            val p = raw.replace('\\', '/')
-            val s = SAS.matchEntire(p)
-            val z: Int; val x: Int; val y: Int; val ext: String; val pre: String; val lay: XyzLayout
-            if (s != null) {
-                val zz = s.groupValues[2].toInt() - 1
-                val xx = s.groupValues[4].toInt(); val yy = s.groupValues[6].toInt()
-                if (zz < 0 || s.groupValues[3].toInt() != xx / 1024 || s.groupValues[5].toInt() != yy / 1024) continue
-                z = zz; x = xx; y = yy; ext = s.groupValues[7]; pre = s.groupValues[1]; lay = XyzLayout.SASPLANET
-            } else {
-                val m = STD.matchEntire(p) ?: continue
-                z = m.groupValues[2].toInt(); x = m.groupValues[3].toInt(); y = m.groupValues[4].toInt()
-                ext = m.groupValues[5]; pre = m.groupValues[1]; lay = XyzLayout.STANDARD
-            }
-            if (z > 24 || x >= (1 shl z) || y >= (1 shl z)) continue
+            val t = parse(raw) ?: continue
+            val z = t.z; val x = t.x; val y = t.y; val ext = t.ext; val pre = t.prefix; val lay = t.layout
             if (layout == null) { layout = lay; prefix = pre }
             if (lay != layout || pre != prefix) continue          // бір жиынтық қана (бірінші табылған)
             exts.merge(ext.lowercase(), 1, Int::plus)

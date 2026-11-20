@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android сақтық көшірмесі: дерекқор (ескерткіштер, маршруттар) — иә; карта файлдары (үлкен) — жоқ. -->
+<full-backup-content>
+    <include domain="database" path="mura.db" />
+    <include domain="sharedpref" path="." />
+    <exclude domain="file" path="maps/" />
+    <exclude domain="file" path="exports/" />
+</full-backup-content>

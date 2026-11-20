@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="80" viewBox="0 0 64 80">
+<!-- QGIS parameterized SVG: sacred site, Kazan/Tatar-style historic mosque -->
+<path d="M32 2C15.4 2 2 15.4 2 32C2 49.5 20.2 67.4 32 78C43.8 67.4 62 49.5 62 32C62 15.4 48.6 2 32 2Z"
+ fill="param(fill) #A9683F" fill-opacity="param(fill-opacity) 1"
+ stroke="param(outline) #542A17" stroke-opacity="param(outline-opacity) 1"
+ stroke-width="param(outline-width) 2.8" stroke-linejoin="round"/>
+
+<circle cx="32" cy="31.5" r="22.2" fill="#FFF2D5"
+ stroke="param(outline) #542A17" stroke-width="2.2"/>
+
+<!-- Long rectangular prayer house, typical Volga-Ural / Kazan-Tatar composition -->
+<g fill="param(outline) #542A17">
+  <path d="M14 35H48V43H14Z"/>
+  <path d="M13 34H49L47.5 31.5H14.5Z"/>
+
+  <!-- central roof ridge -->
+  <path d="M15 31.5L23 27.5H43L48 31.5Z"/>
+
+  <!-- minaret rising directly from roof -->
+  <rect x="27.5" y="20" width="7" height="8.5"/>
+  <rect x="26.5" y="19" width="9" height="1.6" rx=".4"/>
+  <path d="M28.2 19
+           C28.5 16.4 29.8 14.8 31 13.8
+           C32.2 14.8 33.5 16.4 33.8 19Z"/>
+  <rect x="29.2" y="12.6" width="3.6" height="1.5" rx=".4"/>
+</g>
+
+<!-- Historic arched windows -->
+<g fill="#FFF2D5">
+  <path d="M17 41V37.8A1.7 1.7 0 0 1 20.4 37.8V41Z"/>
+  <path d="M22.5 41V37.8A1.7 1.7 0 0 1 25.9 37.8V41Z"/>
+  <path d="M36.1 41V37.8A1.7 1.7 0 0 1 39.5 37.8V41Z"/>
+  <path d="M41.6 41V37.8A1.7 1.7 0 0 1 45 37.8V41Z"/>
+  <path d="M29.5 27V23A1.5 1.5 0 0 1 32.5 23V27Z"/>
+</g>
+
+<!-- central entrance -->
+<path d="M28 43V38A3 3 0 0 1 34 38V43Z" fill="#FFF2D5"/>
+
+<!-- Large crescent accent -->
+<path d="M34.8 9.2
+ C33.6 8.2 31.8 8 30.4 8.8
+ C28.6 9.8 28 12 29 13.8
+ C30 15.6 32.3 16.2 34 15.1
+ C35 14.5 35.6 13.5 35.7 12.4
+ C34.8 13.2 33.6 13.4 32.6 12.9
+ C31.4 12.3 30.9 11 31.3 9.9
+ C32.2 9.4 33.7 9.5 34.8 9.2Z"
+ fill="param(outline) #542A17"/>
+
+<!-- crescent mast -->
+<path d="M31 13.5V12.5"
+ stroke="param(outline) #542A17" stroke-width="1.2" stroke-linecap="round"/>
+
+<!-- ground -->
+<path d="M12.5 44.5H50.5" fill="none"
+ stroke="param(outline) #542A17" stroke-width="2.4" stroke-linecap="round"/>
+</svg>
