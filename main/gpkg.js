@@ -173,9 +173,36 @@ class Project {
     this.file = path.resolve(file);
     this.db = new DatabaseSync(this.file);
     this.db.exec('PRAGMA foreign_keys = ON;');
+    // Авто сақтау өшік болса — қабаттардың өзгерген күйі жадта (JSON мәтіні) жиналады, save() бәрін бір транзакцияда жазады
+    this.autosave = true;
+    this.pending = new Map();
+    this.onChange = null;
   }
 
   close() { try { this.db.close(); } catch (e) { /* бұрын жабылған */ } }
+
+  /** Сақталмаған өзгерістер бар ма (тек авто сақтау өшік кезде болады). */
+  dirty() { return this.pending.size > 0; }
+  /** Жиналған өзгерістерді файлға жазу; жазылса — true. */
+  save() {
+    if (!this.pending.size) return false;
+    const list = [...this.pending];
+    this.tx(() => { for (const [t, s] of list) this.writeRows(t, JSON.parse(s)); });
+    this.pending.clear();
+    if (this.onChange) this.onChange();
+    return true;
+  }
+  /** Жиналған өзгерістерді тастау (пайдаланушы «Сақтамау» таңдады). */
+  discard() {
+    if (!this.pending.size) return;
+    this.pending.clear();
+    if (this.onChange) this.onChange();
+  }
+  /** Авто сақтауды қосу/өшіру; қосылғанда жиналған өзгерістер бірден жазылады. */
+  setAutosave(on) {
+    this.autosave = !!on;
+    if (this.autosave) this.save();
+  }
 
   tx(fn) {
     this.db.exec('BEGIN IMMEDIATE');
@@ -238,6 +265,7 @@ class Project {
 
   /* ---------- Қабаттың жазбалары ---------- */
   load(t) {
+    if (this.pending.has(t)) return JSON.parse(this.pending.get(t));   // сақталмаған (жадтағы) күйі
     const L = LAYERS[t];
     const rows = this.db.prepare('SELECT * FROM "' + t + '" ORDER BY fid').all();
     const out = [];
@@ -253,23 +281,30 @@ class Project {
     return out;
   }
 
-  /** Қабатты толық ауыстыру (бір транзакцияда: қате болса, бұрынғы күйі қалады). */
+  /** Қабатты толық ауыстыру (бір транзакцияда: қате болса, бұрынғы күйі қалады). Авто сақтау өшік болса — тек жадта. */
   write(t, items) {
+    if (!this.autosave) {
+      this.pending.set(t, JSON.stringify(items));
+      if (this.onChange) this.onChange();
+      return;
+    }
+    this.tx(() => this.writeRows(t, items));
+  }
+  /** Қабаттың жолдарын жазу (транзакцияның ішінде шақырылады). */
+  writeRows(t, items) {
     const L = LAYERS[t];
     const cols = ['geom', 'uid', ...L.cols, 'props'];
     const ins = this.db.prepare('INSERT INTO "' + t + '" (' + cols.map(c => '"' + c + '"').join(', ') + ') VALUES (' + cols.map(() => '?').join(', ') + ')');
-    this.tx(() => {
-      this.db.exec('DELETE FROM "' + t + '"');
-      const all = [];
-      for (const r of items) {
-        const g = L.toGeom(r);
-        ins.run(g, str(r.id), ...L.cols.map(c => str(L.get(r, c))), JSON.stringify(r));
-        const dg = decodeGeom(g);
-        if (dg) all.push(...(dg.type === 'Point' ? [dg.coords] : dg.type === 'LineString' ? dg.coords : dg.coords.flat()));
-      }
-      const e = all.length ? bbox(all) : [null, null, null, null];
-      this.db.prepare("UPDATE gpkg_contents SET last_change = strftime('%Y-%m-%dT%H:%M:%fZ','now'), min_x = ?, min_y = ?, max_x = ?, max_y = ? WHERE table_name = ?").run(...e, t);
-    });
+    this.db.exec('DELETE FROM "' + t + '"');
+    const all = [];
+    for (const r of items) {
+      const g = L.toGeom(r);
+      ins.run(g, str(r.id), ...L.cols.map(c => str(L.get(r, c))), JSON.stringify(r));
+      const dg = decodeGeom(g);
+      if (dg) all.push(...(dg.type === 'Point' ? [dg.coords] : dg.type === 'LineString' ? dg.coords : dg.coords.flat()));
+    }
+    const e = all.length ? bbox(all) : [null, null, null, null];
+    this.db.prepare("UPDATE gpkg_contents SET last_change = strftime('%Y-%m-%dT%H:%M:%fZ','now'), min_x = ?, min_y = ?, max_x = ?, max_y = ? WHERE table_name = ?").run(...e, t);
   }
 
   /** Store/MarksStore/RoutesStore үшін бір қабаттың интерфейсі. */
@@ -279,7 +314,7 @@ class Project {
 
   counts() {
     const o = {};
-    for (const t of Object.keys(LAYERS)) o[t] = this.db.prepare('SELECT count(*) AS n FROM "' + t + '"').get().n;
+    for (const t of Object.keys(LAYERS)) o[t] = this.pending.has(t) ? this.load(t).length : this.db.prepare('SELECT count(*) AS n FROM "' + t + '"').get().n;
     return o;
   }
 }

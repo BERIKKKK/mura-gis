@@ -1229,16 +1229,17 @@ async function buildGeoBundle(records, l = docLang()) {
     mons.push({ id: rec.id, name: I.name });
   }
   if (!mons.length) throw new Error(tx('Таңдалған жазбалардың ешқайсысынан аймақ есептелмеді.', 'Ни для одной из выбранных записей зоны не рассчитаны.'));
-  const base = 'Qorgau_aimaqtary';
+  const base = dl(l, 'Қорғау_аймақтары', 'Охранные_зоны');
   const fc = { type: 'FeatureCollection', name: base, metadata: geoMeta(l), features };
   const zip = fflate.zipSync({
     [base + '/' + base + '.geojson']: fflate.strToU8(JSON.stringify(fc, null, 2)),
     [base + '/' + base + '.qml']: fflate.strToU8(qmlStyle(mons, l)),
   }, { level: 6 });
-  return { blob: new Blob([zip], { type: 'application/zip' }), count: mons.length, skipped };
+  return { blob: new Blob([zip], { type: 'application/zip' }), name: base + '_QGIS.zip', count: mons.length, skipped };
 }
-function fileBaseOf(name) {
-  return (String(name || '').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_').slice(0, 80) || 'eskertkish') + '_qorgau_aimagy';
+/** Экспорт файлының атауы — құжат тілінде: «Атауы_қорғау_аймағы» / «Наименование_охранная_зона». */
+function fileBaseOf(name, l = docLang()) {
+  return (String(name || '').replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_').slice(0, 80) || dl(l, 'ескерткіш', 'памятник')) + dl(l, '_қорғау_аймағы', '_охранная_зона');
 }
 const fileBase = () => fileBaseOf(info().name);
 function download(data, type, name) {
@@ -1964,7 +1965,10 @@ function showFromInputs() {
 }
 function clearTemp() { tempLayer.clearLayers(); $('qaInClear').hidden = true; }
 $('qaInGo').addEventListener('click', showFromInputs);
-$('qaInClear').addEventListener('click', clearTemp);
+$('qaInClear').addEventListener('click', () => {    // нүкте жабылса — координата өрістері де босайды
+  clearTemp();
+  inLatEl.value = ''; inLonEl.value = ''; previewInputs(); inLatEl.focus();
+});
 inLatEl.addEventListener('input', previewInputs);
 inLonEl.addEventListener('input', previewInputs);
 function addFromInputs() {
@@ -2029,7 +2033,7 @@ $('qaGeo').addEventListener('click', () => {
 $('qaPng').addEventListener('click', async () => {
   if (!R || R.error) return;
   busy(tx('Сызба жасалып жатыр…', 'Создаётся схема…'));
-  try { const im = await renderScheme(); download(im.blob, 'image/png', fileBase() + '_syzba.png'); }
+  try { const im = await renderScheme(); download(im.blob, 'image/png', fileBase() + dl(docLang(), '_сызба', '_схема') + '.png'); }
   catch (e) { toast(e.message, true); }
   finally { busy(''); }
 });
@@ -2067,7 +2071,44 @@ function resetAll() {
   renderSaved();
   map.setView([48.6, 58.2], 6);
 }
+/** Ашық сақталған жазбаны жабу: редактор бос жаңа жазбаға оралады; жазба тізімде сақтаулы қалады.
+    Карта көрінісі, өлшемдер мен баптаулар өзгермейді (resetAll-дан айырмашылығы). */
+function closeRecord() {
+  for (const k of FIELD_KEYS) F[k].value = DEFAULTS[k];
+  genTouched = false; genRuTouched = false;
+  state.pts = []; state.custom = null;
+  state.loadedId = null; state.loadedName = ''; state.markId = null;
+  setMode('none');
+  applyRule(true);
+  recompute(true, true);
+  clearPreview();
+  cleanSig = null; paintDirty();
+  renderSaved();
+}
+const IC_TRASH = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>';
+const IC_CLOSE = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M9 9l6 6M15 9l-6 6"/></svg>';
+/** Екінші қатардағы батырма (js/desktop.js): ашық сақталған жазба болса — «Жабу», әйтпесе — «Тазалау». */
+function paintClear() {
+  const b = $('qaClearBtn');
+  if (!b) return;
+  const open = !!state.loadedId, label = open ? tx('Жабу', 'Закрыть') : tx('Тазалау', 'Очистить');
+  if (b.dataset.mode !== (open ? 'close' : 'clear')) {
+    b.dataset.mode = open ? 'close' : 'clear';
+    b.innerHTML = (open ? IC_CLOSE : IC_TRASH) + '<span class="qa-tl">' + label + '</span>';
+    b.setAttribute('aria-label', label);
+  }
+  b.dataset.tip = open
+    ? tx('Жабу: «' + state.loadedName + '» жазбасын жабу — ол «Қорғау аймақтары» тізімінде сақтаулы қалады', 'Закрыть: закрыть запись «' + state.loadedName + '» — она остаётся сохранённой в списке «Охранные зоны»')
+    : tx('Тазалау: нүктелер мен енгізілген деректерді өшіру', 'Очистить: удалить точки и введённые данные');
+}
 $('qaReset').addEventListener('click', async () => {
+  if (state.loadedId) {                           // сақталған жазба ашық — жабамыз (өзгерістер сақталмаған болса ғана сұраймыз)
+    const nm = state.loadedName;
+    if (isDirty() && !(await ask(tx('«' + nm + '» жазбасында сақталмаған өзгерістер бар. Оларды сақтамай жабасыз ба?', 'В записи «' + nm + '» есть несохранённые изменения. Закрыть без сохранения?'), { ok: tx('Сақтамай жабу', 'Закрыть без сохранения'), danger: true }))) return;
+    closeRecord();
+    toast(tx('«' + nm + '» жабылды. Жазба «Қорғау аймақтары» тізімінде сақтаулы.', 'Запись «' + nm + '» закрыта. Она сохранена в списке «Охранные зоны».'));
+    return;
+  }
   if (!(await ask(tx('Барлық нүктелер, атаулар мен енгізілген деректер өшіріліп, құрал бастапқы күйіне қайтарылады. Бұл әрекетті болдырмау мүмкін емес. Жалғастырасыз ба?', 'Все точки, наименования и введённые данные будут удалены, инструмент вернётся в исходное состояние. Это действие нельзя отменить. Продолжить?'), { ok: tx('Тазалау', 'Очистить'), danger: true }))) return;
   resetAll();
   toast(tx('Құрал тазартылды.', 'Инструмент очищен.'));
@@ -2185,6 +2226,7 @@ function paintLoaded() {
   $('qaSave').dataset.tip = t;
   $('qaSave').setAttribute('aria-label', t);
   $('qaSaveNew').hidden = !on;
+  paintClear();
 }
 
 async function refreshSaved() {
@@ -2426,7 +2468,7 @@ $('qaSaved').addEventListener('click', async e => {
   if ((rec = findRec('data-geo'))) {
     const Rk = recordZones(rec);
     if (!Rk || Rk.error) { toast(tx('«' + rec.name + '» жазбасынан аймақ есептелмеді.', 'Для записи «' + rec.name + '» зоны не рассчитаны.'), true); return; }
-    download(JSON.stringify(geojson(Rk, infoFrom(rec.fields || {}), rec.id), null, 2), 'application/geo+json', fileBaseOf(rec.name) + '.geojson');
+    download(JSON.stringify(geojson(Rk, infoFrom(rec.fields || {}), rec.id), null, 2), 'application/geo+json', fileBaseOf(infoFrom(rec.fields || {}).name || rec.name) + '.geojson');
     return;
   }
   if ((rec = findRec('data-delrec'))) {
@@ -2515,7 +2557,7 @@ $('qaCombine').addEventListener('click', async () => {
     const res = await buildCombined(recs, {
       start, decree: $('qaDecree').value, sat: $('qaCombBase').value === 'sat', coordTable: $('qaCombCoords').checked,
     }, (i, n, name) => { info.textContent = tx('Жасалып жатыр: ', 'Создаётся: ') + i + ' / ' + n + ' — ' + name + '…'; });
-    download(res.blob, '', 'Qorgau_aimaqtary_' + start + '-' + res.last + '.docx');
+    download(res.blob, '', dl(docLang(), 'Қорғау_аймақтары_', 'Охранные_зоны_') + start + '-' + res.last + '.docx');
     info.textContent = tx(start + '–' + res.last + '-қосымшалар дайын (' + res.count + ' ескерткіш). Келесі бос нөмір: ' + (res.last + 1) + '.',
       'Приложения ' + start + '–' + res.last + ' готовы (памятников: ' + res.count + '). Следующий свободный номер: ' + (res.last + 1) + '.');
     toast(tx('Біріктірілген DOCX дайын', 'Объединённый DOCX готов') + (res.skipped.length ? tx('. Есептелмей қалғандар: ', '. Не рассчитаны: ') + res.skipped.join(', ') : '.'), res.skipped.length > 0);
@@ -2530,7 +2572,7 @@ $('qaCombGeo').addEventListener('click', async () => {
   btn.disabled = true;
   try {
     const res = await buildGeoBundle(recs);
-    download(res.blob, 'application/zip', 'Qorgau_aimaqtary_QGIS.zip');
+    download(res.blob, 'application/zip', res.name);
     toast(tx('GeoJSON + QML дайын (' + res.count + ' ескерткіш)', 'GeoJSON + QML готовы (памятников: ' + res.count + ')') + (res.skipped.length ? tx('. Есептелмей қалғандар: ', '. Не рассчитаны: ') + res.skipped.join(', ') : '.'), res.skipped.length > 0);
   } catch (e) { toast(tx('Жасалмады: ', 'Не создано: ') + e.message, true); }
   finally { btn.disabled = false; }

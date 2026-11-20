@@ -25,6 +25,7 @@
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     up: '<path d="M12 19V5M6 11l6-6 6 6"/>',
     down: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+    save: '<path d="M5 3h11l4 4v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M8 3v5h7V3"/><rect x="7.5" y="13" width="9" height="6" rx="1"/>',
   };
   var fmtDate = function (iso) {
     var d = new Date(iso);
@@ -267,6 +268,11 @@
         '</div>' +
         (cur ? '<form class="mura-pane" data-pane="project" id="muraSetForm" novalidate>' +
           metaFields('muraSet', cur) +
+          '<h4 class="mura-set-h">' + tx('Сақтау', 'Сохранение') + '</h4>' +
+          '<div class="mura-tb-opts"><label class="mura-cb"><input type="checkbox" id="muraAutosave"' + (autosave ? ' checked' : '') + '><span>' +
+            tx('Авто сақтау — әр өзгеріс жоба файлына бірден жазылады', 'Автосохранение — каждое изменение сразу записывается в файл проекта') + '</span></label></div>' +
+          '<p class="mura-hint">' + tx('Өшірілсе, өзгерістер жолақтағы «Сақтау» батырмасын не Ctrl+S басқанда ғана жазылады; жоба не бағдарлама жабылғанда сақталмаған өзгерістер туралы сұралады. Қосқыш бірден қолданылады.',
+            'Если выключено, изменения записываются только по кнопке «Сохранить» на панели или Ctrl+S; при закрытии проекта или программы спрашивается о несохранённых изменениях. Переключатель применяется сразу.') + '</p>' +
           '<div class="mura-set-file"><span>Жоба файлы:</span> <code>' + esc(cur.path) + '</code> <button type="button" class="lnk" id="muraReveal">Қалтасын ашу</button></div>' +
           '<div class="mura-set-file"><span>Бөтен GeoPackage деректері:</span> <button type="button" class="lnk" id="muraImpGpkg">GeoPackage-тен импорттау… (Ctrl+I)</button></div>' +
           '<p class="mura-hint">' + tx('Деректер: ', 'Данные: ') + esc(cur.counts ? [cur.counts.marks + tx(' ескерткіш', ' памятн.'), cur.counts.zones + tx(' қорғау аймағы', ' охр. зон'), cur.counts.routes + tx(' маршрут', ' маршр.')].join(', ') : '') + '. ' +
@@ -291,6 +297,7 @@
       var f = $('muraSetForm');
       bindMeta(f);
       $('muraReveal').addEventListener('click', function () { if (M.projectReveal) M.projectReveal(); });
+      $('muraAutosave').addEventListener('change', function (e) { setAutosave(e.target.checked); });
       $('muraImpGpkg').addEventListener('click', function () { closeSettings(); if (window.MuraGpkgImport) window.MuraGpkgImport.start(''); });
       f.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -356,8 +363,60 @@
   }
   function closeSettings() { if (setDlg) { setDlg.remove(); setDlg = null; } }
 
+  /* ======================= Жобаны сақтау ======================= */
+  // Авто сақтау қосулы — әр өзгеріс файлға бірден жазылады («Сақтау» тек растайды). Өшік — main/gpkg.js өзгерістерді жадта
+  // жинайды, «Сақтау» (Ctrl+S) бәрін бір рет жазады. Баптау: «Баптаулар → Жоба → Сақтау».
+  var autosave = !(M.prefs && M.prefs.autosave === false);
+  var dirty = !!(cur && cur.dirty);
+  var saveBtn = null, unsavedCell = null;
+  function toast(msg, err) {
+    var t = $('qaToast');
+    if (!t) return;
+    t.textContent = msg; t.classList.toggle('is-err', !!err); t.hidden = false;
+    clearTimeout(toast.t); toast.t = setTimeout(function () { t.hidden = true; }, err ? 5000 : 2600);
+  }
+  function paintSave() {
+    if (saveBtn) {
+      saveBtn.classList.toggle('is-dirty', dirty);
+      saveBtn.setAttribute('data-tip', autosave
+        ? tx('Жобаны сақтау (Ctrl+S). Авто сақтау қосулы — өзгерістер файлға бірден жазылады', 'Сохранить проект (Ctrl+S). Автосохранение включено — изменения сразу записываются в файл')
+        : dirty ? tx('Жобаны сақтау (Ctrl+S): сақталмаған өзгерістер бар', 'Сохранить проект (Ctrl+S): есть несохранённые изменения')
+          : tx('Жобаны сақтау (Ctrl+S): барлық өзгеріс сақталған', 'Сохранить проект (Ctrl+S): все изменения сохранены'));
+    }
+    if (unsavedCell) unsavedCell.hidden = !dirty;
+  }
+  function saveProject() {
+    if (!cur || !M.projectSave) return;
+    M.projectSave().then(function (r) {
+      if (!r || !r.ok) { toast(tx('Жоба сақталмады: ', 'Проект не сохранён: ') + (r && r.error || ''), true); return; }
+      dirty = false; paintSave();
+      toast(r.saved ? tx('Жоба сақталды.', 'Проект сохранён.')
+        : r.autosave ? tx('Жоба сақтаулы (авто сақтау қосулы).', 'Проект сохранён (автосохранение включено).') : tx('Сақталмаған өзгеріс жоқ.', 'Несохранённых изменений нет.'));
+    });
+  }
+  function setAutosave(on) {
+    if (!M.setAutosave) return;
+    M.setAutosave(on).then(function (r) {
+      if (!r || !r.ok) return;
+      autosave = r.autosave;
+      if (autosave) dirty = false;
+      paintSave();
+      toast(autosave ? tx('Авто сақтау қосылды: өзгерістер файлға бірден жазылады.', 'Автосохранение включено: изменения сразу записываются в файл.')
+        : tx('Авто сақтау өшірілді: өзгерістерді «Сақтау» (Ctrl+S) арқылы сақтаңыз.', 'Автосохранение выключено: сохраняйте изменения кнопкой «Сохранить» (Ctrl+S).'));
+    });
+  }
+  if (M.onDirty) M.onDirty(function (v) { dirty = v; paintSave(); });
+
   /* ======================= Жолақ, күй жолағы, мәзір ======================= */
   var right = bar && bar.querySelector('.qa-tright');
+  if (right && cur) {
+    saveBtn = document.createElement('button');
+    saveBtn.type = 'button'; saveBtn.className = 'qa-tbtn mura-psave'; saveBtn.id = 'muraSaveBtn';
+    saveBtn.setAttribute('aria-label', tx('Жобаны сақтау', 'Сохранить проект'));
+    saveBtn.innerHTML = svg(IC.save) + '<span class="qa-tl">' + tx('Сақтау', 'Сохранить') + '</span>';
+    saveBtn.addEventListener('click', saveProject);
+    right.insertBefore(saveBtn, right.firstChild);
+  }
   if (right) {
     var gb = document.createElement('button');
     gb.type = 'button'; gb.className = 'qa-tbtn'; gb.id = 'muraSetBtn';
@@ -365,6 +424,7 @@
     gb.innerHTML = svg(IC.gear);
     gb.addEventListener('click', function () { openSettings(); });
     right.insertBefore(gb, right.firstChild);
+    if (saveBtn) right.insertBefore(saveBtn, gb);            // «Сақтау» — баптаулардың алдында
   }
   // Күй жолағы (desktop.js): ашық жоба — басқанда «Баптаулар → Жоба»
   var ver = document.querySelector('.mura-status .mura-st-ver');
@@ -375,12 +435,20 @@
     pc.innerHTML = svg(IC.file, 13) + '<b>' + esc(cur.name) + '</b>' + (cur.oblast ? '<span>' + esc(where(cur)) + '</span>' : '');
     pc.addEventListener('click', function () { openSettings('project'); });
     ver.parentNode.insertBefore(pc, ver);
+    unsavedCell = document.createElement('button');
+    unsavedCell.type = 'button'; unsavedCell.className = 'mura-st-cell mura-st-unsaved'; unsavedCell.id = 'muraUnsaved';
+    unsavedCell.title = tx('Басыңыз — жобаны сақтау (Ctrl+S)', 'Щёлкните — сохранить проект (Ctrl+S)');
+    unsavedCell.textContent = tx('● Сақталмаған өзгерістер', '● Несохранённые изменения');
+    unsavedCell.addEventListener('click', saveProject);
+    pc.parentNode.insertBefore(unsavedCell, pc);
   }
+  paintSave();
   if (M.onUi) M.onUi(function (cmd) {
     if (cmd === 'new') openStart(true);
     else if (cmd === 'start') openStart(false);
     else if (cmd === 'settings') openSettings('project');
     else if (cmd === 'toolbar') openSettings('toolbar');
+    else if (cmd === 'save') saveProject();
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
@@ -393,5 +461,6 @@
   applyToolbar();
   if (!cur) openStart(false);
 
-  window.MuraProject = { current: cur, openStart: openStart, openSettings: openSettings, applyToolbar: applyToolbar };
+  window.MuraProject = { current: cur, openStart: openStart, openSettings: openSettings, applyToolbar: applyToolbar,
+    save: saveProject, setAutosave: setAutosave, get dirty() { return dirty; }, get autosave() { return autosave; } };
 })();

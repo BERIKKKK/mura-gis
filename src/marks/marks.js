@@ -558,7 +558,7 @@ function warnMissing(list, lang) {
     ? tx(n + ' ескерткіштің орысша мәліметтері толық емес — олардың орнына қазақшасы алынды.', 'У ' + n + ' памятников не заполнены русские сведения — вместо них взяты казахские.')
     : tx(n + ' ескерткіштің қазақша мәліметтері толық емес — олардың орнына орысшасы алынды.', 'У ' + n + ' памятников не заполнены казахские сведения — вместо них взяты русские.'), true);
 }
-const fileName = ext => 'eskertkishter_tizimi_' + new Date().toISOString().slice(0, 10) + '.' + ext;
+const fileName = ext => (docLang() === 'ru' ? 'Список_памятников_' : 'Ескерткіштер_тізімі_') + new Date().toISOString().slice(0, 10) + '.' + ext;   // құжат тілінде
 async function busy(label, fn) {
   const el = $('mkBusy');
   el.textContent = label;

@@ -76,7 +76,7 @@ class Projects {
     if (p) {
       const m = p.meta();
       cur = { path: p.file, file: path.basename(p.file), dir: path.dirname(p.file), key: keyOf(p.file),
-        name: m.name || path.basename(p.file, '.gpkg'), oblast: m.oblast || '', district: m.district || '', created_at: m.created_at || '', counts: p.counts() };
+        name: m.name || path.basename(p.file, '.gpkg'), oblast: m.oblast || '', district: m.district || '', created_at: m.created_at || '', counts: p.counts(), dirty: p.dirty() };
     }
     return { current: cur, recent: this.recent(), legacy: this.legacyCounts() };
   }
