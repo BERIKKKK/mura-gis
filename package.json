@@ -15,7 +15,7 @@
     "dist:linux": "electron-builder --linux --publish never",
     "release:win": "node scripts/build-win.js --win --publish always",
     "release:linux": "electron-builder --linux --publish always",
-    "test": "node scripts/test-graph.mjs",
+    "test": "node scripts/test-graph.mjs && node scripts/test-periods.mjs",
     "smoke": "electron scripts/smoke.js",
     "smoke:marks": "electron scripts/smoke-marks.js",
     "smoke:routes": "electron scripts/smoke-routes.js",

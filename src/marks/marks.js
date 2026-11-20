@@ -9,6 +9,7 @@ import { parseOne, genitive } from '../qorgau/app.js';
 import { sortMarks, arabizeRoman, compareText, compareNames, matchesText } from './sort.js';
 import { parseGeoFile, parseGeojsonPoints, isMuraMarks } from './geofiles.js';
 import { culledLayer, progressiveList } from './culled.js';
+import { bindPeriodSync } from './periods.js';
 import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, sections, coordLines, nameCell } from './export.js';
 
 const $ = id => document.getElementById(id);
@@ -273,6 +274,8 @@ function openDialog(m, o = {}) {
   }
   F.name.addEventListener('input', paintKey);
   F.name_ru.addEventListener('input', paintKey);
+  // Мерзім екі тілде синхрондалады: «1960» → «1960 жыл» / «1960 год», «XX ғасырдың басы» ↔ «начало XX века» (periods.js)
+  const period = bindPeriodSync(F.period, F.period_ru);
   if (REG) {
     F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); REG.lock(F.district); });
     REG.lock(F.oblast); REG.lock(F.district);       // жобаның облысы / ауданы — бекітілген
@@ -292,6 +295,7 @@ function openDialog(m, o = {}) {
     if (!name && !nameRu) { showErr(tx('Ескерткіш атауын енгізіңіз (қазақша не орысша).', 'Введите наименование памятника (по-казахски или по-русски).')); (UI === 'ru' ? F.name_ru : F.name).focus(); return; }
     const c = paintCoord();
     if (c.err) { showErr(c.err); F.lat.focus(); return; }
+    period.apply();
     const rec = {
       id: m.id || '', name, period: F.period.value.trim(), oblast: F.oblast.value.trim(), district: F.district.value,
       place: F.place.value.trim(), type: F.type.value, category: F.category.value, status: F.status.value, note: F.note.value.trim(),
