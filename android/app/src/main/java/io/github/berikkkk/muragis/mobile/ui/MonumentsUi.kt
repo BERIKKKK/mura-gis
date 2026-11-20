@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -84,6 +86,8 @@ import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Localized
 import io.github.berikkkk.muragis.core.model.Monument
 import io.github.berikkkk.muragis.core.model.MonumentType
+import io.github.berikkkk.muragis.core.model.Periods
+import io.github.berikkkk.muragis.core.model.Regions
 import io.github.berikkkk.muragis.core.model.Status
 import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.map.MapController
@@ -189,12 +193,17 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
     var latText by remember(initial) { mutableStateOf(Coords.decimal(initial.lat, 7)) }
     var lonText by remember(initial) { mutableStateOf(Coords.decimal(initial.lon, 7)) }
     var saving by remember { mutableStateOf(false) }
+    var periodLang by remember { mutableStateOf<Lang?>(null) }    // мерзім соңғы рет қай тілде жазылды
     val parsed = Coords.parsePair(latText, lonText)
     val coordOk = parsed is Coords.Pair.Ok
+    // Жыл/аралық жазылса — екі тілдің мәні бірге қойылады («1967» → «1967 жыл» / «1967 год»)
+    fun synced(x: Monument) = periodLang?.let { x.copy(period = Periods.sync(x.period, it)) } ?: x
 
-    Dialog(onDismissRequest = { vm.closeEditor() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    // decorFitsSystemWindows = false: пернетақта ашылғанда терезе imePadding арқылы кішірейеді, белсенді өріс оның үстіне шығады
+    Dialog(onDismissRequest = { vm.closeEditor() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogAdjustResize()
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().systemBarsPadding()) {
                 TopAppBar(
                     title = { Text(stringResource(if (initial.id.isEmpty()) R.string.new_monument else R.string.edit_monument)) },
                     navigationIcon = { IconButton(onClick = { vm.closeEditor() }) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
@@ -202,6 +211,7 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
                         IconButton(enabled = coordOk && !saving, onClick = {
                             val p = parsed as Coords.Pair.Ok
                             saving = true
+                            m = synced(m)
                             vm.saveMonument(m.copy(lat = p.lat, lon = p.lon)) { saving = false }
                         }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) }
                     },
@@ -215,9 +225,12 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
                     if (parsed is Coords.Pair.Ok && parsed.swapped) Text(stringResource(R.string.coords_swapped), style = MaterialTheme.typography.labelSmall)
                     if (parsed is Coords.Pair.Ok) Text(Coords.dmsLat(parsed.lat) + "  " + Coords.dmsLon(parsed.lon), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // Картада белгілеу: терезе уақытша жабылып, нысанамен жаңа орын таңдалады (енгізілген мәліметтер сақталады)
                         OutlinedButton(onClick = {
-                            controller.center()?.let { (la, lo) -> latText = Coords.decimal(la, 7); lonText = Coords.decimal(lo, 7) }
-                        }) { Text(stringResource(R.string.from_map_center), fontSize = 12.sp) }
+                            val cur = synced(m).let { x -> (parsed as? Coords.Pair.Ok)?.let { x.copy(lat = it.lat, lon = it.lon) } ?: x }
+                            controller.moveTo(cur.lat, cur.lon, maxOf(controller.zoom(), 16.0), animate = false)
+                            vm.repickInEditor(cur)
+                        }) { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.place_on_map), fontSize = 12.sp) }
                         OutlinedButton(onClick = {
                             act.withLocation {
                                 vm.location.requestFix { l -> if (l != null) { latText = Coords.decimal(l.latitude, 7); lonText = Coords.decimal(l.longitude, 7) } }
@@ -236,14 +249,19 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
                     }
                     Text(stringResource(R.string.lang_fields_note, langName(tab)), style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
                     // Әр өріс тек таңдалған тілдің мәнін өзгертеді: екінші тілдің мәні сақталады
-                    @Composable fun loc(label: Int, v: Localized, set: (Localized) -> Unit, lines: Int = 1) {
+                    @Composable fun loc(label: Int, v: Localized, set: (Localized) -> Unit, lines: Int = 1, extra: Modifier = Modifier) {
                         OutlinedTextField(value = v[tab], onValueChange = { set(v.with(tab, it)) }, label = { Text(stringResource(label)) },
-                            singleLine = lines == 1, minLines = lines, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                            singleLine = lines == 1, minLines = lines, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus().then(extra))
                     }
                     loc(R.string.f_name, m.name, { m = m.copy(name = it) })
-                    loc(R.string.f_period, m.period, { m = m.copy(period = it) })
-                    loc(R.string.f_oblast, m.oblast, { m = m.copy(oblast = it) })
-                    loc(R.string.f_district, m.district, { m = m.copy(district = it) })
+                    var periodFocused by remember { mutableStateOf(false) }
+                    loc(R.string.f_period, m.period, { m = m.copy(period = it); periodLang = tab },
+                        extra = Modifier.onFocusChanged { f -> if (periodFocused && !f.isFocused) m = synced(m); periodFocused = f.isFocused })
+                    // Танылса — екі тілдегі мәні алдын ала көрсетіледі (өрістен шыққанда не сақтағанда қойылады)
+                    periodLang?.let { pl -> Periods.sync(m.period, pl).takeIf { it != m.period } }?.let { p ->
+                        Text("${p.kk} · ${p.ru}", style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
+                    }
+                    RegionFields(m, tab, { m = it; vm.rememberOblast(it.oblast.kk) }) { lbl, v, set -> loc(lbl, v, set) }
                     loc(R.string.f_place, m.place, { m = m.copy(place = it) }, 2)
                     loc(R.string.f_note, m.note, { m = m.copy(note = it) }, 2)
 
@@ -256,6 +274,7 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
                     if (initial.id.isNotEmpty()) Text(stringResource(R.string.updated_at, m.updatedAt.take(16).replace('T', ' ')), style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp))
                     Spacer(Modifier.size(80.dp))
+                    ImeSpacer()
                 }
             }
         }
@@ -371,3 +390,40 @@ fun PendingPointsDialog(vm: MainViewModel, p: PendingPoints) {
 }
 
 @Suppress("unused") private val keepFill = Modifier.fillMaxHeight()
+
+/**
+ * Облыс пен аудан — тізімнен таңдалады (жұмыс үстеліндегідей, src/js/regions.js). Таңдағанда екі тілдің мәні бірге
+ * қойылады, сондықтан қазақша мен орысша әртүрлі болмайды. Тізімде жоқ ескі мән (импорт, қолмен жазылған) сақталады
+ * және тізімде көрінеді; облыс тізімнен тыс болса — аудан қолмен жазылады.
+ */
+@Composable
+private fun RegionFields(m: Monument, tab: Lang, onChange: (Monument) -> Unit, textField: @Composable (Int, Localized, (Localized) -> Unit) -> Unit) {
+    val region = Regions.find(m.oblast.kk.ifBlank { m.oblast.ru })
+    val customOblast = region == null && !m.oblast.isBlank()
+    val none = stringResource(R.string.none_dash)
+    // null — «таңдалмаған», "custom" — тізімде жоқ ескі мән
+    val oblastKeys: List<String?> = buildList { add(null); if (customOblast) add("custom"); Regions.list.forEach { add(it.kk) } }
+    Spacer(Modifier.size(6.dp))
+    Dropdown(stringResource(R.string.f_oblast), if (customOblast) "custom" else region?.kk, oblastKeys, { k ->
+        when (k) { null -> none; "custom" -> m.oblast.display(tab); else -> Regions.find(k)!!.label(tab) }
+    }, { k ->
+        if (k == "custom") return@Dropdown
+        val r = k?.let { Regions.find(it) }
+        val keepDistrict = r != null && Regions.findUnit(r, m.district.kk.ifBlank { m.district.ru }) != null
+        onChange(m.copy(oblast = r?.name ?: Localized.EMPTY, district = if (keepDistrict) m.district else Localized.EMPTY))
+    }, Modifier.fillMaxWidth().padding(top = 6.dp))
+    if (region == null) {
+        textField(R.string.f_district, m.district) { onChange(m.copy(district = it)) }
+        return
+    }
+    val unit = Regions.findUnit(region, m.district.kk.ifBlank { m.district.ru })
+    val customDistrict = unit == null && !m.district.isBlank()
+    val keys: List<String?> = buildList { add(null); if (customDistrict) add("custom"); region.units.forEach { add(it.kk) } }
+    Spacer(Modifier.size(6.dp))
+    Dropdown(stringResource(R.string.f_district), if (customDistrict) "custom" else unit?.kk, keys, { k ->
+        when (k) { null -> none; "custom" -> m.district.display(tab); else -> Regions.findUnit(region, k)!!.label(tab) }
+    }, { k ->
+        if (k == "custom") return@Dropdown
+        onChange(m.copy(district = k?.let { Regions.findUnit(region, it)?.name } ?: Localized.EMPTY))
+    }, Modifier.fillMaxWidth())
+}

@@ -297,6 +297,19 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         m.animateCamera(CameraUpdateFactory.newLatLngBounds(lb, (paddingDp * density).toInt()), 600)
     }
 
+    /**
+     * Нүкте экранның жоғарғы бөлігіне ([fracY] — биіктіктің үлесі) келетіндей камераны жылжыту: төменгі парақ
+     * (ескерткіш карточкасы) ашылғанда белгі оның астында қалмайды.
+     */
+    fun revealAbove(lat: Double, lon: Double, fracY: Float = 0.28f) {
+        val m = map ?: return
+        val w = view.width.toFloat(); val h = view.height.toFloat()
+        if (w <= 0f || h <= 0f) return
+        val p = m.projection.toScreenLocation(LatLng(lat, lon))
+        val c = m.projection.fromScreenLocation(PointF(w / 2f + (p.x - w / 2f), h / 2f + (p.y - h * fracY)))
+        m.animateCamera(CameraUpdateFactory.newLatLng(c), 400)
+    }
+
     fun zoomBy(delta: Double) {
         val m = map ?: return
         m.animateCamera(CameraUpdateFactory.zoomBy(delta), 250)

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -191,9 +192,10 @@ private fun RouteSaveDialog(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Un
     var tab by remember { mutableStateOf(prefs.dataLang) }
     val vLabels = Vehicle.entries.associateWith { vehicleLabel(it) }
     val sLabels = Season.entries.associateWith { seasonLabel(it) }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogAdjustResize()
         Surface(Modifier.fillMaxSize()) {
-            Column {
+            Column(Modifier.systemBarsPadding()) {
                 TopAppBar(
                     title = { Text(stringResource(R.string.save_route)) },
                     navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
@@ -206,7 +208,7 @@ private fun RouteSaveDialog(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Un
                     }
                     @Composable fun loc(label: Int, v: Localized, set: (Localized) -> Unit) {
                         OutlinedTextField(value = v[tab], onValueChange = { set(v.with(tab, it)) }, label = { Text(stringResource(label)) },
-                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
                     }
                     loc(R.string.f_route_name, r.name) { r = r.copy(name = it) }
                     loc(R.string.f_from, r.aName) { r = r.copy(aName = it) }
@@ -218,9 +220,10 @@ private fun RouteSaveDialog(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Un
                     Dropdown(stringResource(R.string.f_season), r.season, Season.entries, { sLabels.getValue(it) }, { r = r.copy(season = it) }, Modifier.fillMaxWidth())
                     OutlinedTextField(value = r.checked, onValueChange = { r = r.copy(checked = it.take(10)) }, label = { Text(stringResource(R.string.f_checked)) },
                         placeholder = { Text("2025-06-01") }, singleLine = true, isError = r.checked.isNotEmpty() && !Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(r.checked),
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
+                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
                     Row(Modifier.padding(top = 4.dp)) { TextButton(onClick = { r = r.copy(checked = java.time.LocalDate.now().toString()) }) { Text(stringResource(R.string.today)) } }
                     Button(onClick = { vm.saveRoute(r) { ok -> if (ok) onDismiss() } }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) { Text(stringResource(R.string.save)) }
+                    ImeSpacer()
                 }
             }
         }

@@ -1,6 +1,25 @@
 package io.github.berikkkk.muragis.mobile.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.composed
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import android.view.WindowManager
+import androidx.compose.ui.focus.onFocusEvent
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -96,9 +115,47 @@ fun ConfirmDialog(text: String, confirm: String = stringResource(R.string.ok), o
 fun CoordField(label: String, text: String, onText: (String) -> Unit, error: Boolean, modifier: Modifier = Modifier) {
     OutlinedTextField(
         value = text, onValueChange = onText, label = { Text(label) }, isError = error, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), modifier = modifier,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), modifier = modifier.bringIntoViewOnFocus(),
         supportingText = if (error) ({ Text(stringResource(R.string.err_coord_format)) }) else null,
     )
+}
+
+/**
+ * Белсенді өріс пернетақтаның үстіне көтеріледі: терезе кішірейтілмейді (тақырып пен батырмалар орнында қалады),
+ * айналдырылатын тізім өрісті пернетақта биіктігі мен шағын аралық қосылған жерге дейін жылжытады.
+ * Тізімнің соңында [ImeSpacer] болуы керек — пернетақта астындағы бос орын, айналдыруға жеткілікті ұзындық береді.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+fun Modifier.bringIntoViewOnFocus(): Modifier = composed {
+    val req = remember { BringIntoViewRequester() }
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val gap = with(density) { 16.dp.toPx() }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    var focused by remember { mutableStateOf(false) }
+    // Пернетақта анимациясы аяқталғанда (биіктігі өзгеруін тоқтатқанда) бір рет жылжиды
+    LaunchedEffect(focused, imeBottom) {
+        if (!focused) return@LaunchedEffect
+        delay(120)
+        req.bringIntoView(Rect(0f, 0f, size.width.toFloat(), size.height + imeBottom + gap))
+    }
+    onSizeChanged { size = it }.bringIntoViewRequester(req).onFocusEvent { focused = it.isFocused }
+}
+
+/** Айналдырылатын тізімнің соңындағы бос орын: пернетақта биіктігіндей (жабық болса — нөл). */
+@Composable
+fun ImeSpacer() = Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.ime))
+
+/**
+ * Толық экранды диалогта пернетақтаның биіктігі (WindowInsets.ime) қосымшаға берілсін. Терезенің өзі кішіреймейді
+ * (decorFitsSystemWindows = false) — орнын [ImeSpacer] мен [bringIntoViewOnFocus] басқарады.
+ */
+@Composable
+fun DialogAdjustResize() {
+    val view = LocalView.current
+    SideEffect {
+        (view.parent as? DialogWindowProvider)?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+    }
 }
 
 fun fmtCoord(v: Double, dms: Boolean, isLat: Boolean): String =

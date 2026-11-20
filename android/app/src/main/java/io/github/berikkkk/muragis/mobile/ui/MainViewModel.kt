@@ -31,6 +31,7 @@ import io.github.berikkkk.muragis.core.model.Ids
 import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Localized
 import io.github.berikkkk.muragis.core.model.Monument
+import io.github.berikkkk.muragis.core.model.Regions
 import io.github.berikkkk.muragis.core.model.MonumentType
 import io.github.berikkkk.muragis.core.model.Route
 import io.github.berikkkk.muragis.core.model.RoutePoint
@@ -79,7 +80,7 @@ sealed interface Sheet {
 }
 
 /** Картаның ортасындағы нысана арқылы нүкте таңдау: жаңа ескерткіш не маршруттың А/Б нүктесі. */
-enum class Pick { MONUMENT, PLAN_A, PLAN_B }
+enum class Pick { MONUMENT, PLAN_A, PLAN_B, EDITOR }
 
 /** Маршрут құрудың басы/соңы. [markId] — ескерткіш болса (желіде ескерткіш түйіні ретінде ізделеді). */
 data class PlanPoint(val lat: Double, val lon: Double, val label: String, val markId: String? = null, val gps: Boolean = false)
@@ -210,7 +211,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun monument(id: String?): Monument? = id?.let { i -> _monuments.value.firstOrNull { it.id == i } }
 
     fun openEditor(m: Monument?) { _editor.value = m; _pick.value = null }
-    fun newMonumentAt(lat: Double, lon: Double) = openEditor(Monument(id = "", lat = lat, lon = lon))
+    /** Жаңа ескерткіш: облыс — соңғы таңдалғаны (жұмыс үстеліндегідей, әдепкі — Ақтөбе облысы). */
+    fun newMonumentAt(lat: Double, lon: Double) {
+        val r = Regions.find(prefs.value.lastOblast) ?: Regions.find(Regions.DEFAULT)
+        openEditor(Monument(id = "", lat = lat, lon = lon, oblast = r?.name ?: Localized.EMPTY))
+    }
+
+    fun rememberOblast(kk: String) { if (Regions.find(kk) != null && prefs.value.lastOblast != kk) g.settings.update { it.copy(lastOblast = kk) } }
+
+    /** Өңдеу терезесінен «Картада белгілеу»: терезе уақытша жабылады, енгізілген мәліметтер сақталады. */
+    private var parkedEditor: Monument? = null
+    fun repickInEditor(current: Monument) { parkedEditor = current; _editor.value = null; _menu.value = null; _sheet.value = null; _pick.value = Pick.EDITOR }
+    fun editorPicked(lat: Double, lon: Double) { val m = parkedEditor ?: return; parkedEditor = null; _pick.value = null; _editor.value = m.copy(lat = lat, lon = lon) }
+    fun cancelEditorPick() { val m = parkedEditor; parkedEditor = null; _pick.value = null; _editor.value = m }
     fun closeEditor() { _editor.value = null }
     fun setPick(p: Pick?) { _pick.value = p; if (p != null) { _sheet.value = null; _menu.value = null } }
 

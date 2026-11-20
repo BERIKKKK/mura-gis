@@ -269,7 +269,7 @@
     <!-- Мәзір -->
     <string name="back">Артқа</string>
     <string name="menu_close">Мәзірді жабу</string>
-    <string name="menu_tagline">Тарихи-мәдени мұра · далалық нұсқа</string>
+    <string name="menu_tagline">Тарихи-мәдени мұралардың геоақпараттық жүйесі</string>
     <string name="menu_search_hint">Ескерткіш атауы не координата</string>
     <string name="menu_monuments_sub">%1$d нысан</string>
     <string name="menu_routes_sub">%1$d маршрут · %2$d трек</string>
@@ -364,4 +364,7 @@
     <string name="msg_track_deleted">Трек жойылды</string>
     <string name="err_track_short">Трек тым қысқа: кемінде 2 нүкте керек. Жазуды жалғастырыңыз не жойыңыз.</string>
     <string name="track_name">Трек %1$s</string>
+    <string name="place_on_map">Картада белгілеу</string>
+    <string name="pick_editor_hint">Ескерткіштің орны: картаны жылжытып, нысананы жаңа орынға қойыңыз не GPS орнын алыңыз. Енгізілген мәліметтер сақталады.</string>
+    <string name="none_dash">—</string>
 </resources>

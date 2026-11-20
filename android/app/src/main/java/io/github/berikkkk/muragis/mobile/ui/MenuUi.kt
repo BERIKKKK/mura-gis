@@ -160,7 +160,7 @@ private fun MenuRoot(vm: MainViewModel, controller: MapController) {
                         vm.showPin(c.lat, c.lon); controller.moveTo(c.lat, c.lon, maxOf(controller.zoom(), 14.0))
                     }
                 }
-                found.forEach { m -> MonumentRow(m, lang) { pickMonument(vm, controller, m) } }
+                found.forEach { m -> MonumentRow(m, lang) { pickMonument(vm, m) } }
                 if (coord == null && found.isEmpty()) Text(stringResource(R.string.search_nothing, q), color = Chrome.dim, fontSize = 14.sp, modifier = Modifier.padding(4.dp))
             }
         } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -179,11 +179,10 @@ private fun MenuRoot(vm: MainViewModel, controller: MapController) {
     }
 }
 
-private fun pickMonument(vm: MainViewModel, controller: MapController, m: Monument) {
+private fun pickMonument(vm: MainViewModel, m: Monument) {
     vm.closeMenu()
     vm.selectRoute(null)
-    controller.moveTo(m.lat, m.lon, maxOf(controller.zoom(), 14.0))
-    vm.select(m.id)
+    vm.select(m.id)   // карта белгіге MainScreen-де жылжиды (карточканың үстінде көрінетіндей)
 }
 
 @Composable
@@ -225,7 +224,7 @@ private fun MonumentsPage(vm: MainViewModel, controller: MapController) {
         Spacer(Modifier.height(10.dp))
         if (list.isEmpty()) Text(stringResource(R.string.list_empty), color = Chrome.dim, modifier = Modifier.padding(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)) {
-            items(list, key = { it.id }) { m -> MonumentRow(m, prefs.dataLang) { pickMonument(vm, controller, m) } }
+            items(list, key = { it.id }) { m -> MonumentRow(m, prefs.dataLang) { pickMonument(vm, m) } }
         }
     }
     if (showFilter) FilterDialog(vm, filter) { showFilter = false }

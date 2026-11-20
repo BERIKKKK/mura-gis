@@ -771,7 +771,7 @@ function menuHTML() {
   const top = (back) => `<div class="mtop">${back ? `<button class="x" data-act="mback" aria-label="Артқа">${ic("back")}</button>` : ""}<span class="sp"></span><button class="x" data-act="mclose" aria-label="Мәзірді жабу">${ic("close")}</button></div>`;
   if (p === "root") {
     const item = (pg, icon, t, sub) => `<button class="opt" data-act="mgo" data-p="${pg}"><span class="sec-ico">${ic(icon)}</span><span class="t"><b>${t}</b><span class="plain">${sub}</span></span>${ic("chev")}</button>`;
-    return top() + `<div class="mscroll"><div class="brand">${LOGO}<div><b>Mura GIS</b><span>Тарихи-мәдени мұра · далалық нұсқа</span></div></div>
+    return top() + `<div class="mscroll"><div class="brand">${LOGO}<div><b>Mura GIS</b><span>Тарихи-мәдени мұралардың геоақпараттық жүйесі</span></div></div>
       <label class="search">${ic("search")}<input id="mq" type="search" placeholder="Ескерткіш атауы не координата" autocomplete="off" value="${esc(S.q)}" aria-label="Іздеу"></label>
       <div id="mres">${S.q ? searchHTML() : ""}</div>
       <div class="list" id="mlist" ${S.q ? "hidden" : ""}>
