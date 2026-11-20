@@ -68,9 +68,12 @@ h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 12px;c
 
 /* Негізгі экран элементтері */
 .ico{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none}
-.zoom{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;background:var(--ui);border-radius:16px;
-  box-shadow:0 4px 14px rgba(0,0,0,.28);z-index:10;overflow:hidden}
-.zoom.right{right:10px}.zoom.left{left:10px}
+.side{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:12px;z-index:10}
+.side.right{right:10px}.side.left{left:10px}
+.zoom{display:flex;flex-direction:column;background:var(--ui);border-radius:16px;box-shadow:0 4px 14px rgba(0,0,0,.28);overflow:hidden}
+.markbtn{width:52px;height:56px;border:0;border-radius:16px;background:var(--acc);color:var(--acc-ink);display:grid;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.28)}
+.markbtn .ico{stroke-width:2.1}
+.markbtn:active{filter:brightness(.92)}
 .zoom button{width:52px;height:56px;border:0;background:none;color:var(--ui-fg);display:grid;place-items:center;cursor:pointer}
 .zoom button+button{border-top:1px solid var(--ui-line)}
 .zoom button:active{background:var(--ui3)}
@@ -102,12 +105,16 @@ h2{font-size:13px;letter-spacing:.1em;text-transform:uppercase;margin:0 0 12px;c
 .pickbar{position:absolute;left:10px;right:10px;bottom:20px;z-index:14;background:var(--ui);border-radius:20px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:0 6px 18px rgba(0,0,0,.3)}
 .pickbar p{margin:0;font-size:14px;color:var(--ui-dim)}
 .pickbar p b{color:var(--ui-fg);font-weight:600}
+.fld{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.fld label{font-size:13px;color:var(--ui-dim)}
+.fld .inp{font-family:var(--f-ui)}
 .cross{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;z-index:9;pointer-events:none;color:#14130f}
 .cross svg{width:100%;height:100%;overflow:visible}
 
 .toast{position:absolute;left:50%;top:52px;transform:translate(-50%,-8px);background:var(--ui);color:var(--ui-fg);padding:10px 16px;border-radius:12px;
   font:500 13.5px var(--f-ui);z-index:80;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;max-width:88%;text-align:center;box-shadow:0 6px 16px rgba(0,0,0,.3)}
 .toast.show{opacity:1;transform:translate(-50%,0)}
+.toast.low{top:200px}
 
 /* Төменгі парақ (sheet) */
 .scrim{position:absolute;inset:0;background:rgba(10,10,8,.38);z-index:30}
@@ -251,7 +258,7 @@ button:focus-visible,.screen input:focus-visible{outline:2px solid var(--acc);ou
       <div class="eyebrow">Mura GIS · Android · интерфейс концепциясы</div>
       <h1>Карта — басты экран, қалғаны бір қимылмен</h1>
       <p class="lead">Сол жақтағы телефон — жұмыс істейтін прототип: картаны жылжытыңыз, батырмаларды басыңыз, баптауларды ауыстырыңыз.
-        Негізгі экранда тек карта, zoom, координата жолағы және бес батырмалы панель қалады. Атау мен іздеу — мәзірде.</p>
+        Негізгі экранда тек карта, zoom мен белгі қою батырмалары, координата жолағы және бес батырмалы панель қалады. Атау мен іздеу — мәзірде.</p>
     </div>
 
     <section>
@@ -264,6 +271,7 @@ button:focus-visible,.screen input:focus-visible{outline:2px solid var(--acc);ou
         <button data-go="route">Маршрут құру</button>
         <button data-go="rec">Жолды жазу</button>
         <button data-go="layers">Қабаттар</button>
+        <button data-go="mark">Белгі қою</button>
         <button data-go="settings">Баптаулар</button>
       </div>
     </section>
@@ -272,7 +280,7 @@ button:focus-visible,.screen input:focus-visible{outline:2px solid var(--acc);ou
       <h2>Логика</h2>
       <div class="rules">
         <div class="rule"><h3>Негізгі экран</h3>
-          <p>Жоғарғы жақ бос: атау да, іздеу де жоқ. Картаны тек zoom батырмалары, координата жолағы және төменгі панель жабады.</p></div>
+          <p>Жоғарғы жақ бос: атау да, іздеу де жоқ. Картаны тек zoom пен белгі қою батырмалары, координата жолағы және төменгі панель жабады.</p></div>
         <div class="rule"><h3>Төменгі панель <small>5 батырма</small></h3>
           <p>Мәзір · Дәлдеу · Жазу · Маршрут · Қабаттар. Батырма биіктігі 60 px, қолғаппен де басылады. Баптаудан жоғарыға ауысады.</p></div>
         <div class="rule"><h3>Координата жолағы <small>DD · ±м</small></h3>
@@ -282,6 +290,8 @@ button:focus-visible,.screen input:focus-visible{outline:2px solid var(--acc);ou
         <div class="rule"><h3>Жазу мен Маршрут — бөлек</h3>
           <ul><li><b>Жазу</b> нақты жүрген жолды GPS бойынша тіркейді (трек).</li>
             <li><b>Маршрут</b> А мен Б арасындағы жолды карта деректерінен алдын ала есептейді.</li></ul></div>
+        <div class="rule"><h3>Белгі қою <small>zoom астында</small></h3>
+          <p>Zoom батырмаларымен бір жақта, солардың астында. Басқанда нысана шығады: картаны жылжытып нүктені дәл қоясыз не «Менің орным» (GPS) аласыз. Содан кейін атауы мен түрі жазылады; жазбаға 16-hex <code>id</code> беріледі.</p></div>
         <div class="rule"><h3>Координата енгізу</h3>
           <p>Тек мәзір арқылы. DD, DMS, UTM; формат ауысқанда енгізілген мән түрленеді. «Картада көрсету» нүктені белгілеп, картаны соған әкеледі.</p></div>
       </div>
@@ -375,7 +385,7 @@ const ROADS = EDGES.map(([i, j, t], k) => {
 const VILLAGES = [{ x: -800, y: 300, name: "Ақкөл" }, { x: 4200, y: -900, name: "Сарыжар" }, { x: -400, y: 7800, name: "Талдысай" }];
 
 /* Ескерткіштер — мысал. id пішімі нақты деректердегідей 16-hex. */
-const CATS = { arch: { name: "Археология ескерткіші", c: "#b4471f" }, build: { name: "Сәулет ескерткіші", c: "#8a6a3c" }, sacred: { name: "Киелі орын", c: "#2c6a52" } };
+const CATS = { arch: { name: "Археология ескерткіші", short: "Археология", c: "#b4471f" }, build: { name: "Сәулет ескерткіші", short: "Сәулет", c: "#8a6a3c" }, sacred: { name: "Киелі орын", short: "Киелі орын", c: "#2c6a52" } };
 const MARKS = [
   { id: "3f9a1c07b2e4d618", name: "Қособа", cat: "arch", period: "Ерте темір дәуірі", x: -350, y: 650 },
   { id: "a0c47e1d95b3f220", name: "Сарыбұлақ қорымы", cat: "arch", period: "Орта ғасырлар", x: -2400, y: 1800 },
@@ -546,6 +556,8 @@ function drawMap() {
   const ab = (P, txt, fill, fg) => { if (!P) return; const [sx, sy] = toS(P.x, P.y); ctx.beginPath(); ctx.arc(sx, sy, 13, 0, 7); ctx.fillStyle = "#fff"; ctx.fill(); ctx.beginPath(); ctx.arc(sx, sy, 10.5, 0, 7); ctx.fillStyle = fill; ctx.fill(); ctx.fillStyle = fg; ctx.font = "700 12px Inter, sans-serif"; ctx.textAlign = "center"; ctx.fillText(txt, sx, sy + 4.3); ctx.textAlign = "left"; };
   if (S.draft) { if (S.draft.a && S.draft.a.kind !== "gps") ab(S.draft.a, "А", "#23241f", "#fff"); if (S.draft.b && S.draft.b.kind !== "gps") ab(S.draft.b, "Б", "#2251c9", "#fff"); }
   else if (S.shown) { ab({ x: S.shown.pts[0][0], y: S.shown.pts[0][1] }, "А", "#23241f", "#fff"); const e = S.shown.pts[S.shown.pts.length - 1]; ab({ x: e[0], y: e[1] }, "Б", "#2251c9", "#fff"); }
+  // сақталмаған жаңа белгі
+  if (S.sheet && S.sheet.kind === "newmark") { const [sx, sy] = toS(S.sheet.data.x, S.sheet.data.y); ctx.beginPath(); ctx.arc(sx, sy, 12, 0, 7); ctx.fillStyle = "rgba(210,173,116,.35)"; ctx.fill(); ctx.beginPath(); ctx.arc(sx, sy, 7, 0, 7); ctx.fillStyle = "#d2ad74"; ctx.fill(); ctx.strokeStyle = "#23241f"; ctx.lineWidth = 2; ctx.stroke(); }
   // енгізілген нүкте
   if (S.pin) { const [sx, sy] = toS(S.pin.x, S.pin.y); ctx.save(); ctx.translate(sx, sy); ctx.beginPath(); ctx.moveTo(0, 0); ctx.bezierCurveTo(-4, -8, -12, -14, -12, -24); ctx.arc(0, -24, 12, Math.PI, 0); ctx.bezierCurveTo(12, -14, 4, -8, 0, 0); ctx.fillStyle = "#23241f"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke(); ctx.beginPath(); ctx.arc(0, -24, 4.5, 0, 7); ctx.fillStyle = "#d2ad74"; ctx.fill(); ctx.restore(); }
   // GPS
@@ -632,6 +644,7 @@ const I = {
   target: '<circle cx="12" cy="12" r="8"/><path d="M12 1.5v6M12 16.5v6M1.5 12h6M16.5 12h6"/>',
   car: '<path d="M5 16.5h14v-4l-2-5H7l-2 5v4ZM5 12.5h14"/><circle cx="8" cy="16.5" r="1.8"/><circle cx="16" cy="16.5" r="1.8"/>',
   walk: '<circle cx="13" cy="4.5" r="1.8"/><path d="m9 21 2.5-6 2.5 2v4M8 11l3-3 3 1 2 3M11.5 15l1-6"/>',
+  addmark: '<path d="M12 21s-6.5-6.4-6.5-11.3a6.5 6.5 0 0 1 13 0C18.5 14.6 12 21 12 21Z"/><path d="M12 6.8v5.8M9.1 9.7h5.8"/>',
   trash: '<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/>', map: '<path d="m3 6 6-2.5 6 2.5 6-2.5v14.5l-6 2.5-6-2.5-6 2.5V6Z"/><path d="M9 3.5v14.5M15 6v14.5"/>',
 };
 const ic = (n, cls = "ico") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${I[n]}</svg>`;
@@ -645,7 +658,8 @@ function renderUI() {
   const ll = gpsLL(), acc = Math.round(S.gps.acc), accC = acc <= 10 ? "var(--ok)" : acc <= 30 ? "var(--warn)" : "var(--rec)";
   let h = "";
   if (!S.pick) {
-    h += `<div class="zoom ${S.set.zoom}"><button data-act="zin" aria-label="Жақындату">${ic("plus")}</button><button data-act="zout" aria-label="Алыстату">${ic("minus")}</button></div>`;
+    h += `<div class="side ${S.set.zoom}"><div class="zoom"><button data-act="zin" aria-label="Жақындату">${ic("plus")}</button><button data-act="zout" aria-label="Алыстату">${ic("minus")}</button></div>
+      <button class="markbtn" data-act="markstart" aria-label="Белгі қою" title="Белгі қою">${ic("addmark")}</button></div>`;
     h += `<div class="dock ${S.set.bar}">`;
     if (S.rec) h += `<div class="recrow"><i></i><span id="rec-live">${recTime()} · ${km(S.rec.dist)}</span><button data-act="rec">Тоқтату</button></div>`;
     h += `<button class="strip" data-act="copygps" aria-label="Координатаны көшіру">${ic("pin")}<span class="ll" id="ll-live">${fmtDD(ll.lat, ll.lon)}</span>
@@ -658,12 +672,15 @@ function renderUI() {
       <button data-act="layers">${ic("layers")}Қабаттар</button></nav></div>`;
   } else {
     h += `<div class="cross">${'<svg viewBox="0 0 56 56" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="28" cy="28" r="10" stroke="#fff" stroke-width="5"/><circle cx="28" cy="28" r="10"/><path d="M28 2v14M28 40v14M2 28h14M40 28h14" stroke="#fff" stroke-width="5"/><path d="M28 2v14M28 40v14M2 28h14M40 28h14"/></svg>'}</div>`;
-    h += `<div class="pickbar"><p><b>${S.pick === "a" ? "А" : "Б"} нүктесі:</b> картаны жылжытып, нысананы қажетті жерге қойыңыз.</p>
+    const isMark = S.pick === "mark";
+    h += `<div class="pickbar"><p><b>${isMark ? "Жаңа белгі" : (S.pick === "a" ? "А" : "Б") + " нүктесі"}:</b> картаны жылжытып, нысананы ${isMark ? "ескерткіш орнына" : "қажетті жерге"} қойыңыз.</p>
+      ${isMark ? `<button class="btn sec" data-act="markgps">${ic("locate")}Менің орным (±${Math.round(S.gps.acc)} м)</button>` : ""}
       <div class="row"><button class="btn sec" data-act="pickcancel">Болдырмау</button><button class="btn pri" data-act="pickok">Осы нүкте</button></div></div>`;
   }
   if (S.sheet) h += `<div class="scrim" data-act="closesheet"></div><div class="sheet" role="dialog" aria-modal="true">${sheetHTML()}</div>`;
   if (S.menu) h += `<div class="menu" role="dialog" aria-modal="true" aria-label="Мәзір">${menuHTML()}</div>`;
   ui.innerHTML = h;
+  document.getElementById("toast").classList.toggle("low", S.set.bar === "top" && !S.menu);
   renderState();
 }
 function updateLive() {
@@ -709,6 +726,15 @@ function sheetHTML() {
   if (kind === "pin") {
     return head("Енгізілген нүкте", S.pin.src) + `<dl class="kv"><dt>DD</dt><dd class="m">${fmtDD(S.pin.lat, S.pin.lon)}</dd><dt>UTM</dt><dd class="m">${fmtUTM(S.pin.lat, S.pin.lon)}</dd></dl>
       <div class="list"><div class="row"><button class="btn sec" data-act="pinclear">${ic("trash")}Алып тастау</button><button class="btn pri" data-act="routetopin">${ic("route")}Маршрут</button></div></div>`;
+  }
+  if (kind === "newmark") {
+    const ll = unproj(data.x, data.y);
+    return head("Жаңа белгі", `${fmtDD(ll.lat, ll.lon)} · ${data.src}`) + `
+      <div class="fld"><label for="nm-name">Атауы</label><input class="inp" id="nm-name" value="${esc(data.name || "")}" placeholder="Мысалы: Оба №3" autocomplete="off"></div>
+      <div class="lbl">Түрі</div><div class="seg">${Object.entries(CATS).map(([k, c]) => `<button class="${data.cat === k ? "on" : ""}" data-act="nmcat" data-k="${k}" aria-pressed="${data.cat === k}">${c.short}</button>`).join("")}</div>
+      <div class="fld"><label for="nm-period">Кезеңі (міндетті емес)</label><input class="inp" id="nm-period" value="${esc(data.period || "")}" placeholder="Мысалы: Қола дәуірі" autocomplete="off"></div>
+      <p class="err" role="alert">${data.err || ""}</p>
+      <div class="row" style="margin-top:6px"><button class="btn sec" data-act="closesheet">Болдырмау</button><button class="btn pri" data-act="nmsave">Сақтау</button></div>`;
   }
   if (kind === "shown") {
     const r = S.shown;
@@ -856,14 +882,22 @@ const ACT = {
   copymark: (d) => { const m = MARKS.find(q => q.id === d.id); openSheet("copy", { lat: m.lat, lon: m.lon, title: m.name }); },
   docopy: async (d) => { const { lat, lon } = S.sheet.data, txt = d.f === "dd" ? fmtDD(lat, lon) : d.f === "dms" ? fmtDMS(lat, lon) : fmtUTM(lat, lon);
     const ok = await copyText(txt); S.sheet = null; renderUI(); toast(ok ? `${d.f.toUpperCase()} көшірілді: ${txt}` : `Көшіру рұқсат етілмеді: ${txt}`); },
-  closesheet: () => { if (S.sheet && S.sheet.kind === "recstop") return ACT.recresume(); S.sheet = null; renderUI(); },
+  closesheet: () => { if (S.sheet && S.sheet.kind === "recstop") return ACT.recresume(); const nm = S.sheet && S.sheet.kind === "newmark"; S.sheet = null; renderUI(); if (nm) redraw(); },
   base: (d) => { S.base = d.k; renderUI(); redraw(); },
   layer: (d) => { S.layers[d.k] = !S.layers[d.k]; renderUI(); redraw(); },
   ptopen: (d) => { S.draft.open = S.draft.open === d.k ? null : d.k; renderUI(); },
   ptset: (d) => { const k = S.draft.open; if (d.v === "map") return startPick(k); S.draft[k] = pointFrom(d.v, d.id); S.draft.open = null; S.draft.result = null; renderUI(); redraw(); },
-  pickok: () => { const k = S.pick; S.draft[k] = { kind: "map", x: S.view.x, y: S.view.y, label: (() => { const l = unproj(S.view.x, S.view.y); return `Картадағы нүкте · ${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}`; })() };
+  markstart: () => { S.follow = false; S.pick = "mark"; S.sheet = null; renderUI(); },
+  markgps: () => { S.pick = null; flyTo(S.gps.x, S.gps.y); openSheet("newmark", { x: S.gps.x, y: S.gps.y, src: `GPS, ±${Math.round(S.gps.acc)} м`, cat: "arch" }); redraw(); },
+  nmcat: (d) => { readNm(); S.sheet.data.cat = d.k; renderUI(); },
+  nmsave: () => { const f = readNm(); if (!f.name.trim()) { f.err = "Белгінің атауын жазыңыз."; renderUI(); return; }
+    const id = [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, "0")).join(""), now = new Date().toISOString();
+    const mk = { id, name: f.name.trim(), cat: f.cat, period: f.period.trim() || "—", x: f.x, y: f.y, created_at: now, updated_at: now, ...unproj(f.x, f.y) };
+    MARKS.push(mk); S.layers.marks = true; S.sheet = null; toast(`Белгі сақталды: ${mk.name}`); renderUI(); redraw(); },
+  pickok: () => { if (S.pick === "mark") { S.pick = null; openSheet("newmark", { x: S.view.x, y: S.view.y, src: "картадан", cat: "arch" }); redraw(); return; }
+    const k = S.pick; S.draft[k] = { kind: "map", x: S.view.x, y: S.view.y, label: (() => { const l = unproj(S.view.x, S.view.y); return `Картадағы нүкте · ${l.lat.toFixed(4)}, ${l.lon.toFixed(4)}`; })() };
     S.pick = null; S.draft.open = null; S.draft.result = null; openSheet("route"); redraw(); },
-  pickcancel: () => { S.pick = null; openSheet("route"); },
+  pickcancel: () => { if (S.pick === "mark") { S.pick = null; renderUI(); return; } S.pick = null; openSheet("route"); },
   swap: () => { const d = S.draft; [d.a, d.b] = [d.b, d.a]; d.result = null; renderUI(); redraw(); },
   mode: (d) => { S.draft.mode = d.v; if (S.draft.result) S.draft.result = buildRoute(S.draft.a, S.draft.b, d.v); renderUI(); redraw(); },
   routebuild: () => { const d = S.draft; d.result = buildRoute(d.a, d.b, d.mode); fitPts(d.result.pts); renderUI(); redraw(); },
@@ -887,6 +921,7 @@ const ACT = {
   setopt: (d) => { S.set[d.k] = d.v; persist(); renderUI(); redraw(); },
   setreset: () => { S.set = { ...DEF }; persist(); renderUI(); redraw(); },
 };
+function readNm() { const d = S.sheet.data, n = document.getElementById("nm-name"), p = document.getElementById("nm-period"); if (n) d.name = n.value; if (p) d.period = p.value; d.err = ""; return d; }
 function setPin(lat, lon, src) { const p = proj(lat, lon); S.pin = { ...p, lat, lon, src }; closeMenu(); S.sheet = null; goTo(lat, lon, 3); toast(`Нүкте картада: ${fmtDD(lat, lon)}`); renderUI(); }
 function fitPts(pts) { let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; pts.forEach(([x, y]) => { a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); d = Math.max(d, y); });
   S.follow = false; flyTo((a + c) / 2, (b + d) / 2 - (d - b) * .35, clampM(Math.max((c - a) / (W - 70), (d - b) / (H * .42), 1))); }
@@ -910,6 +945,7 @@ document.getElementById("jump").addEventListener("click", e => {
   if (g === "route") { newDraft(pointFrom("mark", "d71f0b6a3e95c204")); S.draft.result = buildRoute(S.draft.a, S.draft.b, "car"); fitPts(S.draft.result.pts); return openSheet("route"); }
   if (g === "rec") { if (!S.rec) ACT.rec(); return; }
   if (g === "layers") return ACT.layers();
+  if (g === "mark") return ACT.markstart();
   if (g === "home") { S.follow = true; flyTo(S.gps.x, S.gps.y, 3.2); }
   renderUI(); redraw();
 });
