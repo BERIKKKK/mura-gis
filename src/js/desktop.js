@@ -35,8 +35,7 @@
   gMeasure.setAttribute('aria-label', 'Өлшеу және геометрия');
   gMeasure.appendChild($('qaSort'));
   gMeasure.appendChild($('qaRectBtn'));
-  // «⋯» мәзірі: «GeoJSON файлын ашу» мен «Тізіммен енгізу» — «Нүктелер» панелінде бар; «Үлгіні ашу» — үлгі жазба
-  // «Қорғау аймақтары» тізімінде (main/store.js бір рет қосады, өшірсе — қайта пайда болмайды)
+  // «⋯» мәзірі: «GeoJSON файлын ашу» мен «Тізіммен енгізу» — «Нүктелер» панелінде бар; «Үлгіні ашу» жасырылады
   ['qaMenuPaste', 'qaSample'].forEach(function (id) { var el = $(id); if (el) el.classList.add('mura-gone'); });
   var mm = $('qaMoreMenu');
   if (mm) {
@@ -105,7 +104,8 @@
       if (loaded.hidden !== !strong) loaded.hidden = !strong;      // тек өзгергенде — әйтпесе MutationObserver тұйықталады
       if (strong && loaded.firstChild && loaded.firstChild.nodeType === 3 && loaded.firstChild.textContent !== 'Қорғау аймағы: ') loaded.firstChild.textContent = 'Қорғау аймағы: ';
     }
-    document.title = 'Mura GIS' + (name ? ' — ' + name : '') + (name && dirty && !dirty.hidden ? ' ●' : '');
+    var proj = window.mura && window.mura.project && window.mura.project.current;
+    document.title = (proj ? proj.name + ' — ' : '') + 'Mura GIS' + (name ? ' — ' + name : '') + (name && dirty && !dirty.hidden ? ' ●' : '');
     busyTitle = false;
   }
   new MutationObserver(paintTitle).observe(rec, { subtree: true, childList: true, characterData: true, attributes: true });

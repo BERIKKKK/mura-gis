@@ -1,11 +1,9 @@
-/* Маршруттар — компьютердегі JSON файл: data/routes.json (белгілер мен қорғау аймақтарынан бөлек).
+/* Маршруттар — ашық жобаның (.gpkg) routes қабаты (белгілер мен қорғау аймақтарынан бөлек).
    Клиент (src/routes/routes.js): POST mura://app/routes?op=list|save|delete|import
      save   — FormData data = бір маршрут (JSON), id болса — жаңартылады;
      delete — FormData id;
      import — FormData data = маршруттар тізімі (JSON; GPX/KML/GeoJSON импорты), id бірдей болса жаңасы қалады.
    Жауап: { ok, items, id, added, updated, skipped, error }. */
-const fs = require('node:fs');
-const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 
@@ -15,27 +13,17 @@ const SEASONS = ['all', 'dry'];
 const MAX_PTS = 20000;
 
 class RoutesStore {
-  constructor(dir) {
-    this.dir = dir;
-    this.file = path.join(dir, 'routes.json');
-    fs.mkdirSync(dir, { recursive: true });
+  /** table — жобаның routes қабаты ({ load(), write(items) }). */
+  constructor(table) {
+    this.t = table;
   }
 
   load() {
-    try {
-      const j = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      return Array.isArray(j) ? j.filter(x => x && typeof x === 'object' && x.id) : [];
-    } catch (e) {
-      if (e.code === 'ENOENT') return [];
-      throw new Error('Маршруттар файлы оқылмады: ' + this.file + ' (' + e.message + ')');
-    }
+    return this.t.load().filter(x => x && typeof x === 'object' && x.id);
   }
 
   write(items) {
-    const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(items));
-    if (fs.existsSync(this.file)) fs.copyFileSync(this.file, this.file + '.bak');
-    fs.renameSync(tmp, this.file);
+    this.t.write(items);
   }
 
   list() { return this.load(); }

@@ -8,6 +8,10 @@ const os = require('node:os');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mura-smoke-'));
 app.setPath('userData', tmp);
+// Жоба — уақытша .gpkg файлы (бағдарлама бастапқы терезесіз бірден ашады)
+const gpkg = path.join(tmp, 'test.gpkg');
+process.env.MURA_PROJECT = gpkg;
+const countRows = t => { const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(gpkg); try { return db.prepare('SELECT count(*) AS n FROM "' + t + '"').get().n; } finally { db.close(); } };
 const shot = process.argv.find(a => a.endsWith('.png')) || path.join(tmp, 'smoke.png');
 const errors = [];
 
@@ -48,7 +52,6 @@ async function run(win) {
   await js("document.getElementById('qaOpenInfo').click()");
   await new Promise(res => setTimeout(res, 1200));
   fs.writeFileSync(shot.replace(/.png$/, '-panel.png'), (await win.webContents.capturePage()).toPNG());
-  const file = path.join(tmp, 'data', 'qorgau.json');
   // Карта қабаттары: мәзір, OpenTopoMap, Esri топо, спутник + атаулар қабаты
   await js("document.querySelector('#qaOpenInfo').click(); document.querySelector('.bm-trigger').click()");
   await new Promise(res => setTimeout(res, 600));
@@ -82,7 +85,7 @@ async function run(win) {
   fs.writeFileSync(shot.replace(/.png$/, '-otm.png'), (await win.webContents.capturePage()).toPNG());
   r.tilesLoaded = await js("document.querySelectorAll('.leaflet-tile-loaded').length");
   r.requests = tiles;
-  r.storeFile = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).length + ' жазба' : 'жоқ';
+  r.storeFile = countRows('zones') + ' жазба (GeoPackage)';
   console.log(JSON.stringify(r, null, 1));
   console.log('Скриншот:', shot);
   const real = errors.filter(e => !/tile|Failed to load resource/i.test(e));

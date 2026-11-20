@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="css/desktop.css">
 <link rel="stylesheet" href="css/marks.css">
 <link rel="stylesheet" href="css/routes.css">
+<link rel="stylesheet" href="css/project.css">
 </head>
 <body class="mura">
 <script>
@@ -174,13 +175,13 @@ document.documentElement.classList.add('qa-full');
   </header>
 
   <div class="qa-stage" id="qaStage">
-    <div class="qa-map is-adding" id="qaMap" data-basemaps="1" aria-label="Қорғау аймағы картасы"></div>
+    <div class="qa-map" id="qaMap" data-basemaps="1" aria-label="Қорғау аймағы картасы"></div>
 
     <!-- Құралдар жолағы: бір қатар; сыймағандары «⋯» мәзіріне жиналады (data-prio: 0 — ешқашан жасырылмайды) -->
     <div class="qa-tb qa-glass" id="qaToolbar" role="toolbar" aria-label="Карта құралдары">
       <div class="qa-tmain" id="qaTmain">
         <div class="qa-tgroup" role="group" aria-label="Шекара">
-          <button type="button" class="qa-tbtn" id="qaAddMode" data-prio="0" aria-pressed="true" aria-label="Нүкте қою" data-tip="Нүкте қою: қосулы"><svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><path d="M12 7.5v5M9.5 10h5"/></svg><span class="qa-tl">Нүкте қою</span></button>
+          <button type="button" class="qa-tbtn" id="qaAddMode" data-prio="0" aria-pressed="false" aria-label="Нүкте қою" data-tip="Нүкте қою: өшірулі"><svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><path d="M12 7.5v5M9.5 10h5"/></svg><span class="qa-tl">Нүкте қою</span></button>
           <button type="button" class="qa-tbtn" id="qaUndo" data-prio="1" aria-label="Соңғы нүктені өшіру" data-tip="Соңғы нүктені өшіру"><svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span class="qa-tl">Болдырмау</span></button>
           <button type="button" class="qa-tbtn" id="qaSort" data-prio="5" aria-label="Нүктелерді ретке келтіру" data-tip="Нүктелерді ортасынан айналдыра ретке келтіру"><svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4v3M20 12h-3M12 20v-3M4 12h3"/><path d="M15.5 8.5l-2 4-4 2 2-4z"/></svg><span class="qa-tl">Ретке келтіру</span></button>
           <button type="button" class="qa-tbtn" id="qaRectBtn" data-prio="6" data-pop="qaPopRect" aria-controls="qaPopRect" aria-expanded="false" aria-label="Дәл өлшемді тіктөртбұрыш" data-tip="Дәл өлшемді тіктөртбұрыш / шаршы"><svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1"/><path d="M4 3.5h16M2 6v12" stroke-dasharray="2 2"/></svg><span class="qa-tl">Тіктөртбұрыш</span></button>
@@ -474,6 +475,7 @@ document.documentElement.classList.add('qa-full');
 <script src="marks/marks-dom.js"></script>
 <script src="routes/routes-dom.js"></script>
 <script src="js/services.js"></script>
+<script src="js/project.js"></script>
 <script type="module" src="qorgau/ui.js"></script>
 <script type="module" src="qorgau/app.js"></script>
 <script type="module" src="marks/marks.js"></script>

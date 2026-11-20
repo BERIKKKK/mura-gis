@@ -1,34 +1,22 @@
-/* Сақталған қорғау аймақтары — компьютердегі JSON файл.
+/* Сақталған қорғау аймақтары — ашық жобаның (.gpkg) zones қабаты (main/gpkg.js).
    Клиенттік код (src/qorgau/app.js) POST сұранысын жібереді:
      mura://app/api?v=1&op=list|save|delete  (FormData: data / id)
    Жауап пішімі: { ok, items, id, error }. */
-const fs = require('node:fs');
-const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 
 class Store {
-  constructor(dir) {
-    this.dir = dir;
-    this.file = path.join(dir, 'qorgau.json');
-    fs.mkdirSync(dir, { recursive: true });
+  /** table — { load(), write(items) }: жобаның қабаты (gpkg.js → Project.table('zones')) не noTable. */
+  constructor(table) {
+    this.t = table;
   }
 
   load() {
-    try {
-      const j = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      return Array.isArray(j) ? j.filter(x => x && typeof x === 'object') : [];
-    } catch (e) {
-      if (e.code === 'ENOENT') return [];
-      throw new Error('Деректер файлы оқылмады: ' + this.file + ' (' + e.message + ')');
-    }
+    return this.t.load().filter(x => x && typeof x === 'object');
   }
 
   write(items) {
-    const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(items, null, 1));
-    if (fs.existsSync(this.file)) fs.copyFileSync(this.file, this.file + '.bak');
-    fs.renameSync(tmp, this.file);
+    this.t.write(items);
   }
 
   list() {
@@ -79,9 +67,9 @@ class Store {
     this.write(items);
   }
 
-  /** Басқа файлдан (басқа компьютерден) жазбаларды қосу; id бірдей болса — жаңасы қалады. */
-  importFrom(file) {
-    let j = JSON.parse(fs.readFileSync(file, 'utf8'));
+  /** JSON мәтінінен (басқа компьютерден, ескі нұсқадан) жазбаларды қосу; id бірдей болса — жаңасы қалады. */
+  importFrom(text) {
+    let j = JSON.parse(String(text));
     if (j && !Array.isArray(j) && Array.isArray(j.items)) j = j.items;
     if (!Array.isArray(j)) throw new Error('Файлда сақталған аймақтар тізімі жоқ.');
     const items = this.load();
@@ -96,31 +84,8 @@ class Store {
     return { added, updated };
   }
 
-  /** Үлгі жазба «Қорғау аймақтары» тізімінде — бір рет қосылады (белгі файлы). Пайдаланушы өшірсе, келесі
-      іске қосу мен жаңартуларда қайта қосылмайды. */
-  seedSample() {
-    const flag = path.join(this.dir, '.sample-v1');
-    if (fs.existsSync(flag)) return false;
-    const c = { lat: 50.4123, lon: 57.0412 };
-    const pts = [[0.00062, -0.00035], [0.00068, -0.00012], [0.00030, 0.00095], [-0.00055, 0.00010], [-0.00060, -0.00020], [-0.00020, -0.00050]]
-      .map(([a, b]) => ({ lat: Math.round((c.lat + a) * 1e8) / 1e8, lon: Math.round((c.lon + b) * 1e8) / 1e8 }));
-    const now = new Date().toISOString();
-    const items = this.load();
-    items.push({
-      id: crypto.randomBytes(8).toString('hex'), name: 'Үлгі қорымы', district: 'Қарғалы ауданы',
-      fields: { name: 'Үлгі қорымы', gen: 'Үлгі қорымының', period: 'қола дәуірі', oblast: 'Ақтөбе облысы', district: 'Қарғалы ауданы',
-        place: 'Егінді жылғасының жоғарғы оң жақ жағалауында (үлгі мәтін)',
-        desc: 'Бейіт үш қорғаннан тұрады. Қорғандардың диаметрі 6–10 метр, биіктігі 0,2–0,3 метр (үлгі мәтін). Бұл — үлгі жазба: қажет болмаса, өшіріңіз.',
-        type: 'archeo', height: '10', d1: '40', d2: '40', d3: '40' },
-      pts, created_at: now, created_by: 'Mura GIS', updated_at: now, updated_by: 'Mura GIS',
-    });
-    this.write(items);
-    fs.writeFileSync(flag, now + '\n');
-    return true;
-  }
-
-  exportTo(file) {
-    fs.writeFileSync(file, JSON.stringify(this.load(), null, 1));
+  exportJson() {
+    return JSON.stringify(this.load(), null, 1);
   }
 
   async handle(request) {

@@ -5,7 +5,9 @@
    Бұл кәдімгі скрипт qorgau/app.js-тен БҰРЫН орындалады:
      • «Мәліметтер» панеліндегі «Облыс» өрісін тізімге айналдырады, «Аудан / қала» тізімін таңдалған облысқа сай толтырады;
      • соңғы таңдалған облыс / республикалық қала есте сақталады (mura.region) — жаңа жазба мен жаңа белгіге әдепкі мән болады.
-   window.MuraRegions — белгілер модулі (marks/marks.js) де осыны пайдаланады. */
+   window.MuraRegions — белгілер модулі (marks/marks.js) де осыны пайдаланады.
+   Жоба (.gpkg) облысқа байланған болса, «Облыс» өрісі сол облыспен автоматты толады және өзгермейді, «Аудан» тізімінде
+   тек сол облыстың аудандары тұрады; жоба ауданға байланса — аудан да автоматты қойылады. Өзгерту — «Баптаулар → Жоба». */
 (function () {
   'use strict';
   var C = function (n) { return n + ' қаласы'; };
@@ -41,11 +43,28 @@
 
   var KEY = 'mura.region', DEF = 'Ақтөбе облысы';
   function find(name) { name = String(name || '').trim(); for (var i = 0; i < list.length; i++) if (list[i].name === name) return list[i]; return null; }
-  function remembered() { var v = null; try { v = localStorage.getItem(KEY); } catch (e) { /* жеке режим */ } return find(v) ? v : DEF; }
-  function remember(name) { if (find(name)) try { localStorage.setItem(KEY, name); } catch (e) { /* елемейміз */ } }
+  // Ашық жобаның облысы мен ауданы (жоба баптауларынан; бос болса — шектеу жоқ)
+  var P = (window.mura && window.mura.project && window.mura.project.current) || null;
+  var PO = P && find(P.oblast) ? P.oblast : '';
+  var PD = PO && P.district && find(PO).units.some(function (u) { return u.v === P.district; }) ? P.district : '';
+  var project = { oblast: PO, district: PD };
+  function remembered() { if (PO) return PO; var v = null; try { v = localStorage.getItem(KEY); } catch (e) { /* жеке режим */ } return find(v) ? v : DEF; }
+  function remember(name) { if (!PO && find(name)) try { localStorage.setItem(KEY, name); } catch (e) { /* елемейміз */ } }
+  var LOCK_TIP = 'Жобаның баптауынан алынады (Файл → Баптаулар → Жоба)';
+  /** Тізімде бір ғана мән қалса (жобаның облысы / ауданы) — өріс бекітіледі. */
+  function lock(sel) {
+    if (!sel) return;
+    var one = sel.options.length === 1 && !!sel.options[0].value && (sel.options[0].value === PO || sel.options[0].value === PD);
+    sel.disabled = one;
+    if (one) sel.title = LOCK_TIP; else if (sel.title === LOCK_TIP) sel.title = '';
+  }
   var esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
   /** <option> тізімдері: облыстар (республикалық қалалар бөлек топта) және таңдалған облыстың аудандары. */
   function regionOptions(sel) {
+    if (PO) {                                          // жоба облысқа байланған: тек сол облыс (ескі жазбаның басқа мәні — сақталады)
+      return '<option' + (sel && sel !== PO ? '' : ' selected') + '>' + esc(PO) + '</option>' +
+        (sel && sel !== PO ? '<option selected>' + esc(sel) + '</option>' : '');
+    }
     var o = '<optgroup label="Облыстар">', c = '<optgroup label="Республикалық маңызы бар қалалар">';
     list.forEach(function (r) { var h = '<option' + (r.name === sel ? ' selected' : '') + '>' + esc(r.name) + '</option>'; if (r.city) c += h; else o += h; });
     var extra = sel && !find(sel) ? '<option selected>' + esc(sel) + '</option>' : '';
@@ -53,7 +72,9 @@
   }
   function unitOptions(region, sel) {
     var r = find(region), units = r ? r.units : [];
-    var h = '<option value="">—</option>', has = false;
+    var fixed = PD && region === PO;                   // жоба ауданға байланған: тек сол аудан
+    if (fixed) { units = units.filter(function (u) { return u.v === PD; }); if (!sel) sel = PD; }
+    var h = fixed ? '' : '<option value="">—</option>', has = false;
     units.forEach(function (u) {
       if (u.v === sel) has = true;
       h += '<option value="' + esc(u.v) + '"' + (u.key ? ' data-key="' + esc(u.key) + '"' : '') + (u.v === sel ? ' selected' : '') + '>' + esc(u.v + (u.note ? ' (' + u.note + ')' : '')) + '</option>';
@@ -61,7 +82,10 @@
     if (sel && !has) h += '<option value="' + esc(sel) + '" selected>' + esc(sel) + '</option>';   // ескі не қолмен жазылған мән
     return h;
   }
-  window.MuraRegions = { list: list, find: find, remembered: remembered, remember: remember, regionOptions: regionOptions, unitOptions: unitOptions };
+  /** Жаңа жазбаның әдепкі ауданы: жобаның ауданы (бар болса). */
+  function defaultDistrict(region) { return PD && (!region || region === PO) ? PD : ''; }
+  window.MuraRegions = { list: list, find: find, remembered: remembered, remember: remember, regionOptions: regionOptions, unitOptions: unitOptions,
+    project: project, lock: lock, defaultDistrict: defaultDistrict };
 
   /* ---------- «Мәліметтер» панелі: Облыс → тізім, Аудан → таңдалған облысқа сай ---------- */
   var ob = document.getElementById('qaOblast'), di = document.getElementById('qaDistrict');
@@ -75,6 +99,7 @@
     var r = find(D.get.call(sel)), cur = keep ? D.get.call(di) : '';
     if (cur && !(r && r.units.some(function (u) { return u.v === cur; }))) cur = '';   // басқа облыстың ауданы қалып қоймасын
     di.innerHTML = unitOptions(D.get.call(sel), cur);
+    lock(sel); lock(di);
   }
   // app.js өрістерді бағдарламалық түрде толтырады (сақталған жазбаны ашқанда т.б.): облыс берілгенде аудандар тізімі
   // соған сай қайта құрылады, тізімде жоқ мән (ескі жазба) болса — қосылады
@@ -87,9 +112,10 @@
     configurable: true,
     get: function () { return D.get.call(di); },
     set: function (v) {
-      v = String(v || '');
+      v = String(v || '') || defaultDistrict(D.get.call(sel));
       if (v && ![].some.call(di.options, function (o) { return o.value === v; })) di.innerHTML = unitOptions(D.get.call(sel), v);
       D.set.call(di, v);
+      lock(di);
     },
   });
   sel.value = remembered();

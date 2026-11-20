@@ -189,13 +189,8 @@
   /* ---------- Бастапқы қызмет ---------- */
   var saved = store.get();
   set(SERVICES.some(function (s) { return s.id === saved; }) ? saved : 'marks');
-  // app.js «Нүкте қою» режимін қосулы күйде бастайды — басқа қызметте ол өшеді (модульдер жүктелген соң)
-  document.addEventListener('DOMContentLoaded', function () {
-    setTimeout(function () {
-      if (cur !== 'zone' && pressed('qaAddMode')) $('qaAddMode').click();
-      booted = true;
-    }, 0);
-  });
+  // Бастапқыда ешбір құрал қосылмайды — пайдаланушы өзі таңдайды. Жүктелу аяқталған соң ғана «басқа қызметке ауысу» іске қосылады.
+  document.addEventListener('DOMContentLoaded', function () { setTimeout(function () { booted = true; }, 0); });
 
   globalThis.MuraSvc = { set: set, get: function () { return cur; }, list: SERVICES.map(function (s) { return s.id; }) };
 })();

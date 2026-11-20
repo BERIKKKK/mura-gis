@@ -175,7 +175,8 @@ function openDialog(m, o = {}) {
     ...m,
   };
   // Аудан әдепкісі — соңғы таңдалған (сол облыстікі болса ғана)
-  if (v.district == null) v.district = def.oblast === v.oblast ? def.district || '' : '';
+  // (жоба ауданға байланса — жобаның ауданы)
+  if (v.district == null) v.district = (REG && REG.defaultDistrict(v.oblast)) || (def.oblast === v.oblast ? def.district || '' : '');
   const dists = districtOpts();
   if (v.district && !dists.includes(v.district)) dists.push(v.district);
   const back = document.createElement('div');
@@ -237,7 +238,10 @@ function openDialog(m, o = {}) {
     return r;
   }
   F.name.addEventListener('input', paintKey);
-  if (REG) F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); });
+  if (REG) {
+    F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); REG.lock(F.district); });
+    REG.lock(F.oblast); REG.lock(F.district);       // жобаның облысы / ауданы — бекітілген
+  }
   F.lat.addEventListener('input', paintCoord);
   F.lon.addEventListener('input', paintCoord);
   const paintSym = () => { back.querySelector('#mkSym').innerHTML = symbolSvg(F.type.value, F.category.value, 26); };

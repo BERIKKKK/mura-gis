@@ -21,7 +21,7 @@ const ZONES = [
   { key: 'landscape', color: '#d6261f', docColor: 'D6261F', border: 'қорғалатын табиғи ландшафт аймағының шекарасы',  area: 'қорғалатын табиғи ландшафт аймағының ауданы',       feature: 'Қорғалатын табиғи ландшафт аймағы' },
 ];
 const MIN_POINTS = 4;
-const STORE_KEY = 'qa-draft-v1';
+const STORE_KEY = 'qa-draft-v1' + (globalThis.mura?.project?.current ? ':' + globalThis.mura.project.current.key : '');   // әр жобаның өз жұмыс нұсқасы
 const SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
@@ -199,7 +199,7 @@ export function computeZones(pts, dists) {
 }
 
 /* ======================= Күй ======================= */
-const state = { pts: [], add: true, loadedId: null, loadedName: '' };   // loadedId — ашық тұрған сақталған жазба
+const state = { pts: [], add: false, loadedId: null, loadedName: '' };   // loadedId — ашық тұрған сақталған жазба
 let R = null;
 let genTouched = false;
 
@@ -343,7 +343,7 @@ function drawMarkers() {
 // Азимут — шынайы (географиялық) солтүстіктен сағат тілімен, 0–360°. Есеп жергілікті метрлік проекцияда
 // (makeProj) — бірнеше шақырымға дейінгі қашықтықта қателігі миллиметрден аз.
 const TOOLS_KEY = 'qa-tools-v1';
-const tool = { mode: 'add', snap: 0, ref: 'north', perp: true, sideLabels: true };   // mode: add | ruler | none
+const tool = { mode: 'none', snap: 0, ref: 'north', perp: true, sideLabels: true };   // mode: add | ruler | none
 try {
   const o = JSON.parse(localStorage.getItem(TOOLS_KEY) || 'null');
   if (o) {
@@ -1547,7 +1547,7 @@ function resetAll() {
   $('qaCoordTable').checked = false;
   $('qaGeoMode').value = 'ring';
   fmtSel.value = 'dd'; coordFmt = 'dd';
-  setMode('add');
+  setMode('none');                                // құралды пайдаланушы өзі таңдайды
   clearRuler();
   const paste = document.querySelector('.qa-paste'); if (paste) paste.open = false;
   try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(FMT_KEY); } catch (e) { /* елемейміз */ }
