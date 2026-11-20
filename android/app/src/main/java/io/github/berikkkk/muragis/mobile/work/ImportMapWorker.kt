@@ -135,6 +135,8 @@ class ImportMapWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(
             FileKind.TIFF -> { tmp.delete(); throw FormatException("geotiff_unsupported") }
             FileKind.UNKNOWN -> { tmp.delete(); throw FormatException("unknown_format") }
         }
+        @Suppress("UNREACHABLE_CODE")
+        throw FormatException("unknown_format")
     }
 
     /** Құрылымды тексеру: бір тайлды шынымен оқып көру (бүлінген файл тізімге түспейді). */
