@@ -4,6 +4,7 @@
      save   — FormData data = бір белгі (JSON), id болса — жаңартылады;
      delete — FormData id (бірнешеуі — үтір арқылы);
      import — FormData data = белгілер тізімі (JSON), id бірдей болса жаңасы қалады;
+     patch  — қорғау аймақтарымен синхрондау: data = [{ id, …өрістер }] (бар белгі — тек берілген өрістер, жоқ — жаңа белгі);
      ilist / iadd / idel — импортталған нүктелер (KML, KMZ, GPX). Олар белгі емес — «Сәйкестендіру»
        арқылы белгі ретінде сақталғанда ғана тізімнен алынады (idel); жобаның imports қабаты. iadd: data = [{ name, desc, lat, lon, file, folder }],
        idel: id = 'all' не id-лер үтір арқылы.
@@ -138,6 +139,31 @@ class MarksStore {
     return { added, updated, skipped };
   }
 
+  /** Қорғау аймақтарымен синхрондау: data = [{ id, …өзгерген өрістер }]. id бар болса — тек берілген өрістер ауыстырылады;
+      жоқ болса (16 hex, клиент жасаған) — толық белгі ретінде қосылады (аймақ шекарасының ортасына). Бәрі бір рет жазылады. */
+  patchMany(raw) {
+    let list;
+    try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
+    if (!Array.isArray(list)) throw new Error(tx('Белгілер тізімі оқылмады.', 'Не удалось прочитать список меток.'));
+    const items = this.load();
+    const index = new Map(items.map((x, i) => [x.id, i]));
+    const now = new Date().toISOString();
+    const user = (() => { try { return os.userInfo().username; } catch (e) { return ''; } })();
+    let added = 0, updated = 0, skipped = 0;
+    for (const r of list) {
+      const id = String(r && r.id || '');
+      const i = index.has(id) ? index.get(id) : -1;
+      if (i < 0 && !/^[0-9a-f]{16}$/.test(id)) { skipped++; continue; }
+      const old = i >= 0 ? items[i] : null;
+      let f;
+      try { f = MarksStore.clean(old ? { ...old, ...r, lat: old.lat, lon: old.lon } : r); } catch (e) { skipped++; continue; }
+      const rec = { id, ...f, created_at: old?.created_at || now, created_by: old?.created_by || user, updated_at: now, updated_by: user };
+      if (old) { items[i] = rec; updated++; } else { index.set(id, items.length); items.push(rec); added++; }
+    }
+    if (added || updated) this.write(items);
+    return { added, updated, skipped };
+  }
+
   async handle(request) {
     const url = new URL(request.url);
     const op = url.searchParams.get('op') || '';
@@ -152,6 +178,7 @@ class MarksStore {
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
       if (op === 'delete') { const removed = this.remove(fd.get('id')); return out({ ok: true, removed, items: this.list() }); }
       if (op === 'import') { const r = this.importMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
+      if (op === 'patch') { const r = this.patchMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
       return out({ ok: false, error: tx('Белгісіз әрекет.', 'Неизвестное действие.') });
     } catch (e) {
       return out({ ok: false, error: e.message || String(e) });

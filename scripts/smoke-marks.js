@@ -216,6 +216,59 @@ async function run(win) {
     document.querySelector('.mk-dlg').requestSubmit(); await wait(800);
     out.identAfter = 'marks +' + (M.items.length - before) + ', imports ' + M.imports.length + ', left: ' + M.imports.map(x => x.name).join(', ');
     out.title = document.title + ' / status: ' + document.getElementById('muraRec').textContent;
+
+    // Белгілер ↔ қорғау аймақтары синхрондауы (mark_id байланысы)
+    const eq = (a, b, what) => { if (a !== b) throw new Error('Синхрондау — ' + what + ': ' + JSON.stringify(a) + ' ≠ ' + JSON.stringify(b)); };
+    const sq = (la, lo) => [[-1, -1], [-1, 1], [1, 1], [1, -1]].map(([a, b]) => ({ lat: la + a * 0.0003, lon: lo + b * 0.0003 }));
+    const zapi = async (op, data = {}) => { const fd = new FormData(); for (const [k, v] of Object.entries(data)) fd.append(k, v); const j = await (await fetch('mura://app/api?v=1&op=' + op, { method: 'POST', body: fd })).json(); if (!j.ok) throw new Error(j.error); return j; };
+    const zf = (name, x) => ({ name, gen: '', period: '', oblast: 'Ақтөбе облысы', district: 'Мәртөк ауданы', place: '', desc: '', type: 'archeo', height: '', d1: '40', d2: '40', d3: '40', ...x });
+    const zrec = async id => (await zapi('list')).items.find(r => r.id === id);
+    const okBtn = () => document.querySelector('.qa-dlg-back [data-v="1"]')?.click();
+    await M.api('save', { data: JSON.stringify({ ...base, name: 'Синхрон-I қорғаны', district: 'Мәртөк ауданы', lat: 50.6, lon: 57.6, period: 'қола дәуірі', place: 'А ауылынан 2 км' }) });
+    const sA = M.items.find(m => m.name === 'Синхрон-I қорғаны');
+    const zA = (await zapi('save', { data: JSON.stringify({ fields: zf('Синхрон-I қорғаны'), pts: sq(50.6, 57.6), mark_id: sA.id }) })).id;
+    eq((await zrec(zA)).mark_id, sA.id, 'mark_id сақталды');
+    await __qa.refreshSaved();
+    // 1) белгі өңделді → байланысқан аймақ жаңарады (ілік септігі жаңа атаудан)
+    M.openDialog(sA); await wait(200);
+    let mf = document.querySelector('.mk-dlg').elements;
+    mf.name.value = 'Синхрон-II қорғаны'; mf.place.value = 'А ауылынан 3 км'; mf.period.value = 'ерте темір дәуірі';
+    document.querySelector('.mk-dlg').requestSubmit(); await wait(1200);
+    let rA = await zrec(zA);
+    eq(rA.fields.name + ' / ' + rA.fields.place + ' / ' + rA.fields.period, 'Синхрон-II қорғаны / А ауылынан 3 км / ерте темір дәуірі', 'белгі → аймақ');
+    eq(rA.fields.gen, __qa.genitive('Синхрон-II қорғаны'), 'ілік септігі'); eq(rA.mark_id, sA.id, 'байланыс қалды');
+    out.syncToast1 = document.getElementById('qaToast').textContent;
+    // 2) аймақ ашылып, өзгертіліп сақталды → белгі жаңарады
+    document.querySelector('[data-open="' + zA + '"]').click(); await wait(300); okBtn(); await wait(600);
+    eq(__qa.state.loadedId + ' ' + __qa.state.markId, zA + ' ' + sA.id, 'аймақ ашылды');
+    const qp = document.getElementById('qaPlace'); qp.value = 'Б ауылынан 1 км'; qp.dispatchEvent(new Event('input'));
+    const qt = document.getElementById('qaType'); qt.value = 'ensemble'; qt.dispatchEvent(new Event('change'));
+    document.getElementById('qaSave').click(); await wait(1200);
+    let mA = M.items.find(m => m.id === sA.id);
+    eq(mA.place + ' / ' + mA.type + ' / ' + mA.period, 'Б ауылынан 1 км / ensemble / ерте темір дәуірі', 'аймақ → белгі');
+    out.syncToast2 = document.getElementById('qaToast').textContent;
+    // 3) ашық жазба: белгі өзгерсе — редактордағы өріс те жаңарады, «сақталмаған» болмайды
+    M.openDialog(mA); await wait(200);
+    mf = document.querySelector('.mk-dlg').elements; mf.place.value = 'В ауылынан 5 км'; mf.type.value = 'archeo';
+    document.querySelector('.mk-dlg').requestSubmit(); await wait(1200);
+    eq(qp.value + ' / ' + qt.value + ' / ' + document.getElementById('qaD1').value, 'В ауылынан 5 км / archeo / 40', 'редактор жаңарды');
+    eq(document.getElementById('qaDirty').hidden, true, 'сақталмаған өзгеріс жоқ');
+    // 4) «Белгілермен синхрондау»: атауы бірдей жақын белгімен байланыстыру, белгісі жоқ аймаққа белгі жасау
+    await M.api('save', { data: JSON.stringify({ ...base, name: 'Синхрон-III обасы', district: 'Мәртөк ауданы', lat: 50.61, lon: 57.61 }) });
+    const sB = M.items.find(m => m.name === 'Синхрон-III обасы');
+    const zB = (await zapi('save', { data: JSON.stringify({ fields: zf('Синхрон-III обасы', { period: 'сақ дәуірі' }), pts: sq(50.6101, 57.6101) }) })).id;
+    const zC = (await zapi('save', { data: JSON.stringify({ fields: zf('Синхрон-IV қорымы', { place: 'Г ауылы' }), pts: sq(50.62, 57.62) }) })).id;
+    const ps = __qa.syncAllMarks(); await wait(600);
+    out.syncAsk = (document.querySelector('.qa-dlg-back') || {}).textContent;
+    okBtn(); await ps; await wait(300);
+    const rB = await zrec(zB), rC = await zrec(zC), mC = M.items.find(m => m.id === rC.mark_id);
+    eq(rB.mark_id, sB.id, 'атауы бойынша байланысты'); eq(M.items.find(m => m.id === sB.id).period, 'сақ дәуірі', 'бос өріс толтырылды');
+    eq(!!mC && mC.name + ' / ' + mC.place + ' / ' + mC.lat.toFixed(4) + ', ' + mC.lon.toFixed(4), 'Синхрон-IV қорымы / Г ауылы / 50.6200, 57.6200', 'жаңа белгі');
+    out.syncToast3 = document.getElementById('qaToast').textContent;
+    await __qa.syncAllMarks(); await wait(100);
+    eq(document.getElementById('qaToast').textContent, 'Барлық аймақ белгілермен синхрондалған.', 'қайта синхрондау — өзгеріс жоқ');
+    out.syncBadges = document.querySelectorAll('#qaSaved .qa-mk').length + ' / ' + document.querySelectorAll('#qaSaved .qa-sc').length;
+
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());

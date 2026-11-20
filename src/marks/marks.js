@@ -305,7 +305,10 @@ function openDialog(m, o = {}) {
       store.set(lastKey, JSON.stringify({ oblast: rec.oblast, district: rec.district, type: rec.type, category: rec.category, status: rec.status }));
       if (REG) REG.remember(rec.oblast);          // соңғы облыс — келесі белгіге де, жаңа қорғау аймағына да әдепкі
       closeDialog();
-      toast((isNew ? tx('Белгі сақталды: «', 'Метка сохранена: «') : tx('Белгі жаңартылды: «', 'Метка обновлена: «')) + view(rec).name + '».');
+      let synced = '';                            // байланысқан қорғау аймақтары да жаңарады (qorgau/app.js)
+      try { const n = isNew ? 0 : await (globalThis.__qa?.syncFromMark?.(saved) || 0); if (n) synced = tx(' Қорғау аймағы да жаңартылды', ' Охранная зона тоже обновлена') + (n > 1 ? ' (' + n + ')' : '') + '.'; }
+      catch (ex) { synced = tx(' Қорғау аймағы жаңартылмады: ', ' Охранная зона не обновлена: ') + ex.message; }
+      toast((isNew ? tx('Белгі сақталды: «', 'Метка сохранена: «') : tx('Белгі жаңартылды: «', 'Метка обновлена: «')) + view(rec).name + '».' + synced);
       if (o.onSaved) o.onSaved(saved);
       if (saved && !map.getBounds().contains([saved.lat, saved.lon])) map.panTo([saved.lat, saved.lon]);
     } catch (ex) { showErr(ex.message); btn.disabled = false; }
