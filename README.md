@@ -69,7 +69,7 @@ npm run dist:win  # Windows орнатқышы → dist/
 ### Жаңа нұсқа шығару
 
 1. `npm test` және `npm run smoke` (қажет болса `smoke:marks`, `smoke:routes`).
-2. `package.json` → `version` өсіріңіз (мыс. `1.2.1`), commit жасап, `main`-ге жіберіңіз.
+2. `package.json` → `version` өсіріңіз (мыс. `1.3.1`), `build/release-notes.md` ішіне осы нұсқаның өзгерістерін жазыңыз (релиз бетінің мәтіні), commit жасап, `main`-ге жіберіңіз.
 3. Тег жіберіңіз: `git tag v1.2.1 && git push origin v1.2.1`
 
 GitHub Actions (`.github/workflows/release.yml`) Windows-та құрастырады: тег пен `package.json` нұсқасы сәйкес екенін тексереді, маршрут желісінің тестін өткізеді, орнатқыш пен портативті нұсқаны [Releases](https://github.com/BERIKKKK/mura-gis/releases) бетіне жариялайды; орнатылған бағдарламалар жаңа нұсқаны өздері жүктейді. Тегті қайта жариялау керек болса — Actions → Release → **Run workflow** (тегті көрсетіп). Өз компьютерден шығару да бұрынғыдай жұмыс істейді: `npm run release:win` (`GH_TOKEN` керек).
