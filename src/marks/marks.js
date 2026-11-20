@@ -215,6 +215,10 @@ function openDialog(m, o = {}) {
   back.innerHTML =
     '<form class="qa-dlg qa-glass mk-dlg" role="dialog" aria-modal="true" aria-labelledby="mkDlgT" novalidate>' +
       '<h3 id="mkDlgT"><span class="mk-sym" id="mkSym"></span>' + esc(o.title || (isNew ? 'Жаңа ескерткіш белгісі' : 'Ескерткіш белгісі')) + '</h3>' +
+      // Сақталған қорғау аймағымен сәйкестендіру (аймақтар бар болса ғана көрінеді)
+      '<div class="qa-f mk-zlink" id="mkZoneBox" hidden><label for="mkZoneSel">' + tx('Қорғау аймағымен сәйкестендіру', 'Сопоставить с охранной зоной') +
+        ' <small class="mk-law">' + tx('(мәліметтер аймақтан алынады, сақтағанда байланысады)', '(сведения берутся из зоны, при сохранении связываются)') + '</small></label>' +
+        '<select id="mkZoneSel"><option value="">' + tx('— таңдалмаған —', '— не выбрано —') + '</option></select><p class="qa-hint" id="mkZoneHint" hidden></p></div>' +
       // Мәтіндік өрістер екі тілде: ҚАЗ / РУС (құжат қай тілде шықса, сол тілдегісі алынады)
       I18N.biField({ id: 'mkName', name: 'name', label: tx('Атауы', 'Наименование'), req: true, kk: v.name, ru: v.name_ru, max: 200,
         ph: 'Мысалы: Қабантау-V қорғаны', phRu: 'Например: Курган Кабантау-V', hint: '<p class="qa-hint mk-key" id="mkKey" hidden></p>' }) +
@@ -276,6 +280,50 @@ function openDialog(m, o = {}) {
   F.name_ru.addEventListener('input', paintKey);
   // Мерзім екі тілде синхрондалады: «1960» → «1960 жыл» / «1960 год», «XX ғасырдың басы» ↔ «начало XX века» (periods.js)
   const period = bindPeriodSync(F.period, F.period_ru);
+
+  /* Қорғау аймағымен сәйкестендіру: аймақ алдымен сызылған болса, оның мәліметтері белгіге толтырылады,
+     белгі сақталғанда аймаққа байланысады (qorgau/app.js → zonesForMark, linkZoneToMark). Шекарасы белгіні
+     қамтитын аймақ тізімде бірінші тұрады; жаңа, бос белгіге ол өзі таңдалып толтырылады. */
+  const zBox = back.querySelector('#mkZoneBox'), zSel = back.querySelector('#mkZoneSel'), zHint = back.querySelector('#mkZoneHint');
+  let zones = [];
+  const zoneHint = t => { zHint.textContent = t || ''; zHint.hidden = !t; };
+  const hasOpt = (sel, val) => [...sel.options].some(o => o.value === val);
+  function fillFromZone(f) {
+    const setv = (el, val, ev = 'input') => { if (!el) return; el.value = val; el.dispatchEvent(new Event(ev, { bubbles: true })); };
+    for (const k of ['name', 'name_ru', 'period', 'period_ru', 'place', 'place_ru']) if (String(f[k] ?? '').trim()) setv(F[k], String(f[k]).trim());
+    if (f.oblast && !F.oblast.disabled && F.oblast.value !== f.oblast && (F.oblast.tagName !== 'SELECT' || hasOpt(F.oblast, f.oblast))) setv(F.oblast, f.oblast, 'change');
+    if (f.district && !F.district.disabled && hasOpt(F.district, f.district)) setv(F.district, f.district, 'change');
+    if (f.type && hasOpt(F.type, f.type)) setv(F.type, f.type, 'change');
+    if (String(f.desc ?? '').trim() && !F.note.value.trim()) setv(F.note, String(f.desc).trim());
+    if (String(f.desc_ru ?? '').trim() && !F.note_ru.value.trim()) setv(F.note_ru, String(f.desc_ru).trim());
+  }
+  zSel.addEventListener('change', () => {
+    const z = zones.find(x => x.id === zSel.value);
+    if (!z) { zoneHint(''); return; }
+    fillFromZone(z.fields);
+    zoneHint(z.linked ? tx('Осы белгіге байланысқан аймақ.', 'Зона, связанная с этой меткой.')
+      : tx('Мәліметтер «' + z.name + '» аймағынан толтырылды — қажет болса түзетіңіз. Сақтағанда аймақ осы белгіге байланысады.',
+        'Сведения заполнены из зоны «' + z.name + '» — при необходимости исправьте. При сохранении зона будет связана с этой меткой.'));
+  });
+  (async () => {
+    try { zones = (await globalThis.__qa?.zonesForMark?.(v.lat != null ? { lat: +v.lat, lon: +v.lon } : null, m.id || null)) || []; } catch (e) { zones = []; }
+    if (!zones.length || !back.isConnected) return;
+    const dist = d => (!isFinite(d) ? '' : ' · ' + (d < 1000 ? Math.round(d) + ' м' : (d / 1000).toFixed(d < 10000 ? 1 : 0).replace('.', ',') + tx(' км', ' км')));
+    for (const z of zones) {
+      const f = z.fields, dl = f.district ? ' — ' + (REG ? REG.show(f.district, f.oblast) : f.district) : '';
+      zSel.add(new Option(z.name + dl + (z.linked ? tx(' · байланысқан', ' · связана') : z.in ? tx(' · шекарасы ішінде', ' · внутри границы') : dist(z.d)), z.id));
+    }
+    zBox.hidden = false;
+    const linked = zones.find(z => z.linked);
+    if (linked) { zSel.value = linked.id; zoneHint(tx('Осы белгіге байланысқан аймақ.', 'Зона, связанная с этой меткой.')); return; }
+    // Жаңа белгі, атауы әлі жазылмаған, шекара ішінде — ұсынылатын аймақ өзі таңдалып толтырылады
+    if (isNew && zones[0].in && !F.name.value.trim() && !F.name_ru.value.trim()) {
+      zSel.value = zones[0].id;
+      fillFromZone(zones[0].fields);
+      zoneHint(tx('Шекарасы ішіндегі қорғау аймағы таңдалды: «' + zones[0].name + '». Қажет болса түзетіңіз не «— таңдалмаған —» қойыңыз.',
+        'Выбрана охранная зона, внутри границы которой метка: «' + zones[0].name + '». При необходимости исправьте или выберите «— не выбрано —».'));
+    }
+  })();
   if (REG) {
     F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); REG.lock(F.district); });
     REG.lock(F.oblast); REG.lock(F.district);       // жобаның облысы / ауданы — бекітілген
@@ -310,8 +358,13 @@ function openDialog(m, o = {}) {
       if (REG) REG.remember(rec.oblast);          // соңғы облыс — келесі белгіге де, жаңа қорғау аймағына да әдепкі
       closeDialog();
       let synced = '';                            // байланысқан қорғау аймақтары да жаңарады (qorgau/app.js)
-      try { const n = isNew ? 0 : await (globalThis.__qa?.syncFromMark?.(saved) || 0); if (n) synced = tx(' Қорғау аймағы да жаңартылды', ' Охранная зона тоже обновлена') + (n > 1 ? ' (' + n + ')' : '') + '.'; }
-      catch (ex) { synced = tx(' Қорғау аймағы жаңартылмады: ', ' Охранная зона не обновлена: ') + ex.message; }
+      const zone = zones.find(z => z.id === zSel.value && !z.linked);
+      if (zone && saved) {                         // таңдалған аймақ осы белгіге байланысады
+        try { if (await globalThis.__qa?.linkZoneToMark?.(zone.id, saved)) synced = tx(' Қорғау аймағымен байланыстырылды: «', ' Связана с охранной зоной: «') + zone.name + '».'; }
+        catch (ex) { synced = tx(' Қорғау аймағымен байланыстырылмады: ', ' Не удалось связать с охранной зоной: ') + ex.message; }
+      }
+      try { const n = isNew ? 0 : await (globalThis.__qa?.syncFromMark?.(saved) || 0); if (n) synced += tx(' Қорғау аймағы да жаңартылды', ' Охранная зона тоже обновлена') + (n > 1 ? ' (' + n + ')' : '') + '.'; }
+      catch (ex) { synced += tx(' Қорғау аймағы жаңартылмады: ', ' Охранная зона не обновлена: ') + ex.message; }
       toast((isNew ? tx('Белгі сақталды: «', 'Метка сохранена: «') : tx('Белгі жаңартылды: «', 'Метка обновлена: «')) + view(rec).name + '».' + synced);
       if (o.onSaved) o.onSaved(saved);
       if (saved && !map.getBounds().contains([saved.lat, saved.lon])) map.panTo([saved.lat, saved.lon]);
