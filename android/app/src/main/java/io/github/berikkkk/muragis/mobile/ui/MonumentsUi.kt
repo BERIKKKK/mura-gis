@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.padding
@@ -204,7 +203,7 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
     Dialog(onDismissRequest = { vm.closeEditor() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         DialogAdjustResize()
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
+            Column(Modifier.fillMaxSize().systemBarsPadding()) {
                 TopAppBar(
                     title = { Text(stringResource(if (initial.id.isEmpty()) R.string.new_monument else R.string.edit_monument)) },
                     navigationIcon = { IconButton(onClick = { vm.closeEditor() }) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
@@ -274,6 +273,7 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
                     if (initial.id.isNotEmpty()) Text(stringResource(R.string.updated_at, m.updatedAt.take(16).replace('T', ' ')), style = MaterialTheme.typography.labelSmall,
                         color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp))
                     Spacer(Modifier.size(80.dp))
+                    ImeSpacer()
                 }
             }
         }

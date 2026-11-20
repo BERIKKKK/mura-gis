@@ -267,7 +267,7 @@
 
     <string name="back">Назад</string>
     <string name="menu_close">Закрыть меню</string>
-    <string name="menu_tagline">Историко-культурное наследие · полевая версия</string>
+    <string name="menu_tagline">Геоинформационная система историко-культурного наследия</string>
     <string name="menu_search_hint">Название памятника или координаты</string>
     <string name="menu_monuments_sub">Объектов: %1$d</string>
     <string name="menu_routes_sub">Маршрутов: %1$d · треков: %2$d</string>

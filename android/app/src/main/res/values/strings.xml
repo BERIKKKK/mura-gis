@@ -269,7 +269,7 @@
     <!-- Мәзір -->
     <string name="back">Артқа</string>
     <string name="menu_close">Мәзірді жабу</string>
-    <string name="menu_tagline">Тарихи-мәдени мұра · далалық нұсқа</string>
+    <string name="menu_tagline">Тарихи-мәдени мұралардың геоақпараттық жүйесі</string>
     <string name="menu_search_hint">Ескерткіш атауы не координата</string>
     <string name="menu_monuments_sub">%1$d нысан</string>
     <string name="menu_routes_sub">%1$d маршрут · %2$d трек</string>

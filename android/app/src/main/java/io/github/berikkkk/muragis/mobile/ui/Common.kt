@@ -4,15 +4,22 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.composed
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.window.DialogWindowProvider
 import android.view.WindowManager
 import androidx.compose.ui.focus.onFocusEvent
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -114,22 +121,34 @@ fun CoordField(label: String, text: String, onText: (String) -> Unit, error: Boo
 }
 
 /**
- * Өріс фокус алғанда (пернетақта ашылып болғаннан кейін) айналдырылатын тізімде көрінетін жерге шығарылады —
- * өріс пернетақтаның астында қалмайды.
+ * Белсенді өріс пернетақтаның үстіне көтеріледі: терезе кішірейтілмейді (тақырып пен батырмалар орнында қалады),
+ * айналдырылатын тізім өрісті пернетақта биіктігі мен шағын аралық қосылған жерге дейін жылжытады.
+ * Тізімнің соңында [ImeSpacer] болуы керек — пернетақта астындағы бос орын, айналдыруға жеткілікті ұзындық береді.
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.bringIntoViewOnFocus(): Modifier = composed {
     val req = remember { BringIntoViewRequester() }
-    val scope = rememberCoroutineScope()
-    bringIntoViewRequester(req).onFocusEvent { f ->
-        // Пернетақта анимациясының ортасында да, соңында да (терезе толық кішірейгеннен кейін)
-        if (f.isFocused) scope.launch { delay(250); req.bringIntoView(); delay(300); req.bringIntoView() }
+    val density = LocalDensity.current
+    val imeBottom = WindowInsets.ime.getBottom(density)
+    val gap = with(density) { 16.dp.toPx() }
+    var size by remember { mutableStateOf(IntSize.Zero) }
+    var focused by remember { mutableStateOf(false) }
+    // Пернетақта анимациясы аяқталғанда (биіктігі өзгеруін тоқтатқанда) бір рет жылжиды
+    LaunchedEffect(focused, imeBottom) {
+        if (!focused) return@LaunchedEffect
+        delay(120)
+        req.bringIntoView(Rect(0f, 0f, size.width.toFloat(), size.height + imeBottom + gap))
     }
+    onSizeChanged { size = it }.bringIntoViewRequester(req).onFocusEvent { focused = it.isFocused }
 }
 
+/** Айналдырылатын тізімнің соңындағы бос орын: пернетақта биіктігіндей (жабық болса — нөл). */
+@Composable
+fun ImeSpacer() = Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.ime))
+
 /**
- * Толық экранды диалогта пернетақта ашылғанда терезе кішірейсін (adjustResize). Әйтпесе жүйе терезені тек жылжытады,
- * WindowInsets.ime келмейді және imePadding жұмыс істемейді — өріс пернетақтаның астында қалады.
+ * Толық экранды диалогта пернетақтаның биіктігі (WindowInsets.ime) қосымшаға берілсін. Терезенің өзі кішіреймейді
+ * (decorFitsSystemWindows = false) — орнын [ImeSpacer] мен [bringIntoViewOnFocus] басқарады.
  */
 @Composable
 fun DialogAdjustResize() {

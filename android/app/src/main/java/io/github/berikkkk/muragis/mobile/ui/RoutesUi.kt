@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -196,7 +195,7 @@ private fun RouteSaveDialog(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Un
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         DialogAdjustResize()
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.systemBarsPadding().imePadding()) {
+            Column(Modifier.systemBarsPadding()) {
                 TopAppBar(
                     title = { Text(stringResource(R.string.save_route)) },
                     navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
@@ -224,6 +223,7 @@ private fun RouteSaveDialog(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Un
                         modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
                     Row(Modifier.padding(top = 4.dp)) { TextButton(onClick = { r = r.copy(checked = java.time.LocalDate.now().toString()) }) { Text(stringResource(R.string.today)) } }
                     Button(onClick = { vm.saveRoute(r) { ok -> if (ok) onDismiss() } }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) { Text(stringResource(R.string.save)) }
+                    ImeSpacer()
                 }
             }
         }
