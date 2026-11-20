@@ -71,14 +71,16 @@ class MarksStore {
     const now = new Date().toISOString();
     const cut = (v, n) => [...String(v ?? '').trim()].slice(0, n).join('');
     let added = 0, skipped = 0;
+    const key = (x) => x.lat.toFixed(7) + ',' + x.lon.toFixed(7) + '|' + x.name;
+    const seen = new Set(items.map(key));             // бұрынғы нүктелер бір рет жиналады (әр нүктеге толық іздеу — O(n²) — емес)
     for (const r of list) {
       const lat = Number(r && r.lat), lon = Number(r && r.lon);
       if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) { skipped++; continue; }
-      const key = (x) => x.lat.toFixed(7) + ',' + x.lon.toFixed(7) + '|' + x.name;
       const rec = { id: crypto.randomBytes(8).toString('hex'), name: cut(r.name, 200), desc: cut(r.desc, 3000), file: cut(r.file, 200), folder: cut(r.folder, 200),
         lat: Math.round(lat * 1e8) / 1e8, lon: Math.round(lon * 1e8) / 1e8, imported_at: now };
-      if (items.some(x => key(x) === key(rec))) { skipped++; continue; }   // сол нүкте қайта импортталмайды
-      items.push(rec); added++;
+      const k = key(rec);
+      if (seen.has(k)) { skipped++; continue; }   // сол нүкте қайта импортталмайды
+      seen.add(k); items.push(rec); added++;
     }
     this.writeImports(items);
     return { added, skipped };
@@ -136,14 +138,15 @@ class MarksStore {
     const items = this.load();
     const now = new Date().toISOString();
     let added = 0, updated = 0, skipped = 0;
+    const index = new Map(items.map((x, i) => [x.id, i]));
     for (const r of list) {
       let f;
       try { f = MarksStore.clean(r); } catch (e) { skipped++; continue; }
       const id = /^[0-9a-f]{16}$/.test(String(r.id || '')) ? String(r.id) : '';
-      const i = id ? items.findIndex(x => x.id === id) : -1;
+      const i = id && index.has(id) ? index.get(id) : -1;
       const rec = { id: id || crypto.randomBytes(8).toString('hex'), ...f,
         created_at: r.created_at || now, created_by: r.created_by || '', updated_at: r.updated_at || now, updated_by: r.updated_by || '' };
-      if (i < 0) { items.push(rec); added++; }
+      if (i < 0) { index.set(rec.id, items.length); items.push(rec); added++; }
       else if (String(rec.updated_at) > String(items[i].updated_at || '')) { items[i] = rec; updated++; }
     }
     this.write(items);
