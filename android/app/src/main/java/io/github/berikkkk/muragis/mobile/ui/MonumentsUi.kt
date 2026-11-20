@@ -257,8 +257,9 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
                     var periodFocused by remember { mutableStateOf(false) }
                     loc(R.string.f_period, m.period, { m = m.copy(period = it); periodLang = tab },
                         extra = Modifier.onFocusChanged { f -> if (periodFocused && !f.isFocused) m = synced(m); periodFocused = f.isFocused })
-                    if (periodLang != null) Periods.normalize(m.period[periodLang!!])?.let { (kk, ru) ->
-                        Text("$kk · $ru", style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
+                    // Танылса — екі тілдегі мәні алдын ала көрсетіледі (өрістен шыққанда не сақтағанда қойылады)
+                    periodLang?.let { pl -> Periods.sync(m.period, pl).takeIf { it != m.period } }?.let { p ->
+                        Text("${p.kk} · ${p.ru}", style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
                     }
                     RegionFields(m, tab, { m = it; vm.rememberOblast(it.oblast.kk) }) { lbl, v, set -> loc(lbl, v, set) }
                     loc(R.string.f_place, m.place, { m = m.copy(place = it) }, 2)

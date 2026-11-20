@@ -45,8 +45,49 @@ class RegionsAndPeriodTest {
         assertEquals(Localized("1967 жыл", "1967 год"), Periods.sync(Localized("1967", ""), Lang.KK))
         assertEquals(Localized("1967 жыл", "1967 год"), Periods.sync(Localized("", "1967 г."), Lang.RU))
         assertEquals(Localized("1941–1945 жж.", "1941–1945 гг."), Periods.sync(Localized("1941-1945", "x"), Lang.KK))
-        // Мәтін — өзгермейді
-        val t = Localized("Қола дәуірі", "Бронзовый век")
-        assertEquals(t, Periods.sync(t, Lang.KK))
+    }
+
+    private fun kk2ru(s: String) = Periods.translate(s, Lang.KK)
+    private fun ru2kk(s: String) = Periods.translate(s, Lang.RU)
+
+    @Test fun epochsTranslateBothWays() {
+        assertEquals("Каменный век", kk2ru("Тас дәуірі"))
+        assertEquals("Эпоха бронзы", kk2ru("Қола дәуірі"))
+        assertEquals("Эпоха раннего железа", kk2ru("Ерте темір дәуірі"))
+        assertEquals("Эпоха средневековья", kk2ru("Орта ғасыр дәуірі"))
+        assertEquals("Ерте темір дәуірі", ru2kk("Эпоха раннего железа"))
+        assertEquals("тас дәуірі", ru2kk("каменный век"))
+        assertEquals("Орта ғасыр дәуірі", ru2kk("Эпоха средневековья"))
+    }
+
+    @Test fun centuriesWithCasesAndRomanInAnyAlphabet() {
+        assertEquals("XX век", kk2ru("XX ғасыр"))
+        assertEquals("ХХ век", kk2ru("ХХ ғасыр"))                       // кириллица Х
+        assertEquals("начало XX века", kk2ru("XX ғасырдың басы"))
+        assertEquals("середина ХХ века", kk2ru("ХХ ғасырдың ортасы"))
+        assertEquals("конец XIX века", kk2ru("XIX ғасырдың соңы"))
+        assertEquals("вторая половина XIX века", kk2ru("XIX ғасырдың екінші жартысы"))
+        assertEquals("XVII–XIX века", kk2ru("XVII-XIX ғасырлар"))
+        assertEquals("конец XVII–XIX веков", kk2ru("XVII–XIX ғасырлардың соңы"))
+        assertEquals("VII–IV века до н. э.", kk2ru("б.з.б. VII–IV ғасырлар"))
+        assertEquals("ІҮ в.", kk2ru("ІҮ ғ."))                           // ІҮ = IV (кириллица)
+        assertEquals("XX ғасырдың басы", ru2kk("начало XX века"))
+        assertEquals("XX ғасырдың соңы", ru2kk("в конце XX века"))
+        assertEquals("б.з.б. VII–IV ғасырлар", ru2kk("VII–IV века до н. э."))
+        assertEquals("XIX ғ.", ru2kk("XIX в."))
+        assertEquals("Ерте темір дәуірі, б.з.б. V ғасыр", ru2kk("Эпоха раннего железа, V век до н. э."))
+        assertEquals("конец XIX века – начало XX века", kk2ru("XIX ғасырдың соңы – XX ғасырдың басы"))
+        assertNull(kk2ru("Сүткент қорымы"))
+        assertNull(kk2ru("СМ ғасыр"))                                    // рим цифры емес
+    }
+
+    @Test fun syncKeepsManualTranslation() {
+        assertEquals(Localized("Қола дәуірі", "Эпоха бронзы"), Periods.sync(Localized("Қола дәуірі", ""), Lang.KK))
+        // Орысшасы қолмен жазылған (танылмайды) — өзгермейді
+        val manual = Localized("Қола дәуірі", "андроновская культура")
+        assertEquals(manual, Periods.sync(manual, Lang.KK))
+        // Танылатын ескі аударма жаңарады
+        assertEquals(Localized("XX ғасыр", "XX век"), Periods.sync(Localized("XX ғасыр", "XIX век"), Lang.KK))
+        assertEquals(Localized("начало XX века", "начало XX века").copy(kk = "XX ғасырдың басы"), Periods.sync(Localized("", "начало XX века"), Lang.RU))
     }
 }
