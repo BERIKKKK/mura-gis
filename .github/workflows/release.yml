@@ -1,6 +1,7 @@
 # Mura GIS: Windows нұсқасын құрастырып, GitHub Releases бетіне жариялау.
 # Іске қосылуы: v* тегі жіберілгенде (мыс. git tag v1.2.0 && git push origin v1.2.0)
-# не Actions бетінен қолмен (Run workflow — бар тегті көрсетіп).
+# не Actions бетінен қолмен (Run workflow): таңдалған тармақтан (әдетте main) құрастырылады; тег әлі жоқ болса,
+# релизбен бірге GitHub өзі жасайды (тармақтың соңғы коммитіне).
 # electron-builder орнатқыш (NSIS), портативті нұсқа және автоматты жаңартуға керек latest.yml файлын жүктейді.
 name: Release
 
@@ -10,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Жарияланатын тег (мыс. v1.2.0)'
+        description: 'Жарияланатын нұсқа тегі (мыс. v1.2.0) — package.json нұсқасымен сәйкес болуы керек'
         required: true
 
 permissions:
@@ -27,8 +28,6 @@ jobs:
       TAG: ${{ github.event.inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ env.TAG }}
 
       - uses: actions/setup-node@v4
         with:
