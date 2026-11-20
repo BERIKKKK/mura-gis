@@ -1,6 +1,8 @@
 /* Сақталған қорғау аймақтары — ашық жобаның (.gpkg) zones қабаты (main/gpkg.js).
    Клиенттік код (src/qorgau/app.js) POST сұранысын жібереді:
-     mura://app/api?v=1&op=list|save|delete  (FormData: data / id)
+     mura://app/api?v=1&op=list|save|delete|add|patch  (FormData: data / id)
+     patch — белгілермен синхрондау: data = [{ id, fields: {…өзгерген өрістер}, mark_id? }] — бар жазбаларға қосылады.
+   mark_id — байланысқан ескерткіш белгісінің id-і (marks қабаты), міндетті емес.
    Жауап пішімі: { ok, items, id, error }. */
 const os = require('node:os');
 const crypto = require('node:crypto');
@@ -58,15 +60,50 @@ class Store {
     const i = id ? items.findIndex(x => x.id === id) : -1;
     const old = i >= 0 ? items[i] : null;
     if (!old) id = crypto.randomBytes(8).toString('hex');
-    const rec = {
+    const markId = 'mark_id' in d ? Store.markId(d.mark_id) : (old?.mark_id || '');   // өріс жіберілмесе — бұрынғы байланыс сақталады
+    items[i >= 0 ? i : items.length] = Store.record(id, fields, pts, custom, markId, old, now, user);
+    this.write(items);
+    return id;
+  }
+
+  static markId(v) {
+    return /^[0-9a-f]{16}$/.test(String(v || '')) ? String(v) : '';
+  }
+
+  static record(id, fields, pts, custom, markId, old, now, user) {
+    return {
       id, name: fields.name || fields.name_ru, name_ru: fields.name_ru, district: fields.district, fields, pts,
-      ...(custom ? { custom } : {}),
+      ...(custom ? { custom } : {}), ...(markId ? { mark_id: markId } : {}),
       created_at: old?.created_at || now, created_by: old?.created_by || user,
       updated_at: now, updated_by: user,
     };
-    if (old) items[i] = rec; else items.push(rec);
-    this.write(items);
-    return id;
+  }
+
+  /** Белгілермен синхрондау: бар жазбалардың берілген өрістерін ауыстыру (басқалары өзгермейді), бәрі бір рет жазылады. */
+  patchMany(raw) {
+    let list;
+    try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
+    if (!Array.isArray(list)) throw new Error(tx('Жазбалар тізімі оқылмады.', 'Не удалось прочитать список записей.'));
+    const items = this.load();
+    const index = new Map(items.map((x, i) => [x.id, i]));
+    const now = new Date().toISOString();
+    const user = (() => { try { return os.userInfo().username; } catch (e) { return ''; } })();
+    let updated = 0;
+    const errors = [];
+    for (const p of list) {
+      const i = p && index.has(String(p.id)) ? index.get(String(p.id)) : -1;
+      if (i < 0) { errors.push(tx('Жазба табылмады: ', 'Запись не найдена: ') + String(p && p.id)); continue; }
+      const old = items[i];
+      try {
+        const patch = p.fields && typeof p.fields === 'object' ? p.fields : {};
+        const { fields, pts, custom } = Store.clean({ fields: { ...(old.fields || {}), ...patch }, pts: old.pts, custom: old.custom });
+        const markId = 'mark_id' in p ? Store.markId(p.mark_id) : (old.mark_id || '');
+        items[i] = Store.record(old.id, fields, pts, custom, markId, old, now, user);
+        updated++;
+      } catch (e) { errors.push((old.name || old.id) + ': ' + e.message); }
+    }
+    if (updated) this.write(items);
+    return { updated, skipped: errors.length, errors: errors.slice(0, 50) };
   }
 
   /** Жаңа жазбалар тізімін қосу (GeoPackage импорты): әрқайсысы тексеріледі, бәрі бір рет жазылады. */
@@ -151,6 +188,7 @@ class Store {
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
       if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, items: this.list() }); }
       if (op === 'add') { const r = this.addMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
+      if (op === 'patch') { const r = this.patchMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
       return out({ ok: false, error: tx('Белгісіз әрекет.', 'Неизвестное действие.') });
     } catch (e) {
       return out({ ok: false, error: e.message || String(e) });

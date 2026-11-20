@@ -140,6 +140,7 @@ document.documentElement.classList.add('qa-full');
   .qa-badge{display:inline-block;font-size:11px;font-weight:600;border-radius:10px;padding:1px 7px;margin-left:4px;vertical-align:1px}
   .qa-cur{background:var(--steppe);color:#fff}
   .qa-ap{background:var(--paper2);color:var(--steppe)}
+  .qa-mk{border:1px solid var(--steppe);color:var(--steppe);cursor:help}
   .qa-empty{padding:18px 6px;text-align:center;color:var(--soft);font-size:13px}
   .qa-combine{width:100%}
   .qa-combine > summary{cursor:pointer;font-weight:600;font-size:13px;padding:2px 0}
@@ -409,6 +410,7 @@ document.documentElement.classList.add('qa-full');
       </div>
       <footer class="qa-df">
         <button type="button" class="btn btn--ghost btn--sm" id="qaSavedImport" title="GeoJSON не ZIP файлынан қорғау аймақтарын тізімге қосу — файлдағы барлық ескерткіш">GeoJSON импорттау</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="qaSyncMarks" title="Аймақтар мен ескерткіш белгілерінің ортақ мәліметтерін (атауы, мерзімі, облыс, аудан, орналасқан жері, түрі) екі жаққа синхрондау; белгісі жоқ аймаққа белгі жасалады">Белгілермен синхрондау</button>
         <button type="button" class="btn btn--steppe btn--sm" id="qaCombGeo" disabled title="Таңдалғандар: бір GeoJSON және QGIS стилі (.qml) — ZIP">GeoJSON + QML</button>
         <button type="button" class="btn btn--primary btn--sm" id="qaCombine" disabled>DOCX біріктіру</button>
         <details class="qa-combine">

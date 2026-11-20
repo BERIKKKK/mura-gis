@@ -143,6 +143,8 @@ function openDialog() {
   // Белгіленген ескерткішті таңдау: мәліметтер белгіден толтырылады
   const near = marksNear();
   let pre = pendingMark && near.find(x => x.m.id === pendingMark);
+  const linked = !pre && QA.state.markId ? near.find(x => x.m.id === QA.state.markId) : null;   // бұрын байланысқан белгі — тек таңдалады
+  if (linked) pre = linked;
   const curName = $('qaName').value.trim() || ($('qaNameRu') ? $('qaNameRu').value.trim() : '');
   let auto = false;
   if (!pre && curName) pre = near.find(x => x.m.name === curName || x.m.name_ru === curName);                    // атауы сәйкес белгі — тек таңдалады
@@ -150,16 +152,18 @@ function openDialog() {
   if (near.length) {
     const box = document.createElement('section');
     box.className = 'qa-sec zd-mark';
-    box.innerHTML = '<div class="qa-f"><label for="zdMark">Белгіленген ескерткіш <small class="mk-law">(мәліметтер белгіден алынады)</small></label><select id="zdMark"><option value="">— таңдалмаған —</option>' +
+    box.innerHTML = '<div class="qa-f"><label for="zdMark">Белгіленген ескерткіш <small class="mk-law">(мәліметтер белгіден алынады, сақтағанда белгі де жаңарады)</small></label><select id="zdMark"><option value="">— таңдалмаған —</option>' +
       near.map(x => '<option value="' + escapeHtml(x.m.id) + '"' + (pre && pre.m.id === x.m.id ? ' selected' : '') + '>' + escapeHtml(nmOf(x.m)) +
         (x.m.district ? ' — ' + escapeHtml(REG ? REG.show(x.m.district, x.m.oblast) : x.m.district) : '') + (x.in ? tx(' · шекара ішінде', ' · внутри границы') : x.d < Infinity ? ' · ' + fmtD(x.d) : '') + '</option>').join('') +
       '</select><p class="qa-hint" id="zdMarkHint" hidden></p></div>';
     body.appendChild(box);
     box.querySelector('select').addEventListener('change', e => {
       const m = marks().find(x => x.id === e.target.value);
+      QA.state.markId = m ? m.id : null;           // байланыс: сақтағанда аймақтың мәліметтері осы белгіге де жазылады
       const h = box.querySelector('#zdMarkHint');
       if (m) { fillFromMark(m); h.textContent = tx('Мәліметтер «' + nmOf(m) + '» белгісінен толтырылды — қажет болса түзетіңіз.', 'Сведения заполнены из метки «' + nmOf(m) + '» — при необходимости исправьте.'); h.hidden = false; }
     });
+    if (pre) QA.state.markId = pre.m.id;
     if (pre && (auto || pendingMark === pre.m.id)) {
       fillFromMark(pre.m);
       const h = box.querySelector('#zdMarkHint');

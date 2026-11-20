@@ -98,9 +98,11 @@ const LAYERS = {
   zones: {
     title: 'Қорғау аймақтары / Охранные зоны', desc: 'Ескерткіштердің қорғау аймақтарының шекаралары / Границы охранных зон памятников (Mura GIS)', geom: 'POLYGON',
     // fields.* — «Мәліметтер» панелінің өрістері; desc бағаны SQL кілт сөзімен шатаспас үшін description
-    cols: ['name', 'name_ru', 'gen', 'gen_ru', 'period', 'period_ru', 'oblast', 'district', 'place', 'place_ru', 'description', 'description_ru', 'type', 'height', 'd1', 'd2', 'd3', 'created_at', 'created_by', 'updated_at', 'updated_by'],
-    get: (r, c) => (/_(at|by)$/.test(c) ? r[c] : (r.fields || {})[c.replace(/^description/, 'desc')] ?? (c === 'name' ? r.name : undefined)),
+    // mark_id — байланысқан белгінің id-і (QGIS-те marks.uid = zones.mark_id байланысы)
+    cols: ['name', 'name_ru', 'gen', 'gen_ru', 'period', 'period_ru', 'oblast', 'district', 'place', 'place_ru', 'description', 'description_ru', 'type', 'height', 'd1', 'd2', 'd3', 'mark_id', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    get: (r, c) => (/_(at|by|id)$/.test(c) ? r[c] : (r.fields || {})[c.replace(/^description/, 'desc')] ?? (c === 'name' ? r.name : undefined)),
     set: (r, c, v) => {
+      if (c === 'mark_id') { if (v) r.mark_id = v; else delete r.mark_id; return; }
       if (/_(at|by)$/.test(c)) { r[c] = v; return; }
       r.fields = r.fields || {};
       r.fields[c.replace(/^description/, 'desc')] = v;

@@ -271,7 +271,7 @@ export function computeZones(pts, dists, custom) {
 }
 
 /* ======================= Күй ======================= */
-const state = { pts: [], custom: null, add: false, loadedId: null, loadedName: '' };   // loadedId — ашық тұрған сақталған жазба
+const state = { pts: [], custom: null, add: false, loadedId: null, loadedName: '', markId: null };   // loadedId — ашық тұрған сақталған жазба, markId — байланысқан белгі
 let R = null;
 let genTouched = false, genRuTouched = false;
 
@@ -290,7 +290,7 @@ const missingIn = (f, l) => (I18N.missing ? I18N.missing(f, ['name', 'place', 'd
 
 function save() {
   try {
-    const o = { pts: state.pts, custom: state.custom, genTouched, genRuTouched, loadedId: state.loadedId, loadedName: state.loadedName, f: {} };
+    const o = { pts: state.pts, custom: state.custom, genTouched, genRuTouched, loadedId: state.loadedId, loadedName: state.loadedName, markId: state.markId, f: {} };
     for (const k of FIELD_KEYS) o.f[k] = F[k].value;
     localStorage.setItem(STORE_KEY, JSON.stringify(o));
   } catch (e) { /* жеке режим т.б. — елемейміз */ }
@@ -305,6 +305,7 @@ function load() {
     genTouched = !!o.genTouched; genRuTouched = !!o.genRuTouched;
     state.loadedId = typeof o.loadedId === 'string' ? o.loadedId : null;
     state.loadedName = typeof o.loadedName === 'string' ? o.loadedName : '';
+    state.markId = typeof o.markId === 'string' ? o.markId : null;
     return true;
   } catch (e) { return false; }
 }
@@ -1838,7 +1839,7 @@ function importDialog(mons, fileName) {
       const m = mons[+o.dataset.open];
       if (isDirty() && !(await ask(tx('Ағымдағы сақталмаған өзгерістер «' + (m.name || 'ескерткіш') + '» нүктелерімен ауыстырылады. Жалғастырасыз ба?', 'Текущие несохранённые изменения будут заменены точками «' + (m.name || 'памятник') + '». Продолжить?'), { ok: tx('Ашу', 'Открыть') }))) return;
       done();
-      state.loadedId = null; state.loadedName = ''; cleanSig = null;
+      state.loadedId = null; state.loadedName = ''; state.markId = null; cleanSig = null;
       for (const k of FIELD_KEYS) if (!['oblast', 'type', 'height', 'd1', 'd2', 'd3'].includes(k)) F[k].value = '';
       genTouched = false; genRuTouched = false;
       loadImported(m);
@@ -2047,7 +2048,7 @@ function resetAll() {
   for (const k of FIELD_KEYS) F[k].value = DEFAULTS[k];
   genTouched = false;
   state.pts = []; state.custom = null;
-  state.loadedId = null; state.loadedName = '';
+  state.loadedId = null; state.loadedName = ''; state.markId = null;
   for (const id of ['qaPasteText', 'qaInLat', 'qaInLon']) $(id).value = '';
   $('qaPasteErr').textContent = '';
   $('qaInLatOk').innerHTML = ''; $('qaInLonOk').innerHTML = '';
@@ -2143,7 +2144,7 @@ function renderSaved() {
         '<input type="checkbox" data-sel="' + id + '"' + (selected.has(r.id) ? ' checked' : '') + ' aria-label="' + nm + tx(' — экспортқа таңдау', ' — выбрать для экспорта') + '">' +
         '<div class="qa-sc-main">' +
         '<button type="button" class="qa-sc-title" data-show="' + id + '" title="Картадан көрсету">' + nm + '</button>' +
-        (cur ? '<span class="qa-badge qa-cur">ашық</span>' : '') + (ap ? '<span class="qa-badge qa-ap">' + ap + '</span>' : '') +
+        (cur ? '<span class="qa-badge qa-cur">ашық</span>' : '') + (linkedMark(r) ? '<span class="qa-badge qa-mk" title="' + esc(tx('Белгімен байланысқан: атауы, мерзімі, орналасқан жері т.б. екеуінде бірдей сақталады', 'Связана с меткой: наименование, датировка, местонахождение и др. синхронизируются')) + '">' + tx('белгі', 'метка') + '</span>' : '') + (ap ? '<span class="qa-badge qa-ap">' + ap + '</span>' : '') +
         '<div class="qa-sc-meta">' + esc(meta) + '</div>' +
         '<div class="qa-sc-meta">' + esc(zone) + '</div>' +
         (desc ? '<p class="qa-sc-desc">' + esc(desc) + '</p>' : '') + legal +
@@ -2208,16 +2209,165 @@ async function saveRecord(asNew) {
   btns.forEach(b => { b.disabled = true; });
   sb.classList.add('is-busy'); sb.setAttribute('aria-busy', 'true');
   try {
-    const j = await api('save', { data: JSON.stringify({ id, fields: fieldValues(), pts: state.pts, custom: state.custom }) });
+    const j = await api('save', { data: JSON.stringify({ id, fields: fieldValues(), pts: state.pts, custom: state.custom, mark_id: state.markId || '' }) });
     saved = j.items || saved; savedLoaded = true;
     state.loadedId = j.id; state.loadedName = recName({ fields: fieldValues() });
     save(); markClean(); renderSaved();
-    toast(id ? tx('Өзгерістер сақталды.', 'Изменения сохранены.') : tx('Аймақ сақталды.', 'Зона сохранена.'));
+    let synced = '';                               // байланысқан белгі де жаңарады (атауы, мерзімі, орналасқан жері т.б.)
+    try { if (await pushToMark(saved.find(r => r.id === j.id))) synced = tx(' Белгі де жаңартылды.', ' Метка тоже обновлена.'); }
+    catch (e) { synced = tx(' Белгі жаңартылмады: ', ' Метка не обновлена: ') + e.message; }
+    toast((id ? tx('Өзгерістер сақталды.', 'Изменения сохранены.') : tx('Аймақ сақталды.', 'Зона сохранена.')) + synced);
   } catch (e) { toast(tx('Сақталмады: ', 'Не сохранено: ') + e.message, true); }
   finally { btns.forEach(b => { b.disabled = false; }); sb.classList.remove('is-busy'); sb.removeAttribute('aria-busy'); }
 }
 $('qaSave').addEventListener('click', () => saveRecord(false));
 $('qaSaveNew').addEventListener('click', () => saveRecord(true));
+
+/* ======================= Белгілермен синхрондау =======================
+   Қорғау аймағы белгіге mark_id арқылы байланысады (zone-dialog.js: «Белгіленген ескерткіш» таңдауы). Ортақ өрістер —
+   атауы, мерзімі, облыс, аудан, орналасқан жері (екі тілде) және түрі — бір жерде өзгерсе, екіншісінде де жаңарады:
+   аймақ сақталғанда → белгі (pushToMark), белгі сақталғанда → оған байланысқан аймақтар (syncFromMark).
+   Әр модуль өз деректерін өз протоколымен жазады (mura://app/marks?op=patch, mura://app/api?op=patch).
+   Толтырылған өріс бос мәнмен ешқашан өшірілмейді. «Белгілермен синхрондау» (syncAllMarks) — бұрынғы жазбалар үшін. */
+const SYNC_KEYS = ['name', 'name_ru', 'period', 'period_ru', 'oblast', 'district', 'place', 'place_ru'];
+const MARK_TYPES = ['archeo', 'arch', 'ensemble', 'sacred', 'art'];
+const marksMod = () => globalThis.__marks || null;
+const linkedMark = r => (r && r.mark_id && marksMod() ? (marksMod().items || []).find(m => m.id === r.mark_id) || null : null);
+const trimS = v => String(v ?? '').trim();
+
+/** Аймақ өрістері (f) мен белгі (m) айырмашылығы: zp — аймаққа, mp — белгіге жазылатын өрістер (жоқ болса — null).
+    prefer — екеуі де толтырылып, мәні әртүрлі болғанда кімдікі қалады: 'zone' | 'mark'. */
+function syncDiff(f, m, prefer) {
+  const zp = {}, mp = {};
+  for (const k of SYNC_KEYS) {
+    const zv = trimS(f[k]), mv = trimS(m[k]);
+    if (zv === mv) continue;
+    if (!mv || (zv && prefer === 'zone')) mp[k] = zv; else zp[k] = mv;
+  }
+  if (f.type !== m.type) {
+    const d = f.type !== 'custom' && MARK_TYPES.includes(m.type) ? legalDistance({ type: m.type, height: f.height }) : null;
+    if (MARK_TYPES.includes(f.type) && prefer === 'zone') mp.type = f.type;
+    else if (d) { zp.type = m.type; zp.d1 = zp.d2 = zp.d3 = String(d); }   // түрі өзгерсе — аймақ қашықтықтары ережеге сай (UI-дағыдай)
+  }
+  // Ілік септігі атаудан жасалған болса — жаңа атаудан қайта құрастырылады
+  if ('name' in zp && (!trimS(f.gen) || trimS(f.gen) === genitive(trimS(f.name)))) zp.gen = zp.name ? genitive(zp.name) : '';
+  if ('name_ru' in zp && (!trimS(f.gen_ru) || trimS(f.gen_ru) === genitiveRu(trimS(f.name_ru)))) zp.gen_ru = zp.name_ru ? genitiveRu(zp.name_ru) : '';
+  return { zp: Object.keys(zp).length ? zp : null, mp: Object.keys(mp).length ? mp : null };
+}
+
+/** Сақталған аймақтың мәліметтерін байланысқан белгіге жазу; белгі жаңарса — true. */
+async function pushToMark(rec) {
+  const m = linkedMark(rec);
+  if (!m) return false;
+  const { mp } = syncDiff(rec.fields || {}, m, 'zone');
+  if (!mp) return false;
+  await marksMod().api('patch', { data: JSON.stringify([{ id: m.id, ...mp }]) });
+  return true;
+}
+
+/** Аймақтарға өзгерістерді жазу; ашық жазба өзгерсе — редактордағы өрістер де жаңарады (басқа сақталмаған өзгерістер қалады). */
+async function applyZonePatches(patches) {
+  const j = await api('patch', { data: JSON.stringify(patches) });
+  saved = j.items || saved; savedLoaded = true;
+  const mine = patches.find(p => p.id === state.loadedId);
+  const rec = mine && saved.find(r => r.id === state.loadedId);
+  if (rec) {
+    if ('mark_id' in mine) state.markId = rec.mark_id || null;
+    const f = mine.fields || {};
+    for (const k of FIELD_KEYS) if (k in f) F[k].value = f[k];   // FIELD_KEYS ретімен: облыс — ауданнан бұрын
+    if ('type' in f) applyRule(false);
+    if ('name' in f || 'name_ru' in f) state.loadedName = recName(rec);
+    markClean(rec); save();
+    recompute(true);
+  }
+  renderSaved();
+  return j;
+}
+
+/** Белгі сақталғаннан кейін (marks.js): оған байланысқан аймақтарды жаңарту; жаңарған аймақтар саны. */
+async function syncFromMark(m) {
+  if (!m || !m.id) return 0;
+  if (!savedLoaded) await refreshSaved();
+  const patches = saved.filter(r => r.mark_id === m.id)
+    .map(r => ({ id: r.id, fields: syncDiff(r.fields || {}, m, 'mark').zp })).filter(p => p.fields);
+  if (!patches.length) return 0;
+  await applyZonePatches(patches);
+  return patches.length;
+}
+
+/** Аймақ шекарасының ортасы (көпбұрыштың ауырлық центрі; жіңішке болса — нүктелердің ортасы). */
+function ringCenter(pts) {
+  const P = (pts || []).map(p => ({ lat: +p.lat, lon: +p.lon })).filter(p => isFinite(p.lat) && isFinite(p.lon));
+  if (!P.length) return null;
+  let a = 0, x = 0, y = 0;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const c = P[j].lon * P[i].lat - P[i].lon * P[j].lat;
+    a += c; x += (P[j].lon + P[i].lon) * c; y += (P[j].lat + P[i].lat) * c;
+  }
+  if (Math.abs(a) < 1e-14) return { lat: P.reduce((s, p) => s + p.lat, 0) / P.length, lon: P.reduce((s, p) => s + p.lon, 0) / P.length };
+  return { lat: Math.round(y / (3 * a) * 1e8) / 1e8, lon: Math.round(x / (3 * a) * 1e8) / 1e8 };
+}
+const distLL = (a, b) => { const k = Math.PI / 180; return Math.hypot((b.lon - a.lon) * k * Math.cos((a.lat + b.lat) / 2 * k), (b.lat - a.lat) * k) * 6371008.8; };
+const normName = s => String(s || '').toLocaleLowerCase('kk').replace(/[«»"']/g, '').replace(/\s+/g, ' ').trim();
+const hex16 = () => [...crypto.getRandomValues(new Uint8Array(8))].map(b => b.toString(16).padStart(2, '0')).join('');
+const MATCH_M = 2000;                                // атауы бірдей белгі аймақтан осы қашықтықта болса — сол ескерткіш
+
+/** Барлық аймақ пен белгіні синхрондау: байланыспаған аймақ атауы бірдей, жақын тұрған белгімен байланысады
+    (табылмаса — шекараның ортасына жаңа белгі жасалады); айырмашылықтарда бос өріс толтырылады,
+    екеуі де толтырылған болса — соңғы өзгертілген жазбаның мәні алынады. Алдымен жоспар көрсетіледі. */
+async function syncAllMarks() {
+  const M = marksMod();
+  if (!M) { toast(tx('Белгілер модулі жүктелмеген.', 'Модуль меток не загружен.'), true); return; }
+  await refreshSaved();
+  const marks = M.items || [];
+  const byId = new Map(marks.map(m => [m.id, m]));
+  const byName = new Map();
+  for (const m of marks) for (const n of new Set([normName(m.name), normName(m.name_ru)])) if (n) (byName.get(n) || byName.set(n, []).get(n)).push(m);
+  const used = new Set(saved.map(r => r.mark_id).filter(id => byId.has(id)));
+  const zoneP = [], markP = new Map(), created = [];
+  let linked = 0;
+  for (const r of saved) {
+    const f = r.fields || {};
+    let m = r.mark_id ? byId.get(r.mark_id) : null, link = false;
+    if (!m) {
+      const c = ringCenter(r.pts);
+      if (!c) continue;
+      const cands = [...new Set([normName(f.name || r.name), normName(f.name_ru)].filter(Boolean).flatMap(n => byName.get(n) || []))]
+        .filter(x => !used.has(x.id)).map(x => ({ x, d: distLL(c, x) })).filter(o => o.d <= MATCH_M).sort((a, b) => a.d - b.d);
+      if (cands.length) { m = cands[0].x; linked++; }
+      else {
+        m = { id: hex16(), lat: c.lat, lon: c.lon, type: MARK_TYPES.includes(f.type) ? f.type : 'archeo', category: '', status: 'state' };
+        for (const k of SYNC_KEYS) m[k] = trimS(f[k]);
+        if (!m.name && !m.name_ru) m.name = trimS(r.name);
+        created.push(m);
+      }
+      used.add(m.id); link = true;
+    }
+    const isNew = created.includes(m);
+    const { zp, mp } = isNew ? {} : syncDiff(f, m, String(r.updated_at || '') >= String(m.updated_at || '') ? 'zone' : 'mark');
+    if (zp || link) zoneP.push({ id: r.id, ...(zp ? { fields: zp } : {}), ...(link ? { mark_id: m.id } : {}) });
+    if (mp) markP.set(m.id, { ...(markP.get(m.id) || { id: m.id }), ...mp });
+  }
+  const zUpd = zoneP.filter(p => p.fields).length;
+  if (!zoneP.length && !markP.size && !created.length) { toast(tx('Барлық аймақ белгілермен синхрондалған.', 'Все зоны уже синхронизированы с метками.')); return; }
+  const lines = [
+    linked && tx('белгімен байланыстырылады (атауы бірдей, ' + MATCH_M / 1000 + ' км ішінде): ' + linked + ' аймақ', 'зоны, связываемые с метками (то же наименование, в пределах ' + MATCH_M / 1000 + ' км): ' + linked),
+    created.length && tx('жаңа белгі жасалады (шекараның ортасына): ' + created.length, 'будут созданы новые метки (в центре границы): ' + created.length),
+    markP.size && tx('белгі жаңартылады: ' + markP.size, 'будут обновлены метки: ' + markP.size),
+    zUpd && tx('аймақ жаңартылады: ' + zUpd, 'будут обновлены зоны: ' + zUpd),
+  ].filter(Boolean);
+  const msg = tx('Синхрондау: ', 'Синхронизация: ') + lines.join('; ') + '. ' +
+    tx('Бос өріс екінші жазбадан толтырылады, мәндері әртүрлі болса — соңғы өзгертілгені алынады; толтырылған өріс өшірілмейді. Жалғастырасыз ба?',
+      'Пустые поля заполняются из второй записи, при разных значениях берётся последнее изменённое; заполненные поля не стираются. Продолжить?');
+  if (!(await ask(msg, { ok: tx('Синхрондау', 'Синхронизировать') }))) return;
+  try {
+    if (created.length || markP.size) await M.api('patch', { data: JSON.stringify([...created, ...markP.values()]) });
+    const j = zoneP.length ? await applyZonePatches(zoneP) : null;
+    const bad = j && j.skipped ? tx(' Өткізілді: ', ' Пропущено: ') + j.skipped + (j.errors && j.errors[0] ? ' (' + j.errors[0] + ')' : '') : '';
+    toast(tx('Синхрондалды: ', 'Синхронизировано: ') + lines.join('; ') + '.' + bad, !!bad);
+  } catch (e) { toast(tx('Синхрондалмады: ', 'Не синхронизировано: ') + e.message, true); }
+}
+$('qaSyncMarks')?.addEventListener('click', syncAllMarks);
 
 /* ---------- Сақталған аймақты картадан көрсету (ағымдағы жұмысты ауыстырмай) ---------- */
 let previewId = null;
@@ -2256,7 +2406,7 @@ function openRecord(rec) {
   if (!f.gen || !f.gen_ru) syncGen();
   state.pts = (rec.pts || []).map(p => ({ lat: +p.lat, lon: +p.lon }));
   state.custom = rec.custom && Array.isArray(rec.custom.rings) ? rec.custom : null;
-  state.loadedId = rec.id; state.loadedName = recName(rec);
+  state.loadedId = rec.id; state.loadedName = recName(rec); state.markId = rec.mark_id || null;
   $('qaHeightWrap').hidden = !['arch', 'art', 'sacred'].includes(F.type.value);
   $('qaRuleText').textContent = ruleDistance().text;
   clearPreview();
@@ -2397,4 +2547,4 @@ paintLoaded();
 refreshSaved();
 
 // Тест/жөндеу үшін
-globalThis.__qa = { rectangle, computeZones, parseZonesGeojson, checkLegal, legalLines, legalDistance, refreshSaved, genitive, state, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };
+globalThis.__qa = { rectangle, computeZones, parseZonesGeojson, checkLegal, legalLines, legalDistance, refreshSaved, genitive, state, syncFromMark, syncAllMarks, syncDiff, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };
