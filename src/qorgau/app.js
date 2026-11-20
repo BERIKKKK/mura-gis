@@ -10,6 +10,7 @@
    Өлшеу құралдары: азимут көрсеткіші, қабырғаны дәл бұрышқа (45°, 90° т.б.) туралау, сызықтарға
    магниттелетін перпендикуляр сызғыш, циркуль. Бәрі браузерде жүреді. */
 import { compareNames, matchesText } from '../marks/sort.js';
+import { bindPeriodSync } from '../marks/periods.js';
 
 const L = globalThis.L;
 const $ = id => document.getElementById(id);
@@ -284,6 +285,8 @@ for (const [k, ph] of [['name', 'Например: Могильник Домба
   ['place', 'на верхнем правом берегу ручья Егинды, в 15,8 километрах к западу от села Кос Естек'], ['desc', 'Могильник состоит из пяти курганов и двадцати семи каменных оградок…']]) {
   F[k + '_ru'] = I18N.biPair ? I18N.biPair(F[k], ph) : Object.assign(document.createElement('input'), { hidden: true });
 }
+// Мерзім екі тілде синхрондалады (жыл, ғасыр, дәуір — marks/periods.js; ескерткіш белгісінің терезесімен бірдей)
+bindPeriodSync(F.period, F.period_ru);
 const FIELD_KEYS = Object.keys(F);
 /** Өрістердің құжат тіліндегі мәні бос па (экспорт алдындағы ескерту үшін). */
 const missingIn = (f, l) => (I18N.missing ? I18N.missing(f, ['name', 'place', 'desc'], l) : []);
