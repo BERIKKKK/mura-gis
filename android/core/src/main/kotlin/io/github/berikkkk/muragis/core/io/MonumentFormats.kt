@@ -110,8 +110,17 @@ object MonumentGeoJson {
     fun fromProperties(p: JsonObject, lat: Double, lon: Double, importLang: Lang, featureId: String? = null): ImportedMonument {
         val hasKk = MONUMENT_TEXT_FIELDS.any { p.containsKey(it.first + "_kk") }
         val hasRu = MONUMENT_TEXT_FIELDS.any { p.containsKey(it.first + "_ru") }
-        val langs = buildSet { if (hasKk) add(Lang.KK); if (hasRu) add(Lang.RU); if (isEmpty()) add(importLang) }
+        // Жұмыс үстелі (1.3.2+) экспорты: name, period… — қазақша, name_ru… — орысша (_kk өрістері жоқ).
+        // Орысша мәтін тек толтырылған болса ғана есептеледі — бос _ru жергілікті орысша мәтінді өшірмеуі керек.
+        val desktopBi = !hasKk && hasRu
+        val ruFilled = MONUMENT_TEXT_FIELDS.any { !p.str(it.first + "_ru").isNullOrBlank() }
+        val langs = buildSet {
+            if (desktopBi) { add(Lang.KK); if (ruFilled) add(Lang.RU) }
+            else { if (hasKk) add(Lang.KK); if (hasRu) add(Lang.RU) }
+            if (isEmpty()) add(importLang)
+        }
         fun loc(key: String, vararg alt: String): Localized {
+            if (desktopBi) return Localized(p.pick(key, *alt).trim(), p.str(key + "_ru")?.trim() ?: "")
             if (hasKk || hasRu) return Localized(p.str(key + "_kk")?.trim() ?: "", p.str(key + "_ru")?.trim() ?: "")
             return Localized.of(importLang, p.pick(key, *alt))
         }
