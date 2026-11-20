@@ -1,5 +1,5 @@
 /* Өнімділік тесті: 10 000 белгі және 10 000 импортталған нүкте — жүктелу, масштабтау, панель, іздеу уақыты.
-   Іске қосу: npx electron scripts/smoke-perf.js [N]   (деректер уақытша қалтада) */
+   Іске қосу: npx electron scripts/smoke-perf.js [N]   (деректер уақытша .gpkg жобасында) */
 const { app } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -8,20 +8,20 @@ const os = require('node:os');
 const N = Number(process.argv.find(a => /^\d+$/.test(a))) || 10000;
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mura-perf-'));
 app.setPath('userData', tmp);
-const dir = path.join(tmp, 'data');
-fs.mkdirSync(dir, { recursive: true });
+// Жоба — уақытша .gpkg (бастапқы терезесіз бірден ашылады); деректер бет жүктелген соң API арқылы толтырылады
+process.env.MURA_PROJECT = path.join(tmp, 'perf.gpkg');
 const R = ['I', 'II', 'ІІІ', 'ІҮ', 'V', 'VI', 'Х', 'ХІ'];
 const TY = ['archeo', 'arch', 'ensemble', 'sacred', 'art'], CA = ['intl', 'rep', 'local', ''], ST = ['state', 'prelim', 'archreg', 'excluded'];
 const rnd = (i, k) => ((Math.sin(i * 12.9898 + k * 78.233) * 43758.5453) % 1 + 1) % 1;
 const hex = i => i.toString(16).padStart(16, '0');
-fs.writeFileSync(path.join(dir, 'marks.json'), JSON.stringify(Array.from({ length: N }, (_, i) => ({
+const MARKS = JSON.stringify(Array.from({ length: N }, (_, i) => ({
   id: hex(i + 1), name: 'Қабантау-' + R[i % 8] + ' қорғаны ' + (i % 997), period: 'ерте темір дәуірі', oblast: 'Ақтөбе облысы', district: 'Аудан ' + (i % 13),
   place: 'Ауылдан ' + (i % 40) + ' км', type: TY[i % 5], category: CA[i % 4], status: ST[i % 4], note: '',
   lat: 46 + rnd(i, 1) * 5, lon: 54 + rnd(i, 2) * 8, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z',
-}))));
-fs.writeFileSync(path.join(dir, 'imports.json'), JSON.stringify(Array.from({ length: N }, (_, i) => ({
+})));
+const IMPORTS = JSON.stringify(Array.from({ length: N }, (_, i) => ({
   id: hex(1e9 + i), name: 'WP' + i, desc: '', file: 'big.kml', folder: '', lat: 46 + rnd(i, 3) * 5, lon: 54 + rnd(i, 4) * 8, imported_at: '2026-01-01T00:00:00Z',
-}))));
+})));
 
 const errors = [];
 let t0 = 0;
@@ -30,14 +30,17 @@ app.on('browser-window-created', (_e, win) => {
   if (errors.started) return;
   errors.started = true;
   t0 = Date.now();
-  win.webContents.once('did-finish-load', () => run(win).catch(e => { console.error('FAIL', e); app.exit(1); }));
+  win.webContents.once('did-finish-load', () => setTimeout(() => run(win).catch(e => { console.error('FAIL', e); app.exit(1); }), 3500));
 });
 
 async function run(win) {
   const js = s => win.webContents.executeJavaScript(s, true);
   const r = await js(`(async () => {
     const out = {}, wait = t => new Promise(r => setTimeout(r, t)), frame = () => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    while (!window.__marks) await wait(20);
     const t = performance.now();
+    await __marks.api('import', { data: ${JSON.stringify(MARKS)} });
+    await __marks.api('iadd', { data: ${JSON.stringify(IMPORTS)} });
     while (!(window.__marks && __marks.items.length >= ${N} && __marks.imports.length >= ${N})) await wait(20);
     await frame();
     out.loadMs = Math.round(performance.now() - t);
