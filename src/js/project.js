@@ -238,6 +238,7 @@
         (cur ? '<form class="mura-pane" data-pane="project" id="muraSetForm" novalidate>' +
           metaFields('muraSet', cur) +
           '<div class="mura-set-file"><span>Жоба файлы:</span> <code>' + esc(cur.path) + '</code> <button type="button" class="lnk" id="muraReveal">Қалтасын ашу</button></div>' +
+          '<div class="mura-set-file"><span>Бөтен GeoPackage деректері:</span> <button type="button" class="lnk" id="muraImpGpkg">GeoPackage-тен импорттау… (Ctrl+I)</button></div>' +
           '<p class="mura-hint">Деректер: ' + esc(cur.counts ? [cur.counts.marks + ' ескерткіш', cur.counts.zones + ' қорғау аймағы', cur.counts.routes + ' маршрут'].join(', ') : '') + '. ' +
             'Облыс не аудан өзгерсе, бұрын сақталған жазбалар өзгермейді — тек жаңа жазбалардың әдепкі мәні.</p>' +
           '<p class="mura-err" id="muraSetErr" role="alert" hidden></p>' +
@@ -260,6 +261,7 @@
       var f = $('muraSetForm');
       bindMeta(f);
       $('muraReveal').addEventListener('click', function () { if (M.projectReveal) M.projectReveal(); });
+      $('muraImpGpkg').addEventListener('click', function () { closeSettings(); if (window.MuraGpkgImport) window.MuraGpkgImport.start(''); });
       f.addEventListener('submit', function (e) {
         e.preventDefault();
         var m = readMeta(f), er = $('muraSetErr');

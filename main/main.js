@@ -13,6 +13,7 @@ const { RoutesStore } = require('./routes');
 const { Projects } = require('./projects');
 const { noTable } = require('./gpkg');
 const { find: findRegion } = require('./regions');
+const gpkgRead = require('./gpkg-read');
 const updates = require('./updates');
 
 const SRC = path.join(__dirname, '..', 'src');
@@ -122,10 +123,40 @@ async function openProject(file) {
   }
   file = path.resolve(String(file));
   if (projects.current && projects.current.file === file) return ok({ path: file, same: true });
+  // Бөтен GeoPackage (Mura GIS жобасы емес): оның қабаттарын ашық жобаға импорттау ұсынылады — файлдың өзі өзгермейді
+  if (fs.existsSync(file) && !gpkgRead.isMuraProject(file)) {
+    const cur = !!projects.current;
+    const r = await dialog.showMessageBox(win, {
+      type: 'question', title: 'Бөтен GeoPackage',
+      message: path.basename(file) + ' — Mura GIS жобасы емес.',
+      detail: cur
+        ? 'Оның қабаттарын (ескерткіштер, ескерткіш аумақтары, қорғау аймақтары, маршруттар) ашық «' + projects.info().current.name + '» жобасына импорттауға болады: атрибуттар сәйкестендіріледі, аймақтар заңнамаға сәйкестігі тексеріледі. Файлдың өзі өзгермейді.'
+        : 'Деректерін алу үшін алдымен жаңа жоба құрып, «Файл → GeoPackage-тен импорттау» арқылы қабаттарын импорттаңыз (файлдың өзі өзгермейді). Не файлды жоба ретінде ашуға болады — оған Mura GIS қабаттары қосылады.',
+      buttons: cur ? ['Жобаға импорттау…', 'Жоба ретінде ашу', 'Бас тарту'] : ['Жоба ретінде ашу', 'Бас тарту'],
+      defaultId: 0, cancelId: cur ? 2 : 1, noLink: true,
+    });
+    if (cur && r.response === 0) { ui('import-gpkg\n' + file); return ok({ canceled: true, importing: true }); }
+    if (r.response !== (cur ? 1 : 0)) return ok({ canceled: true });
+  }
   projects.open(file);
   afterSwitch();
   return ok({ path: file });
 }
+/** GeoPackage импорты: файлды таңдау (берілмесе) және оқу — қабаттар, атрибуттар, WGS 84 геометриясы. */
+ipcMain.handle('mura:gpkg-inspect', guard(async file => {
+  if (!file) {
+    const r = await dialog.showOpenDialog(win, {
+      title: 'GeoPackage-тен импорттау', properties: ['openFile'],
+      defaultPath: projects.current ? path.dirname(projects.current.file) : app.getPath('documents'),
+      filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }, { name: 'Барлық файлдар', extensions: ['*'] }],
+    });
+    if (r.canceled || !r.filePaths[0]) return ok({ canceled: true });
+    file = r.filePaths[0];
+  }
+  file = path.resolve(String(file));
+  if (projects.current && projects.current.file === file) throw new Error('Бұл — ашық жобаның өз файлы.');
+  return ok({ data: gpkgRead.inspect(file) });
+}));
 ipcMain.handle('mura:project-new', guard((meta, opts) => newProject(meta, opts)));
 ipcMain.handle('mura:project-open', guard(file => openProject(file)));
 ipcMain.handle('mura:project-settings', guard(meta => {
@@ -213,6 +244,7 @@ function buildMenu() {
         { label: 'Жоба қалтасын ашу', enabled: !!(projects && projects.current), click: () => shell.showItemInFolder(projects.current.file) },
         { label: 'Жобаны жабу', enabled: !!(projects && projects.current), click: () => { projects.close(); afterSwitch(); } },
         { type: 'separator' },
+        { label: 'GeoPackage-тен импорттау…', accelerator: 'CmdOrCtrl+I', enabled: !!(projects && projects.current), click: () => ui('import-gpkg') },
         { label: 'Сақталған аймақтарды файлға экспорттау…', enabled: !!(projects && projects.current), click: exportStore },
         { label: 'Сақталған аймақтарды файлдан импорттау…', enabled: !!(projects && projects.current), click: importStore },
         { type: 'separator' },

@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('mura', {
   projectClose: () => ipcRenderer.invoke('mura:project-close'),
   projectForget: file => ipcRenderer.invoke('mura:project-forget', file),
   projectReveal: () => ipcRenderer.invoke('mura:project-reveal'),
+  /** Бөтен GeoPackage-ті оқу (импорт үшін): file берілмесе — таңдау терезесі. */
+  gpkgInspect: file => ipcRenderer.invoke('mura:gpkg-inspect', file || ''),
   /** Мәзір пәрмендері (Жаңа жоба, Баптаулар, Бастапқы терезе). */
   onUi: cb => { ipcRenderer.on('mura:ui', (_e, cmd) => cb(String(cmd))); },
   /** Ескерткіштер тізімінің HTML-і → PDF (Uint8Array). */
