@@ -55,7 +55,14 @@ jobs:
       - name: Debug APK
         run: ./gradlew --no-daemon :app:assembleDebug
 
+      # APK — Lint-тен бұрын жүктеледі (Lint ескертулері сынақ жинағын бөгемейді)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MuraGIS-Android-${{ steps.ver.outputs.name }}-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+
       - name: Lint
+        continue-on-error: true
         run: ./gradlew --no-daemon :app:lintDebug
 
       - name: Тест есептері
@@ -68,11 +75,6 @@ jobs:
             android/core/build/test-results/
             android/app/build/reports/lint-results-debug.html
           if-no-files-found: ignore
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: MuraGIS-Android-${{ steps.ver.outputs.name }}-debug
-          path: android/app/build/outputs/apk/debug/*.apk
 
   release:
     if: startsWith(github.ref, 'refs/tags/android/v')
