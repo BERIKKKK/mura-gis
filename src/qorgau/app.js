@@ -2071,7 +2071,44 @@ function resetAll() {
   renderSaved();
   map.setView([48.6, 58.2], 6);
 }
+/** Ашық сақталған жазбаны жабу: редактор бос жаңа жазбаға оралады; жазба тізімде сақтаулы қалады.
+    Карта көрінісі, өлшемдер мен баптаулар өзгермейді (resetAll-дан айырмашылығы). */
+function closeRecord() {
+  for (const k of FIELD_KEYS) F[k].value = DEFAULTS[k];
+  genTouched = false; genRuTouched = false;
+  state.pts = []; state.custom = null;
+  state.loadedId = null; state.loadedName = ''; state.markId = null;
+  setMode('none');
+  applyRule(true);
+  recompute(true, true);
+  clearPreview();
+  cleanSig = null; paintDirty();
+  renderSaved();
+}
+const IC_TRASH = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg>';
+const IC_CLOSE = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M9 9l6 6M15 9l-6 6"/></svg>';
+/** Екінші қатардағы батырма (js/desktop.js): ашық сақталған жазба болса — «Жабу», әйтпесе — «Тазалау». */
+function paintClear() {
+  const b = $('qaClearBtn');
+  if (!b) return;
+  const open = !!state.loadedId, label = open ? tx('Жабу', 'Закрыть') : tx('Тазалау', 'Очистить');
+  if (b.dataset.mode !== (open ? 'close' : 'clear')) {
+    b.dataset.mode = open ? 'close' : 'clear';
+    b.innerHTML = (open ? IC_CLOSE : IC_TRASH) + '<span class="qa-tl">' + label + '</span>';
+    b.setAttribute('aria-label', label);
+  }
+  b.dataset.tip = open
+    ? tx('Жабу: «' + state.loadedName + '» жазбасын жабу — ол «Қорғау аймақтары» тізімінде сақтаулы қалады', 'Закрыть: закрыть запись «' + state.loadedName + '» — она остаётся сохранённой в списке «Охранные зоны»')
+    : tx('Тазалау: нүктелер мен енгізілген деректерді өшіру', 'Очистить: удалить точки и введённые данные');
+}
 $('qaReset').addEventListener('click', async () => {
+  if (state.loadedId) {                           // сақталған жазба ашық — жабамыз (өзгерістер сақталмаған болса ғана сұраймыз)
+    const nm = state.loadedName;
+    if (isDirty() && !(await ask(tx('«' + nm + '» жазбасында сақталмаған өзгерістер бар. Оларды сақтамай жабасыз ба?', 'В записи «' + nm + '» есть несохранённые изменения. Закрыть без сохранения?'), { ok: tx('Сақтамай жабу', 'Закрыть без сохранения'), danger: true }))) return;
+    closeRecord();
+    toast(tx('«' + nm + '» жабылды. Жазба «Қорғау аймақтары» тізімінде сақтаулы.', 'Запись «' + nm + '» закрыта. Она сохранена в списке «Охранные зоны».'));
+    return;
+  }
   if (!(await ask(tx('Барлық нүктелер, атаулар мен енгізілген деректер өшіріліп, құрал бастапқы күйіне қайтарылады. Бұл әрекетті болдырмау мүмкін емес. Жалғастырасыз ба?', 'Все точки, наименования и введённые данные будут удалены, инструмент вернётся в исходное состояние. Это действие нельзя отменить. Продолжить?'), { ok: tx('Тазалау', 'Очистить'), danger: true }))) return;
   resetAll();
   toast(tx('Құрал тазартылды.', 'Инструмент очищен.'));
@@ -2189,6 +2226,7 @@ function paintLoaded() {
   $('qaSave').dataset.tip = t;
   $('qaSave').setAttribute('aria-label', t);
   $('qaSaveNew').hidden = !on;
+  paintClear();
 }
 
 async function refreshSaved() {

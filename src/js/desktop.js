@@ -71,6 +71,18 @@
   var info = $('qaOpenInfo');
   if (info) { info.className = 'qa-tbtn mura-gone'; info.removeAttribute('title'); info.setAttribute('aria-label', 'Мәліметтер'); gData.appendChild(info); }
   tmain.insertBefore(gData, gMeasure);
+  // «Тазалау» — «⋯» мәзірінен екінші қатарға шығарылды; ашық сақталған жазба болса — «Жабу» (белгісі мен мәтінін app.js → paintClear ауыстырады)
+  var rs = $('qaReset');
+  if (rs) {
+    var cb = document.createElement('button');
+    cb.type = 'button'; cb.className = 'qa-tbtn mura-clear'; cb.id = 'qaClearBtn';
+    cb.setAttribute('data-prio', '4'); cb.setAttribute('aria-label', 'Тазалау');
+    cb.setAttribute('data-tip', 'Тазалау: нүктелер мен енгізілген деректерді өшіру');
+    cb.innerHTML = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg><span class="qa-tl">Тазалау</span>';
+    cb.addEventListener('click', function () { rs.click(); });
+    gData.appendChild(cb);
+    rs.classList.add('mura-gone');
+  }
   var st = $('qaPanelSavedT');
   if (st && st.lastChild && st.lastChild.nodeType === 3) st.lastChild.textContent = 'Қорғау аймақтары';
   var sq = $('qaSavedQ');

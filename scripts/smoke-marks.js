@@ -260,7 +260,24 @@ async function run(win) {
     HTMLAnchorElement.prototype.click = function () { if (this.download) names.push(this.download.replace(/\\d{4}-\\d\\d-\\d\\d/, 'D')); else aClick.call(this); };
     for (const l of ['kk', 'ru']) { MuraI18n.setDocLang(l); document.getElementById('qaGeo').click(); document.getElementById('mkGeo').click(); }
     HTMLAnchorElement.prototype.click = aClick; MuraI18n.setDocLang('kk');
-    eq(names.join(' | '), 'Синхрон-II_қорғаны_қорғау_аймағы.geojson | Ескерткіштер_тізімі_D.geojson | Синхрон-II_қорғаны_охранная_зона.geojson | Список_памятников_D.geojson', 'файл атауы тілге қарай');
+    // «Жабу»: екінші қатарда; ашық, сақталған жазба сұраусыз жабылады, тізімде қалады
+    const cbtn = document.getElementById('qaClearBtn'), nSaved = document.getElementById('qaSavedCount').textContent;
+    out.clearBtn = cbtn.closest('#qaTmain') ? cbtn.textContent + ' / ' + cbtn.dataset.tip.slice(0, 30) + ' / ⋯ ' + (document.getElementById('qaMoreBtn').hidden ? 'жасырын' : 'көрінеді') : 'жоқ';
+    eq(cbtn.textContent, 'Жабу', 'ашық жазбада «Жабу»');
+    cbtn.click(); await wait(300);
+    eq(!!document.querySelector('.qa-dlg-back') + ' ' + __qa.state.loadedId + ' ' + __qa.state.pts.length + ' ' + document.getElementById('qaSavedCount').textContent + ' ' + cbtn.textContent,
+      'false null 0 ' + nSaved + ' Тазалау', 'жазба жабылды');
+    out.closeToast = document.getElementById('qaToast').textContent;
+    document.querySelector('[data-open="' + zA + '"]').click(); await wait(600);
+    qp.value = 'өзгерген'; qp.dispatchEvent(new Event('input')); await wait(50);
+    cbtn.click(); await wait(300);
+    out.closeDirtyAsk = (document.querySelector('.qa-dlg-back') || {}).textContent;
+    document.querySelector('.qa-dlg-back [data-v="0"], .qa-dlg-back button:not([data-v="1"])')?.click(); await wait(200);
+    eq(__qa.state.loadedId, zA, 'бас тартса — жазба ашық қалады');
+    cbtn.click(); await wait(300); okBtn(); await wait(300);
+    eq(__qa.state.loadedId + ' ' + (await zrec(zA)).fields.place, 'null В ауылынан 5 км', 'сақтамай жабылды, жазба өзгермеді');
+    document.querySelector('[data-open="' + zA + '"]').click(); await wait(600);
+    eq(names.join(' | '),'Синхрон-II_қорғаны_қорғау_аймағы.geojson | Ескерткіштер_тізімі_D.geojson | Синхрон-II_қорғаны_охранная_зона.geojson | Список_памятников_D.geojson', 'файл атауы тілге қарай');
     // 4) «Белгілермен синхрондау»: атауы бірдей жақын белгімен байланыстыру, белгісі жоқ аймаққа белгі жасау
     await M.api('save', { data: JSON.stringify({ ...base, name: 'Синхрон-III обасы', district: 'Мәртөк ауданы', lat: 50.61, lon: 57.61 }) });
     const sB = M.items.find(m => m.name === 'Синхрон-III обасы');

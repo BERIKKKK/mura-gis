@@ -133,13 +133,13 @@
     app.dispatchEvent(new CustomEvent('mura:service', { detail: { id: svc, prev: prev } }));
   }
 
-  // «⋯»: қорғау аймағын тазалау тек сол қызметте; мәзір бос болса, батырма да жасырылады
+  // «⋯»: тек сыймаған құралдар үшін («Тазалау» екінші қатарда — js/desktop.js); мәзір бос болса, батырма да жасырылады
   var moreBtn = $('qaMoreBtn');
   function paintMore() {
     if (reset) reset.classList.toggle('mura-off', cur !== 'zone');
     if (!moreBtn) return;
     var overflow = [].some.call(tmain.querySelectorAll('.qa-tbtn[data-prio]'), function (b) { return b.hidden && !b.closest('.mura-off'); });
-    moreBtn.hidden = cur !== 'zone' && !overflow;
+    moreBtn.hidden = !overflow && !(cur === 'zone' && reset && !reset.classList.contains('mura-gone'));
   }
   new MutationObserver(paintMore).observe(tmain, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
 
