@@ -364,4 +364,7 @@
     <string name="msg_track_deleted">Трек жойылды</string>
     <string name="err_track_short">Трек тым қысқа: кемінде 2 нүкте керек. Жазуды жалғастырыңыз не жойыңыз.</string>
     <string name="track_name">Трек %1$s</string>
+    <string name="place_on_map">Картада белгілеу</string>
+    <string name="pick_editor_hint">Ескерткіштің орны: картаны жылжытып, нысананы жаңа орынға қойыңыз не GPS орнын алыңыз. Енгізілген мәліметтер сақталады.</string>
+    <string name="none_dash">—</string>
 </resources>

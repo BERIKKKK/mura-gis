@@ -1,6 +1,14 @@
 package io.github.berikkkk.muragis.mobile.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.composed
+import androidx.compose.ui.focus.onFocusEvent
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -96,9 +104,22 @@ fun ConfirmDialog(text: String, confirm: String = stringResource(R.string.ok), o
 fun CoordField(label: String, text: String, onText: (String) -> Unit, error: Boolean, modifier: Modifier = Modifier) {
     OutlinedTextField(
         value = text, onValueChange = onText, label = { Text(label) }, isError = error, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), modifier = modifier,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text), modifier = modifier.bringIntoViewOnFocus(),
         supportingText = if (error) ({ Text(stringResource(R.string.err_coord_format)) }) else null,
     )
+}
+
+/**
+ * Өріс фокус алғанда (пернетақта ашылып болғаннан кейін) айналдырылатын тізімде көрінетін жерге шығарылады —
+ * өріс пернетақтаның астында қалмайды.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+fun Modifier.bringIntoViewOnFocus(): Modifier = composed {
+    val req = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    bringIntoViewRequester(req).onFocusEvent { f ->
+        if (f.isFocused) scope.launch { delay(350); req.bringIntoView() }
+    }
 }
 
 fun fmtCoord(v: Double, dms: Boolean, isLat: Boolean): String =

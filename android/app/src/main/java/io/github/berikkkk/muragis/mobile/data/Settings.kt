@@ -23,6 +23,8 @@ data class Prefs(
     val zoomLeft: Boolean = false,
     /** Құралдар панелі экранның жоғарғы жағында (әдепкі — төменде). */
     val barTop: Boolean = false,
+    /** Соңғы таңдалған облыс (жаңа ескерткіштің әдепкі мәні; бос — Ақтөбе облысы). */
+    val lastOblast: String = "",
 )
 
 class Settings(context: Context) {
@@ -42,6 +44,7 @@ class Settings(context: Context) {
         coordFormatDms = sp.getBoolean("coordDms", false),
         zoomLeft = sp.getBoolean("zoomLeft", false),
         barTop = sp.getBoolean("barTop", false),
+        lastOblast = sp.getString("lastOblast", "") ?: "",
     )
 
     fun update(f: (Prefs) -> Prefs) {
@@ -52,7 +55,7 @@ class Settings(context: Context) {
             .putString("offlineBaseId", p.offlineBaseId)
             .putFloat("lastLat", p.lastLat.toFloat()).putFloat("lastLon", p.lastLon.toFloat()).putFloat("lastZoom", p.lastZoom.toFloat())
             .putBoolean("coordDms", p.coordFormatDms)
-            .putBoolean("zoomLeft", p.zoomLeft).putBoolean("barTop", p.barTop)
+            .putBoolean("zoomLeft", p.zoomLeft).putBoolean("barTop", p.barTop).putString("lastOblast", p.lastOblast)
             .apply()
         _prefs.value = p
     }

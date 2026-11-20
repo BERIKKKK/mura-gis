@@ -4,6 +4,7 @@
 //   node desktop-compat.mjs write-gpkg <file>        — жұмыс үстелі коды арқылы жоба жасайды (2 белгі, 1 маршрут)
 //   node desktop-compat.mjs marks-geojson            — жұмыс үстеліндегі geojson() экспорты (stdout)
 //   node desktop-compat.mjs routes-export            — жұмыс үстеліндегі toGeojson() және toGpx() (stdout, JSON)
+//   node desktop-compat.mjs regions                  — src/js/regions.js: облыстар, аудандар және олардың орысша атаулары (JSON)
 //   node desktop-compat.mjs find-path <file.json>    — routes/graph.js: желі құрып, жол іздейді ({routes, marks, queries} → нәтижелер)
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -46,6 +47,15 @@ if (cmd === 'read-gpkg') {
 } else if (cmd === 'routes-export') {
   const { toGeojson, toGpx } = await import(pathToFileURL(path.join(repo, 'src', 'routes', 'tracks.js')).href);
   process.stdout.write(JSON.stringify({ geojson: toGeojson(ROUTES), gpx: toGpx(ROUTES.map(r => ({ name: r.name, desc: r.note, pts: r.pts }))) }));
+} else if (cmd === 'regions') {
+  const fs = await import('node:fs');
+  const vm = await import('node:vm');
+  const ctx = { window: {}, document: { getElementById: () => null }, localStorage: { getItem: () => null, setItem() {} } };
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(repo, 'src', 'js', 'regions.js'), 'utf8'), ctx);
+  const R = ctx.window.MuraRegions;
+  process.stdout.write(JSON.stringify(R.list.map(r => ({ kk: r.name, ru: R.ru(r.name), city: !!r.city,
+    units: r.units.map(u => ({ kk: u.v, ru: R.ru(u.v, r.name), note: u.note || '' })) }))));
 } else if (cmd === 'find-path') {
   const { buildNetwork, findPath } = await import(pathToFileURL(path.join(repo, 'src', 'routes', 'graph.js')).href);
   const fs = await import('node:fs');

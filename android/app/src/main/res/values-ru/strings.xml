@@ -358,4 +358,7 @@
     <string name="msg_track_deleted">Трек удалён</string>
     <string name="err_track_short">Трек слишком короткий: нужно минимум 2 точки. Продолжите запись или удалите трек.</string>
     <string name="track_name">Трек %1$s</string>
+    <string name="place_on_map">Указать на карте</string>
+    <string name="pick_editor_hint">Местоположение памятника: сдвиньте карту и наведите прицел на новое место или возьмите координаты GPS. Введённые данные сохранятся.</string>
+    <string name="none_dash">—</string>
 </resources>

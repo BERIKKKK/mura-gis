@@ -8,6 +8,7 @@
 |---|---|---|
 | `:core:test` — 26 JUnit тест (модель, координаталар, сұрыптау, GeoJSON/KML/KMZ/GPX, SQLite репозиторийлер, GeoPackage, MBTiles, XYZ/SAS.Planet/ZIP, GPKG тайлдары, жүктеуші, loopback сервер, лицензия саясаты) | әзірлеу контейнері (JDK 21) және GitHub Actions | **өтті** (0 қате, 0 өткізілген) |
 | Жұмыс үстелі кодымен кросс-тексеру (`DesktopCompatTest`, `desktopGeojsonExportIsImported`, routes): main/gpkg.js, marks.js, routes.js, export.js, tracks.js — Node 22 | сол | **өтті** |
+| `RegionsAndPeriodTest`: облыс/аудан тізімі және орысша атаулары жұмыс үстеліндегі `regions.js`-пен бірдей (Node 22), мерзім синхрондауы | контейнер | **өтті** |
 | `RoutingAndUtmTest`: жол іздеу жұмыс үстеліндегі `routes/graph.js`-пен (75 сұрау, 3 сценарий: түйін/қабырға саны, ұзындық, уақыт, бөліктер), UTM — PROJ мәндерімен (±1 см) | контейнер (Node 22) | **өтті** |
 | `:core:largeFileTest` — 412 МБ MBTiles (25 600 тайл) және 213 МБ ZIP (102 400 жазба), JVM жады 128 МБ | контейнер және CI | **өтті** (MBTiles: ашу + 2000 тайл 65 мс; ZIP талдау 333 мс) |
 | `:app:assembleDebug` | GitHub Actions (run 44711522055) | **өтті** — debug APK артефакт ретінде жүктелді |

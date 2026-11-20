@@ -140,6 +140,13 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         if (mapReady) controller.setMonuments(if (filter.active) monuments else allMonuments)
     }
     LaunchedEffect(mapReady, selected, allMonuments) { if (mapReady) controller.setSelected(vm.monument(selected)) }
+    // Ескерткіш таңдалғанда: белгі карточканың (төменгі парақтың) үстінде көрінетіндей карта жылжиды
+    LaunchedEffect(mapReady, selected) {
+        val m = vm.monument(selected) ?: return@LaunchedEffect
+        if (!mapReady) return@LaunchedEffect
+        if (controller.zoom() < 13.0) controller.moveTo(m.lat, m.lon, 15.0, animate = false)
+        controller.revealAbove(m.lat, m.lon)
+    }
     LaunchedEffect(mapReady, routes, selectedRoute, edit?.base?.id) { if (mapReady) controller.setRoutes(routes, selectedRoute, edit?.base?.id?.ifEmpty { null }) }
     LaunchedEffect(mapReady, edit) { if (mapReady) controller.setEditRoute(edit?.points ?: emptyList(), edit?.selected ?: -1) }
     LaunchedEffect(mapReady, loc, prefs.showLocation) {
@@ -167,7 +174,11 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         when {
             menu != null -> if (menu != MenuPage.ROOT) vm.openMenu(MenuPage.ROOT) else vm.closeMenu()
             sheet != null -> if (sheet == Sheet.TrackStop) vm.resumeTrack() else vm.openSheet(null)
-            pick != null -> { val p = pick; vm.setPick(null); if (p != Pick.MONUMENT) vm.openSheet(Sheet.Plan) }
+            pick != null -> when (pick) {
+                Pick.EDITOR -> vm.cancelEditorPick()
+                Pick.MONUMENT -> vm.setPick(null)
+                else -> { vm.setPick(null); vm.openSheet(Sheet.Plan) }
+            }
             else -> { vm.select(null); vm.selectRoute(null) }
         }
     }
@@ -406,16 +417,28 @@ private fun BoxScope.PickBar(vm: MainViewModel, pick: Pick, controller: MapContr
         Surface(color = Chrome.bg, contentColor = Chrome.fg, shape = RoundedCornerShape(20.dp), shadowElevation = 8.dp,
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(10.dp)) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(when (pick) { Pick.MONUMENT -> R.string.pick_mark_hint; Pick.PLAN_A -> R.string.pick_a_hint; Pick.PLAN_B -> R.string.pick_b_hint }),
-                    color = Chrome.dim, fontSize = 14.sp)
-                if (pick == Pick.MONUMENT) BigButton(
+                Text(stringResource(when (pick) {
+                    Pick.MONUMENT -> R.string.pick_mark_hint; Pick.EDITOR -> R.string.pick_editor_hint
+                    Pick.PLAN_A -> R.string.pick_a_hint; Pick.PLAN_B -> R.string.pick_b_hint
+                }), color = Chrome.dim, fontSize = 14.sp)
+                if (pick == Pick.MONUMENT || pick == Pick.EDITOR) BigButton(
                     if (loc != null) stringResource(R.string.pick_my_location_acc, loc!!.accuracy.toInt()) else stringResource(R.string.my_location),
                     Modifier.fillMaxWidth(), icon = { Icon(Icons.Filled.MyLocation, null, Modifier.size(20.dp)) },
-                ) { vm.setPick(null); act.withLocation { vm.newMonumentAtGps() } }
+                ) {
+                    if (pick == Pick.MONUMENT) { vm.setPick(null); act.withLocation { vm.newMonumentAtGps() } }
+                    else act.withLocation {
+                        vm.toast(R.string.msg_gps_wait)
+                        vm.location.requestFix { l -> if (l != null) vm.editorPicked(l.latitude, l.longitude) else vm.toast(R.string.err_no_gps) }
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BigButton(stringResource(R.string.cancel), Modifier.weight(1f)) { vm.setPick(null); if (pick != Pick.MONUMENT) vm.openSheet(Sheet.Plan) }
+                    BigButton(stringResource(R.string.cancel), Modifier.weight(1f)) {
+                        when (pick) { Pick.EDITOR -> vm.cancelEditorPick(); Pick.MONUMENT -> vm.setPick(null); else -> { vm.setPick(null); vm.openSheet(Sheet.Plan) } }
+                    }
                     BigButton(stringResource(R.string.this_point), Modifier.weight(1f), primary = true) {
-                        controller.center()?.let { (la, lo) -> if (pick == Pick.MONUMENT) vm.newMonumentAt(la, lo) else vm.pickPlanAt(la, lo) }
+                        controller.center()?.let { (la, lo) ->
+                            when (pick) { Pick.MONUMENT -> vm.newMonumentAt(la, lo); Pick.EDITOR -> vm.editorPicked(la, lo); else -> vm.pickPlanAt(la, lo) }
+                        }
                     }
                 }
             }
