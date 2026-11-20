@@ -7,7 +7,7 @@
    Интерфейс бөліктері — marks/marks-dom.js, экспорт — marks/export.js, сұрыптау — marks/sort.js. */
 import { parseOne, genitive } from '../qorgau/app.js';
 import { sortMarks, arabizeRoman, compareText, compareNames } from './sort.js';
-import { parseGeoFile } from './geofiles.js';
+import { parseGeoFile, parseGeojsonPoints, isMuraMarks } from './geofiles.js';
 import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, sections, coordLines, nameCell } from './export.js';
 
 const $ = id => document.getElementById(id);
@@ -26,6 +26,7 @@ const store = {
 
 let items = [];               // барлық белгілер (сақталғандары)
 let imports = [];             // импортталған, әлі сәйкестендірілмеген нүктелер (KML, KMZ, GPX)
+const selected = new Set();   // тізімде таңдалған белгілер (топпен өшіру)
 let marking = false;          // «Белгі қою» режимі
 let dragging = false;
 
@@ -176,7 +177,8 @@ function openDialog(m, o = {}) {
     ...m,
   };
   // Аудан әдепкісі — соңғы таңдалған (сол облыстікі болса ғана)
-  if (v.district == null) v.district = def.oblast === v.oblast ? def.district || '' : '';
+  // (жоба ауданға байланса — жобаның ауданы)
+  if (v.district == null) v.district = (REG && REG.defaultDistrict(v.oblast)) || (def.oblast === v.oblast ? def.district || '' : '');
   const dists = districtOpts();
   if (v.district && !dists.includes(v.district)) dists.push(v.district);
   const back = document.createElement('div');
@@ -238,7 +240,10 @@ function openDialog(m, o = {}) {
     return r;
   }
   F.name.addEventListener('input', paintKey);
-  if (REG) F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); });
+  if (REG) {
+    F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); REG.lock(F.district); });
+    REG.lock(F.oblast); REG.lock(F.district);       // жобаның облысы / ауданы — бекітілген
+  }
   F.lat.addEventListener('input', paintCoord);
   F.lon.addEventListener('input', paintCoord);
   const paintSym = () => { back.querySelector('#mkSym').innerHTML = symbolSvg(F.type.value, F.category.value, 26); };
@@ -398,6 +403,8 @@ function render() {
   if (![...sel.options].some(o => o.value === cur)) sel.value = '';
   if (!open) return;
   const list = filtered();
+  for (const id of [...selected]) if (!items.some(m => m.id === id)) selected.delete(id);
+  paintSel(list);
   $('mkInfo').textContent = list.length === items.length ? items.length + ' белгі' : list.length + ' / ' + items.length + ' белгі';
   for (const id of ['mkGeo', 'mkDocx', 'mkPdf']) $(id).disabled = !list.length;
   paintTitle(list);
@@ -413,7 +420,8 @@ function render() {
     if (multiC && c.v !== lastC) { html += '<div class="mk-chead"><i style="background:' + c.fill + ';border-color:' + c.outline + '"></i>' + esc(c.label) + '</div>'; lastC = c.v; lastD = null; }
     const d = (multiOb && m.oblast ? m.oblast + ' · ' : '') + (m.district || (multiOb ? 'ауданы көрсетілмеген' : 'Ауданы көрсетілмеген'));
     if (d !== lastD) { html += '<div class="mk-dhead">' + esc(d) + '</div>'; lastD = d; }
-    html += '<div class="qa-sc mk-card" data-id="' + esc(m.id) + '">' +
+    html += '<div class="qa-sc mk-card' + (selected.has(m.id) ? ' is-sel' : '') + '" data-id="' + esc(m.id) + '">' +
+      '<input type="checkbox" data-sel' + (selected.has(m.id) ? ' checked' : '') + ' aria-label="' + esc(m.name) + ' — таңдау">' +
       '<span class="mk-sym' + (m.status === 'excluded' ? ' is-excl' : '') + '" title="' + esc(categoryOf(m.category).label) + '">' + symbolSvg(m.type, m.category, 22) + '</span>' +
       '<div class="qa-sc-main"><button type="button" class="qa-sc-title" data-act="go" title="Картадан көрсету">' + esc(nameCell(m)) + '</button>' +
       '<div class="qa-sc-meta">' + esc(typeOf(m.type).label) + (categoryOf(m.category).adj ? ' · ' + esc(categoryOf(m.category).adj) : '') +
@@ -426,6 +434,43 @@ function render() {
   }
   box.innerHTML = html;
 }
+/* ---------- Таңдау және топпен өшіру ---------- */
+function paintSel(list = filtered()) {
+  const vis = list.filter(m => selected.has(m.id)).length, n = selected.size;
+  const all = $('mkSelAll');
+  all.checked = list.length > 0 && vis === list.length;
+  all.indeterminate = vis > 0 && vis < list.length;
+  all.disabled = !list.length;
+  $('mkSelBar').hidden = !items.length;
+  $('mkSelInfo').textContent = n ? 'Таңдалды: ' + n + (vis < n ? ' (сүзгіден тыс ' + (n - vis) + ')' : '') : '';
+  const del = $('mkSelDel');
+  del.hidden = !n;
+  del.textContent = 'Таңдалғандарды өшіру (' + n + ')';
+}
+$('mkList').addEventListener('change', e => {
+  const c = e.target.closest('[data-sel]'), card = e.target.closest('[data-id]');
+  if (!c || !card) return;
+  if (c.checked) selected.add(card.dataset.id); else selected.delete(card.dataset.id);
+  card.classList.toggle('is-sel', c.checked);
+  paintSel();
+});
+$('mkSelAll').addEventListener('change', e => {
+  for (const m of filtered()) { if (e.target.checked) selected.add(m.id); else selected.delete(m.id); }   // сүзгі бар болса — тек көрінетіндері
+  render();
+});
+$('mkSelDel').addEventListener('click', async () => {
+  const ids = [...selected].filter(id => items.some(m => m.id === id));
+  if (!ids.length) return;
+  const names = ids.slice(0, 5).map(id => '«' + items.find(m => m.id === id).name + '»').join(', ') + (ids.length > 5 ? ' және тағы ' + (ids.length - 5) : '');
+  if (!(await ask(ids.length + ' ескерткіш белгісі өшіріледі: ' + names + '. Бұл әрекетті қайтару мүмкін емес. Жалғастырасыз ба?', { ok: 'Өшіру (' + ids.length + ')', danger: true }))) return;
+  try {
+    const j = await api('delete', { id: ids.join(',') });
+    ids.forEach(id => selected.delete(id));
+    render();
+    toast((j.removed ?? ids.length) + ' белгі өшірілді.');
+  } catch (err) { toast(err.message, true); }
+});
+
 $('mkList').addEventListener('click', e => {
   const b = e.target.closest('[data-act]'), card = e.target.closest('[data-id]');
   if (!b || !card) return;
@@ -481,7 +526,8 @@ $('mkDocx').addEventListener('click', () => busy('Word құжаты жасалу
 $('mkPdf').addEventListener('click', () => busy('PDF жасалуда…', async () => { download(await buildPdf(), '', fileName('pdf')); }));
 
 /* ======================= Импорт ======================= */
-// GeoJSON (Mura GIS белгілері, QGIS) — бірден белгілерге; KML, KMZ, GPX — «Импортталғандарға»: сәйкестендірілгенше белгі емес
+// KML, KMZ, GPX және сырттағы GeoJSON — «Импортталғандарға»: «Сәйкестендіру» басылмайынша белгі емес.
+// Тек Mura GIS-тің өз белгілер экспорты (GeoJSON: әр нүктеде id, type_kk, status_kk) бірден белгілерге қайтарылады.
 $('mkImport').addEventListener('click', () => $('mkGeoFile').click());
 $('mkGeoFile').addEventListener('change', async e => {
   const files = [...(e.target.files || [])];
@@ -500,6 +546,16 @@ $('mkGeoFile').addEventListener('change', async e => {
       }
       let o;
       try { o = JSON.parse(await f.text()); } catch (ex) { throw new Error(f.name + ': файл оқылмады (JSON емес).'); }
+      if (!isMuraMarks(o)) {
+        const pts = parseGeojsonPoints(o, f.name);
+        if (!pts.length) throw new Error(f.name + ': нүкте не полигон табылмады.');
+        const r = await api('iadd', { data: JSON.stringify(pts) });
+        toast(f.name + ': ' + r.added + ' нүкте импортталды' + (r.skipped ? ', ' + r.skipped + ' қайталанған не қате нүкте алынбады' : '') + '. Оларды «Импортталғандар» қойындысынан сәйкестендіріңіз.');
+        setTab('imp');
+        const fresh = imports.filter(x => x.file === f.name);
+        if (fresh.length) map.fitBounds(L.latLngBounds(fresh.map(x => [x.lat, x.lon])).pad(0.2), { maxZoom: 15 });
+        return;
+      }
       const list = fromGeojson(o).filter(m => m.name && isFinite(m.lat) && isFinite(m.lon));
       if (!list.length) throw new Error(f.name + ': атауы бар нүкте (Point) табылмады.');
       const r = await api('import', { data: JSON.stringify(list) });
@@ -595,7 +651,7 @@ function renderImports() {
   const list = filteredImports();
   $('mkIInfo').textContent = list.length === imports.length ? imports.length + ' нүкте' : list.length + ' / ' + imports.length + ' нүкте';
   const box = $('mkImpList');
-  if (!imports.length) { box.innerHTML = '<div class="qa-empty">Импортталған нүкте жоқ. Төмендегі «Импорттау» арқылы KML, KMZ не GPX файлын таңдаңыз.</div>'; return; }
+  if (!imports.length) { box.innerHTML = '<div class="qa-empty">Импортталған нүкте жоқ. Құралдар жолағындағы «Импорт» арқылы KML, KMZ, GPX не GeoJSON файлын таңдаңыз.</div>'; return; }
   if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай нүкте табылмады.</div>'; return; }
   let html = '', last = null;
   for (const x of list.slice(0, 1000)) {

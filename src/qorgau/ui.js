@@ -52,10 +52,11 @@ function pad() {
 /* ======================= Құралдар жолағы: бір қатар + «⋯» ======================= */
 const allItems = [...tmain.querySelectorAll('.qa-tbtn[data-prio]')];
 let items = allItems;
-const activeItems = () => allItems.filter(b => !b.closest('.mura-off'));
+// .mura-uhide — пайдаланушы «Баптаулар → Құралдар панелі» арқылы жасырған батырма (js/project.js): есепке де, «⋯»-ге де кірмейді
+const activeItems = () => allItems.filter(b => !b.closest('.mura-off') && !b.classList.contains('mura-uhide'));
 const groups = [...tmain.querySelectorAll('.qa-tgroup')];
 const fits = () => tmain.scrollWidth <= tmain.clientWidth + 1;
-function syncGroups() { groups.forEach(gr => { gr.hidden = !gr.querySelector('.qa-tbtn:not([hidden])'); }); }
+function syncGroups() { groups.forEach(gr => { gr.hidden = !gr.querySelector('.qa-tbtn:not([hidden]):not(.mura-uhide):not(.mura-gone)'); }); }
 let lastW = -1;
 function layoutBar(force) {
   const w = tmain.clientWidth;
@@ -277,6 +278,7 @@ for (const id of ['qaCoordBar', 'qaCoordShow', ...Object.values(PANELS)]) new Re
 mqMobile.addEventListener('change', relayout);
 // Қызмет ауысқанда (js/services.js) — төменгі қатар басқа батырмалармен қайта сыйғызылады
 app.addEventListener('mura:service', () => { closePop(); measure(); layoutBar(true); });
+addEventListener('mura:toolbar', () => { measure(); layoutBar(true); });
 // app.js өз баптауларын (туралау мәні, т.б.) орнатқаннан кейін
 document.addEventListener('DOMContentLoaded', () => { paintSnap(); measure(); layoutBar(true); });
 

@@ -8,6 +8,10 @@ const os = require('node:os');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mura-routes-'));
 app.setPath('userData', tmp);
+// Жоба — уақытша .gpkg файлы (бағдарлама бастапқы терезесіз бірден ашады)
+const gpkg = path.join(tmp, 'test.gpkg');
+process.env.MURA_PROJECT = gpkg;
+const countRows = t => { const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(gpkg); try { return db.prepare('SELECT count(*) AS n FROM "' + t + '"').get().n; } finally { db.close(); } };
 const shot = process.argv.find(a => a.endsWith('.png')) || path.join(tmp, 'routes.png');
 const errors = [];
 
@@ -120,7 +124,7 @@ async function run(win) {
   await js(`(window.MuraRoutes.items[0] && document.querySelector('.rt-card [data-act=edit]').click(), 0)`);
   await snap('-dlg');
   r.files = tmp;
-  r.storeFile = JSON.parse(fs.readFileSync(path.join(tmp, 'data', 'routes.json'), 'utf8')).length + ' маршрут';
+  r.storeFile = countRows('routes') + ' маршрут (GeoPackage)';
   console.log(JSON.stringify(r, null, 1));
   const real = errors.filter(e => !/tile|Failed to load resource/i.test(e));
   if (errors.length) console.log('Консоль қателері:\n  ' + errors.join('\n  '));

@@ -21,7 +21,7 @@ const ZONES = [
   { key: 'landscape', color: '#d6261f', docColor: 'D6261F', border: 'қорғалатын табиғи ландшафт аймағының шекарасы',  area: 'қорғалатын табиғи ландшафт аймағының ауданы',       feature: 'Қорғалатын табиғи ландшафт аймағы' },
 ];
 const MIN_POINTS = 4;
-const STORE_KEY = 'qa-draft-v1';
+const STORE_KEY = 'qa-draft-v1' + (globalThis.mura?.project?.current ? ':' + globalThis.mura.project.current.key : '');   // әр жобаның өз жұмыс нұсқасы
 const SAT_URL = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const OSM_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
@@ -163,8 +163,10 @@ function numbered(P) {
   return R.slice(best).concat(R.slice(0, best));
 }
 
-/** Негізгі есеп. pts — [{lat, lon}], dists — [d1, d2, d3] метр. */
-export function computeZones(pts, dists) {
+/** Негізгі есеп. pts — [{lat, lon}], dists — [d1, d2, d3] метр.
+    custom — импортталған дайын аймақ полигондары { rings: [қорғау, реттеу, ландшафт] (әрқайсысы [{lat, lon}] не null), source }:
+    берілген аймақ есептелмей, сол полигон алынады; берілмегені алдыңғы аймақтан есептеледі. */
+export function computeZones(pts, dists, custom) {
   if (pts.length < MIN_POINTS) return { error: 'few' };
   const proj = makeProj(pts);
   let P = pts.map(proj.fwd);
@@ -177,7 +179,15 @@ export function computeZones(pts, dists) {
   const notes = [];
   const rings = [C];
   let src = C;
+  let usedCustom = false;
   for (let i = 0; i < 3; i++) {
+    const cr = custom && Array.isArray(custom.rings) ? custom.rings[i] : null;
+    if (Array.isArray(cr) && cr.length >= 3) {
+      let Q = cleanRing(cr.map(p => proj.fwd({ lat: +p.lat, lon: +p.lon })));
+      if (signedArea(Q) < 0) Q.reverse();
+      if (Q.length >= 3 && !selfIntersects(Q)) { rings.push(Q); src = Q; usedCustom = true; continue; }
+      notes.push(ZONES[i + 1].feature + ': импортталған полигон жарамсыз (өзін-өзі қиып өтеді) — аймақ ескерткіш шекарасынан есептелді.');
+    }
     const d = dists[i];
     let res = offsetRing(src, d);
     if (res.spike || res.ring.length < 3 || selfIntersects(res.ring) || signedArea(res.ring) <= signedArea(src)) {
@@ -187,11 +197,12 @@ export function computeZones(pts, dists) {
     rings.push(res.ring);
     src = res.ring;
   }
+  if (usedCustom) notes.push('Аймақтар импортталған полигондардан алынды' + (custom.source ? ' (' + custom.source + ')' : '') + ', ескерткіш шекарасынан есептелмеген.');
   const outer = rings.map(r => Math.abs(signedArea(r)));
   const ringArea = outer.map((a, i) => i === 0 ? a : a - outer[i - 1]);
   const toLL = r => r.map(proj.inv);
   return {
-    proj, notes,
+    proj, notes, custom: usedCustom,
     ccw: rings.map(toLL),                                        // GeoJSON үшін (RFC 7946: сыртқы шекара CCW)
     num: [pts.slice(), ...rings.slice(1).map(r => toLL(numbered(r)))], // сызба мен кесте үшін
     outer, ringArea, dists: [0, ...dists],
@@ -199,7 +210,7 @@ export function computeZones(pts, dists) {
 }
 
 /* ======================= Күй ======================= */
-const state = { pts: [], add: true, loadedId: null, loadedName: '' };   // loadedId — ашық тұрған сақталған жазба
+const state = { pts: [], custom: null, add: false, loadedId: null, loadedName: '' };   // loadedId — ашық тұрған сақталған жазба
 let R = null;
 let genTouched = false;
 
@@ -211,7 +222,7 @@ const FIELD_KEYS = Object.keys(F);
 
 function save() {
   try {
-    const o = { pts: state.pts, genTouched, loadedId: state.loadedId, loadedName: state.loadedName, f: {} };
+    const o = { pts: state.pts, custom: state.custom, genTouched, loadedId: state.loadedId, loadedName: state.loadedName, f: {} };
     for (const k of FIELD_KEYS) o.f[k] = F[k].value;
     localStorage.setItem(STORE_KEY, JSON.stringify(o));
   } catch (e) { /* жеке режим т.б. — елемейміз */ }
@@ -222,6 +233,7 @@ function load() {
     if (!o) return false;
     for (const k of FIELD_KEYS) if (o.f && typeof o.f[k] === 'string') F[k].value = o.f[k];
     state.pts = Array.isArray(o.pts) ? o.pts.filter(p => isFinite(p.lat) && isFinite(p.lon)) : [];
+    state.custom = o.custom && Array.isArray(o.custom.rings) ? o.custom : null;
     genTouched = !!o.genTouched;
     state.loadedId = typeof o.loadedId === 'string' ? o.loadedId : null;
     state.loadedName = typeof o.loadedName === 'string' ? o.loadedName : '';
@@ -236,6 +248,71 @@ function toast(msg, err) {
   const t = $('qaToast');
   t.textContent = msg; t.classList.toggle('is-err', !!err); t.hidden = false;
   clearTimeout(toast.t); toast.t = setTimeout(() => { t.hidden = true; }, err ? 5000 : 2600);
+}
+
+/* ======================= Заңнамаға сәйкестік (импортталған аймақ полигондары) =======================
+   ҚР МСМ 14.04.2020 № 86 бұйрығы, 7–9-тармақтар: қорғау аймағының ені — d (ескерткіш түрі мен биіктігіне қарай),
+   құрылыс салуды реттеу аймағы — қорғау аймағынан тағы d, қорғалатын табиғи ландшафт аймағы — тағы d.
+   Импортталған полигон ескерткіш шекарасынан қаншалықты алыс жатқаны өлшенеді: ең жақын жері талаптан тар болса,
+   не әдеттегі (медиана) қашықтығы талаптан едәуір кең болса, не ескерткішті толық қамтымаса — сәйкес емес. */
+export function legalDistance(f) {
+  f = f || {};
+  const h = parseFloat(String(f.height ?? '').replace(',', '.'));
+  if (f.type === 'archeo' || !f.type) return 40;
+  if (f.type === 'ensemble') return 20;
+  if (f.type === 'custom' || !(h > 0)) return null;
+  return h <= 40 ? Math.round(h * 2 * 10) / 10 : h;
+}
+function pointInRing(p, P) {
+  let c = false;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const a = P[i], b = P[j];
+    if ((a[1] > p[1]) !== (b[1] > p[1]) && p[0] < (b[0] - a[0]) * (p[1] - a[1]) / (b[1] - a[1]) + a[0]) c = !c;
+  }
+  return c;
+}
+function segDist(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], l2 = dx * dx + dy * dy;
+  const t = l2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / l2)) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+/** pts — ескерткіш шекарасы, custom — { rings }, f — өрістер (түрі, биіктігі). null — тексеретін импортталған полигон жоқ. */
+export function checkLegal(pts, custom, f) {
+  const rs = custom && Array.isArray(custom.rings) ? custom.rings : [];
+  if (!rs.some(r => Array.isArray(r) && r.length >= 3) || !pts || pts.length < 3) return null;
+  const d = legalDistance(f);
+  const proj = makeProj(pts), M = pts.map(p => proj.fwd({ lat: +p.lat, lon: +p.lon }));
+  const toM = p => { let m = Infinity; for (let i = 0; i < M.length; i++) m = Math.min(m, segDist(p, M[i], M[(i + 1) % M.length])); return m; };
+  const items = [];
+  rs.forEach((r, i) => {
+    if (!Array.isArray(r) || r.length < 3) return;
+    const Z = r.map(p => proj.fwd({ lat: +p.lat, lon: +p.lon }));
+    let per = 0;
+    for (let k = 0; k < Z.length; k++) per += Math.hypot(Z[(k + 1) % Z.length][0] - Z[k][0], Z[(k + 1) % Z.length][1] - Z[k][1]);
+    const step = Math.max(0.5, per / 600), ds = [];
+    for (let k = 0; k < Z.length; k++) {
+      const a = Z[k], b = Z[(k + 1) % Z.length], len = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.ceil(len / step));
+      for (let j = 0; j < n; j++) ds.push(toM([a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n]));
+    }
+    ds.sort((x, y) => x - y);
+    const min = ds[0], med = ds[Math.floor(ds.length / 2)];
+    const req = d == null ? null : d * (i + 1);
+    let status = 'ok';
+    if (!M.every(p => pointInRing(p, Z))) status = 'outside';
+    else if (req != null && min < req - Math.max(1, req * 0.05)) status = 'narrow';
+    else if (req != null && med > req + Math.max(2, req * 0.1)) status = 'wide';
+    items.push({ zone: i + 1, name: ZONES[i + 1].feature, min, med, req, status });
+  });
+  return { d, items, ok: items.every(x => x.status === 'ok'), norule: d == null };
+}
+/** Тексеру нәтижесінің қысқа мәтіні (әр аймақ бір жол). */
+export function legalLines(Lg) {
+  if (!Lg) return [];
+  return Lg.items.map(x => x.name + ': ' + (
+    x.status === 'outside' ? 'ескерткіш аумағын толық қамтымайды'
+      : x.status === 'narrow' ? 'тар — ең жақын жері ' + fmtM(x.min) + ' м, талап — ' + fmtM(x.req) + ' м'
+      : x.status === 'wide' ? 'кең — шамамен ' + fmtM(x.med) + ' м, талап — ' + fmtM(x.req) + ' м'
+      : x.req == null ? 'шамамен ' + fmtM(x.med) + ' м (бұл түрге қашықтық ережесі жоқ)' : 'сәйкес (' + fmtM(x.med) + ' м, талап — ' + fmtM(x.req) + ' м)'));
 }
 
 /* ======================= Ережелер ======================= */
@@ -343,8 +420,8 @@ function drawMarkers() {
 // Азимут — шынайы (географиялық) солтүстіктен сағат тілімен, 0–360°. Есеп жергілікті метрлік проекцияда
 // (makeProj) — бірнеше шақырымға дейінгі қашықтықта қателігі миллиметрден аз.
 const TOOLS_KEY = 'qa-tools-v1';
-const tool = { mode: 'add', snap: 0, ref: 'north', perp: true, sideLabels: true };   // mode: add | ruler | compass | none
-const MEASURE_MODES = ['ruler', 'compass'];                                           // өлшеу режимдері
+const tool = { mode: 'none', snap: 0, ref: 'north', perp: true, sideLabels: true };   // mode: add | ruler | compass | none
+const MEASURE_MODES = ['ruler', 'compass'];                                            // өлшеу режимдері
 try {
   const o = JSON.parse(localStorage.getItem(TOOLS_KEY) || 'null');
   if (o) {
@@ -852,6 +929,13 @@ $('qaPts').addEventListener('change', e => {
 $('qaPts').addEventListener('click', e => { const b = e.target.closest('[data-del]'); if (b) removePoint(+b.dataset.del); });
 
 function msg(html, kind) { $('qaMsg').innerHTML = html ? '<p class="qa-msg qa-msg--' + kind + '">' + html + '</p>' : ''; }
+$('qaMsg').addEventListener('click', e => {
+  const b = e.target.closest('[data-legal]');
+  if (!b || !state.custom) return;
+  if (b.dataset.legal === 'keep') { state.custom = { ...state.custom, accepted: true }; toast('Импортталған аймақтар қалдырылды. Өзгерісті сақтауды ұмытпаңыз.'); }
+  else { state.custom = null; applyRule(true); toast('Аймақтар ескерткіш аумағынан қайта есептелді. Өзгерісті сақтауды ұмытпаңыз.'); }
+  recompute(true, true);
+});
 
 function recompute(full, markers) {
   const n = state.pts.length;
@@ -859,7 +943,7 @@ function recompute(full, markers) {
   R = null;
   if (n >= MIN_POINTS) {
     if (D.some(d => !isFinite(d))) R = { error: 'dist' };
-    else R = computeZones(state.pts, D);
+    else R = computeZones(state.pts, D, state.custom);
   }
   const c = $('qaCount');
   c.textContent = 'Нүктелер: ' + n + (n < MIN_POINTS ? ' (кемінде ' + MIN_POINTS + ')' : '');
@@ -867,6 +951,15 @@ function recompute(full, markers) {
   if (R && R.error === 'self') msg('Шекара сызығы өзін-өзі қиып өтеді. Нүктелердің ретін түзетіңіз немесе «Ретке келтіру» батырмасын басыңыз.', 'err');
   else if (R && R.error === 'flat') msg('Нүктелер бір сызықта жатыр — ескерткіш ауданы жоқ.', 'err');
   else if (R && R.error === 'dist') msg('Аймақ қашықтықтарын (метр) енгізіңіз.', 'err');
+  else if (R && state.custom) {
+    // Импортталған аймақ полигондары: заңнамаға сәйкестігі және «Қалдыру / Қайта есептеу»
+    const Lg = checkLegal(state.pts, state.custom, fieldValues());
+    const bad = Lg && !Lg.ok, acc = !!state.custom.accepted;
+    msg((bad ? '<b>' + (acc ? 'Заңнамаға сәйкес емес (қалдырылған)' : '⚠ Аймақтар қолданыстағы заңнамаға сәйкес емес') + '</b><br>' : '') +
+      R.notes.map(esc).join('<br>') + (Lg ? '<br>' + legalLines(Lg).map(esc).join('<br>') : '') +
+      '<span class="qa-legal-act">' + (bad && !acc ? '<button type="button" class="lnk" data-legal="keep">Қалдыру</button>' : '') +
+      '<button type="button" class="lnk" data-legal="recalc">Ескерткіш аумағынан қайта есептеу</button></span>', bad && !acc ? 'err' : 'warn');
+  }
   else if (R && R.notes.length) msg(R.notes.map(esc).join('<br>'), 'warn');
   else msg('', '');
   drawZones();
@@ -878,19 +971,20 @@ function recompute(full, markers) {
    Ағымдағы өрістер мен нүктелердің «қолтаңбасы» соңғы сақталған (не ашылған) күймен салыстырылады.
    Сервер мәндерді trim() жасап, координаталарды 8 таңбаға дөңгелектейді — салыстыру да солай. */
 let cleanSig = null;                               // null — ашық жазбаның серверлік күйі әлі белгісіз
-function sigOf(f, pts) {
+function sigOf(f, pts, custom) {
   const v = k => String(f[k] ?? '').trim();
   // Ілік септігі атаудан автоматты жасалса — бос деп есептейміз (сервер бос сақтаған болуы мүмкін)
   const val = k => (k === 'gen' && v('gen') === genitive(v('name')) ? '' : v(k));
   return JSON.stringify([FIELD_KEYS.map(val),
-    (pts || []).map(p => [Math.round(+p.lat * 1e8) / 1e8, Math.round(+p.lon * 1e8) / 1e8])]);
+    (pts || []).map(p => [Math.round(+p.lat * 1e8) / 1e8, Math.round(+p.lon * 1e8) / 1e8]), customSig(custom)]);
 }
-const curSig = () => sigOf(fieldValues(), state.pts);
+const customSig = c => (c && Array.isArray(c.rings) ? [!!c.accepted, c.rings.map(r => (Array.isArray(r) ? r.length : 0))] : null);
+const curSig = () => sigOf(fieldValues(), state.pts, state.custom);
 function isDirty() {
   if (!state.loadedId) return state.pts.length > 0;          // жаңа жазба: нүкте қойылса — сақталмаған
   return cleanSig !== null && cleanSig !== curSig();
 }
-function markClean(rec) { cleanSig = rec ? sigOf(rec.fields || {}, rec.pts) : curSig(); paintDirty(); }
+function markClean(rec) { cleanSig = rec ? sigOf(rec.fields || {}, rec.pts, rec.custom) : curSig(); paintDirty(); }
 function paintDirty() {
   const d = isDirty();
   $('qaSave').classList.toggle('is-dirty', d);
@@ -1301,7 +1395,7 @@ function recordZones(rec) {
   const f = rec.fields || {};
   const D = ['d1', 'd2', 'd3'].map(k => parseFloat(String(f[k] ?? '').replace(',', '.')));
   if (D.some(d => !(d > 0))) return { error: 'dist' };
-  return computeZones((rec.pts || []).map(p => ({ lat: +p.lat, lon: +p.lon })), D);
+  return computeZones((rec.pts || []).map(p => ({ lat: +p.lat, lon: +p.lon })), D, rec.custom);
 }
 const collator = new Intl.Collator('kk', { sensitivity: 'base', numeric: true });
 /** Құжаттағы рет: аудан, содан кейін атау (ауданы жоқтар соңында). */
@@ -1552,7 +1646,7 @@ async function geoFileText(f) {
 const hasDists = m => ['d1', 'd2', 'd3'].every(k => +m.fields[k] > 0);
 /** Бір ескерткішті редакторға жүктеу: нүктелер, бос өрістерге — атауы, кезеңі, ауданы; файлдағы қашықтықтар. */
 function loadImported(m) {
-  state.pts = m.pts;
+  state.pts = m.pts; state.custom = null;     // файлдан тек ескерткіш шекарасы — аймақтар ережемен есептеледі
   const f = m.fields;
   if (f.name && !F.name.value.trim()) { F.name.value = f.name; syncGen(); }
   for (const k of ['period', 'oblast', 'place']) if (f[k] && !F[k].value.trim()) F[k].value = f[k];
@@ -1581,22 +1675,22 @@ function importDialog(mons, fileName) {
     const dup = !err && have.has(m.name.trim().toLowerCase());
     const meta = m.pts.length + ' нүкте · ' + (hasDists(m) ? [m.fields.d1, m.fields.d2, m.fields.d3].join(' / ') + ' м' : 'қашықтық файлда жоқ: ' + curD + ' м') +
       (m.fields.district ? ' · ' + m.fields.district : '');
-    return '<li class="gi-row' + (err ? ' is-bad' : '') + '"><label class="qa-check"><input type="checkbox" data-i="' + i + '"' + (err ? ' disabled' : dup ? '' : ' checked') + '>' +
-      '<span><b>' + esc(m.name || '—') + '</b>' + (dup ? ' <span class="gi-tag">тізімде бар</span>' : '') +
+    return '<li class="gj-row' + (err ? ' is-bad' : '') + '"><label class="qa-check"><input type="checkbox" data-i="' + i + '"' + (err ? ' disabled' : dup ? '' : ' checked') + '>' +
+      '<span><b>' + esc(m.name || '—') + '</b>' + (dup ? ' <span class="gj-tag">тізімде бар</span>' : '') +
       '<small>' + esc(err || meta) + '</small></span></label>' +
       (m.pts.length ? '<button type="button" class="lnk" data-open="' + i + '">Ашу</button>' : '') + '</li>';
   }).join('');
   const back = document.createElement('div');
   back.className = 'qa-dlg-back';
-  back.innerHTML = '<div class="qa-dlg qa-glass gi-dlg" role="dialog" aria-modal="true" aria-labelledby="giT">' +
-    '<h3 id="giT">Файлда ' + mons.length + ' ескерткіш</h3>' +
+  back.innerHTML = '<div class="qa-dlg qa-glass gj-dlg" role="dialog" aria-modal="true" aria-labelledby="gjT">' +
+    '<h3 id="gjT">Файлда ' + mons.length + ' ескерткіш</h3>' +
     '<p class="qa-hint">' + esc(fileName) + '. Белгіленгендері «Қорғау аймақтары» тізіміне жеке жазба болып сақталады; ' +
     'біреуін ғана өңдеуге ашу үшін — «Ашу».</p>' +
-    '<label class="qa-check gi-all"><input type="checkbox" id="giAll"> Барлығын таңдау</label>' +
-    '<ul class="gi-list">' + rows + '</ul>' +
+    '<label class="qa-check gj-all"><input type="checkbox" id="gjAll"> Барлығын таңдау</label>' +
+    '<ul class="gj-list">' + rows + '</ul>' +
     '<div class="qa-dlg-btns"><button type="button" class="btn btn--ghost btn--sm" data-v="0">Бас тарту</button>' +
-    '<button type="button" class="btn btn--primary btn--sm" data-v="1" id="giSave"></button></div></div>';
-  const boxes = [...back.querySelectorAll('input[data-i]')], all = back.querySelector('#giAll'), btn = back.querySelector('#giSave');
+    '<button type="button" class="btn btn--primary btn--sm" data-v="1" id="gjSave"></button></div></div>';
+  const boxes = [...back.querySelectorAll('input[data-i]')], all = back.querySelector('#gjAll'), btn = back.querySelector('#gjSave');
   function paint() {
     const on = boxes.filter(b => b.checked).length, ok = boxes.filter(b => !b.disabled).length;
     btn.textContent = 'Тізімге сақтау' + (on ? ' (' + on + ')' : '');
@@ -1631,7 +1725,7 @@ function importDialog(mons, fileName) {
       done();
       saved = r.items || saved; savedLoaded = true; renderSaved();
       if (globalThis.QAUI) globalThis.QAUI.openPanel('saved', { trigger: $('qaOpenSaved') });
-      toast(r.added + ' қорғау аймағы тізімге сақталды' + (r.errors.length ? '; сақталмады: ' + r.errors.map(x => x.name + ' (' + x.error + ')').join(', ') : '.'), r.errors.length > 0);
+      toast(r.added + ' қорғау аймағы тізімге сақталды' + (r.errors.length ? '; сақталмады: ' + r.errors.join(', ') : '.'), r.errors.length > 0);
     } catch (err) { toast('Сақталмады: ' + err.message, true); btn.classList.remove('is-busy'); paint(); }
   });
   document.addEventListener('keydown', onKey, true);
@@ -1639,18 +1733,10 @@ function importDialog(mons, fileName) {
   paint();
   (boxes.find(b => b.checked) || btn).focus({ preventScroll: true });
 }
-/** Бірнеше жазбаны сақтау: бір сұраныспен (savemany); ескі сақтау қызметі білмесе — бір-бірлеп. */
+/** Бірнеше жазбаны сақтау: бір сұраныспен (сақтау қызметінің «add» әрекеті — бәрі бір рет жазылады). */
 async function saveImported(recs) {
-  try { return await api('savemany', { data: JSON.stringify(recs) }); }
-  catch (e) {
-    if (!/Белгісіз әрекет/.test(e.message)) throw e;
-    let items = null, added = 0; const errors = [];
-    for (const r of recs) {
-      try { items = (await api('save', { data: JSON.stringify(r) })).items; added++; }
-      catch (er) { errors.push({ name: r.fields.name, error: er.message }); }
-    }
-    return { added, errors, items };
-  }
+  const j = await api('add', { data: JSON.stringify(recs) });
+  return { added: j.added || 0, errors: j.errors || [], items: j.items };
 }
 async function openGeoFile(f) {
   const base = String(f.name || '').replace(/\.(geo)?json$|\.zip$/i, '') || 'Ескерткіш';
@@ -1794,6 +1880,7 @@ $('qaSample').addEventListener('click', async () => {
   const c = { lat: 50.4123, lon: 57.0412 };
   state.pts = [[0.00062, -0.00035], [0.00068, -0.00012], [0.00030, 0.00095], [-0.00055, 0.00010], [-0.00060, -0.00020], [-0.00020, -0.00050]]
     .map(([a, b]) => ({ lat: c.lat + a, lon: c.lon + b }));
+  state.custom = null;
   recompute(true, true); fit(); renderSaved();
 });
 
@@ -1823,7 +1910,7 @@ const DEFAULTS = Object.fromEntries(FIELD_KEYS.map(k => [k, F[k].value]));
 function resetAll() {
   for (const k of FIELD_KEYS) F[k].value = DEFAULTS[k];
   genTouched = false;
-  state.pts = [];
+  state.pts = []; state.custom = null;
   state.loadedId = null; state.loadedName = '';
   for (const id of ['qaPasteText', 'qaInLat', 'qaInLon']) $(id).value = '';
   $('qaPasteErr').textContent = '';
@@ -1831,7 +1918,7 @@ function resetAll() {
   $('qaCoordTable').checked = false;
   $('qaGeoMode').value = 'ring';
   fmtSel.value = 'dd'; coordFmt = 'dd';
-  setMode('add');
+  setMode('none');                                // құралды пайдаланушы өзі таңдайды
   clearMeasures();
   const paste = document.querySelector('.qa-paste'); if (paste) paste.open = false;
   try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(FMT_KEY); } catch (e) { /* елемейміз */ }
@@ -1908,6 +1995,12 @@ function renderSaved() {
       const meta = [r.district || 'аудан көрсетілмеген', (r.pts || []).length + ' нүкте', fmtDate(r.updated_at) + (r.updated_by ? ', ' + r.updated_by : '')].filter(Boolean).join(' · ');
       const zone = 'Аймақтар: ' + ['d1', 'd2', 'd3'].map(x => comma(String(f[x] ?? '—'))).join(' / ') + ' м' + (TYPE_SHORT[f.type] ? ' · ' + TYPE_SHORT[f.type] : '') + (f.period ? ' · ' + f.period : '');
       const desc = String(f.place || f.desc || '').trim();
+      const Lg = r.custom ? checkLegal(r.pts, r.custom, f) : null, bad = Lg && !Lg.ok, acc = bad && !!r.custom.accepted;
+      const legal = !r.custom ? '' : '<div class="qa-sc-legal' + (bad && !acc ? ' is-bad' : '') + '">' +
+        (bad ? (acc ? 'Заңнамаға сәйкес емес — импортталған күйінде қалдырылған' : '⚠ Аймақтар заңнамаға сәйкес емес') : 'Аймақтар импортталған полигондардан') +
+        (bad ? '<small>' + legalLines(Lg).filter((x, i) => Lg.items[i].status !== 'ok').map(esc).join('; ') + '</small>' : '') +
+        '<span>' + (bad && !acc ? '<button type="button" class="lnk" data-legal-keep="' + id + '">Қалдыру</button>' : '') +
+        '<button type="button" class="lnk" data-legal-recalc="' + id + '" title="Импортталған полигондарды алып тастап, аймақтарды ескерткіш аумағынан заң бойынша есептеу">Қайта есептеу</button></span></div>';
       return '<article class="qa-sc' + (cur ? ' is-current' : '') + (prev ? ' is-preview' : '') + '">' +
         '<input type="checkbox" data-sel="' + id + '"' + (selected.has(r.id) ? ' checked' : '') + ' aria-label="' + nm + ' — экспортқа таңдау">' +
         '<div class="qa-sc-main">' +
@@ -1915,7 +2008,7 @@ function renderSaved() {
         (cur ? '<span class="qa-badge qa-cur">ашық</span>' : '') + (ap ? '<span class="qa-badge qa-ap">' + ap + '</span>' : '') +
         '<div class="qa-sc-meta">' + esc(meta) + '</div>' +
         '<div class="qa-sc-meta">' + esc(zone) + '</div>' +
-        (desc ? '<p class="qa-sc-desc">' + esc(desc) + '</p>' : '') +
+        (desc ? '<p class="qa-sc-desc">' + esc(desc) + '</p>' : '') + legal +
         '<div class="qa-sc-act">' +
         '<button type="button" class="lnk" data-show="' + id + '">Картадан көрсету</button>' +
         '<button type="button" class="lnk" data-open="' + id + '"' + (cur ? ' disabled title="Бұл жазба қазір ашық"' : '') + '>' + (cur ? 'Ашық' : 'Ашу / өңдеу') + '</button>' +
@@ -1959,7 +2052,7 @@ async function refreshSaved() {
   catch (e) { savedLoaded = true; saved = []; renderSaved(); $('qaSaved').innerHTML = '<div class="qa-empty qa-bad">' + esc(e.message) + '</div>'; return; }
   const rec = state.loadedId ? saved.find(r => r.id === state.loadedId) : null;
   if (state.loadedId && !rec) { state.loadedId = null; state.loadedName = ''; cleanSig = null; save(); }
-  if (rec && cleanSig === null) cleanSig = sigOf(rec.fields || {}, rec.pts);   // браузердегі жоба серверлік нұсқадан өзгеше ме
+  if (rec && cleanSig === null) cleanSig = sigOf(rec.fields || {}, rec.pts, rec.custom);   // браузердегі жоба серверлік нұсқадан өзгеше ме
   paintDirty();
   renderSaved();
 }
@@ -1976,7 +2069,7 @@ async function saveRecord(asNew) {
   btns.forEach(b => { b.disabled = true; });
   sb.classList.add('is-busy'); sb.setAttribute('aria-busy', 'true');
   try {
-    const j = await api('save', { data: JSON.stringify({ id, fields: fieldValues(), pts: state.pts }) });
+    const j = await api('save', { data: JSON.stringify({ id, fields: fieldValues(), pts: state.pts, custom: state.custom }) });
     saved = j.items || saved; savedLoaded = true;
     state.loadedId = j.id; state.loadedName = F.name.value.trim();
     save(); markClean(); renderSaved();
@@ -2021,6 +2114,7 @@ function openRecord(rec) {
   genTouched = !!f.gen && f.gen !== genitive(f.name || '');
   if (!f.gen) syncGen();
   state.pts = (rec.pts || []).map(p => ({ lat: +p.lat, lon: +p.lon }));
+  state.custom = rec.custom && Array.isArray(rec.custom.rings) ? rec.custom : null;
   state.loadedId = rec.id; state.loadedName = rec.name;
   $('qaHeightWrap').hidden = !['arch', 'art', 'sacred'].includes(F.type.value);
   $('qaRuleText').textContent = ruleDistance().text;
@@ -2028,13 +2122,16 @@ function openRecord(rec) {
   cleanSig = curSig();
   closePanelOnMobile();
   recompute(true, true); fit(); renderSaved();
-  toast('«' + rec.name + '» ашылды.');
+  const Lg = state.custom ? checkLegal(state.pts, state.custom, fieldValues()) : null;
+  if (Lg && !Lg.ok && !state.custom.accepted) toast('«' + rec.name + '» ашылды. ⚠ Импортталған аймақтар заңнамаға сәйкес емес — «Мәліметтер» панелінде: қалдыру не қайта есептеу.', true);
+  else toast('«' + rec.name + '» ашылды.');
 }
 $('qaSaved').addEventListener('click', async e => {
   const findRec = attr => { const b = e.target.closest('[' + attr + ']'); return b ? saved.find(r => r.id === b.getAttribute(attr)) : undefined; };
   let rec;
   if ((rec = findRec('data-show'))) { showRecord(rec); return; }
   if ((rec = findRec('data-open'))) { requestOpen(rec); return; }
+  if ((rec = findRec('data-legal-keep')) || (rec = findRec('data-legal-recalc'))) { legalAction(rec, !!e.target.closest('[data-legal-keep]')); return; }
   if ((rec = findRec('data-geo'))) {
     const Rk = recordZones(rec);
     if (!Rk || Rk.error) { toast('«' + rec.name + '» жазбасынан аймақ есептелмеді.', true); return; }
@@ -2062,6 +2159,26 @@ $('qaSelAll').addEventListener('change', e => {
   for (const r of vis) { if (e.target.checked) selected.add(r.id); else selected.delete(r.id); }
   renderSaved();
 });
+
+/** Сақталған жазбаның импортталған аймақтары: «Қалдыру» (ескерту енді шықпайды) не «Қайта есептеу» (заң бойынша). */
+async function legalAction(rec, keep) {
+  const f = { ...(rec.fields || {}) };
+  let custom = null;
+  if (keep) custom = { ...rec.custom, accepted: true };
+  else {
+    const d = legalDistance(f);
+    if (d) { f.d1 = String(d); f.d2 = String(d); f.d3 = String(d); }
+    if (!(await ask('«' + rec.name + '»: импортталған аймақ полигондары алынып, аймақтар ескерткіш аумағынан ' + (d ? d + ' метрден' : 'жазбадағы қашықтықтармен') + ' қайта есептеледі. Жалғастырасыз ба?', { ok: 'Қайта есептеу' }))) return;
+  }
+  try {
+    const j = await api('save', { data: JSON.stringify({ id: rec.id, fields: f, pts: rec.pts, custom }) });
+    saved = j.items || saved;
+    const nrec = saved.find(r => r.id === rec.id);
+    if (state.loadedId === rec.id && nrec && !isDirty()) openRecord(nrec); else renderSaved();
+    if (previewId === rec.id && nrec) showRecord(nrec);
+    toast(keep ? '«' + rec.name + '»: импортталған аймақтар қалдырылды.' : '«' + rec.name + '»: аймақтар қайта есептелді.');
+  } catch (err) { toast('Сақталмады: ' + err.message, true); }
+}
 
 /* ---------- Мәліметтер панелі: «Қолдану» ---------- */
 $('qaInfoApply').addEventListener('click', () => {
@@ -2131,4 +2248,4 @@ paintLoaded();
 refreshSaved();
 
 // Тест/жөндеу үшін
-globalThis.__qa = { rectangle, computeZones, parseZonesGeojson, genitive, state, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };
+globalThis.__qa = { rectangle, computeZones, parseZonesGeojson, checkLegal, legalLines, legalDistance, refreshSaved, genitive, state, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };

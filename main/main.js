@@ -1,5 +1,7 @@
 /* Mura GIS — негізгі процесс.
    Интерфейс src/ ішінен mura://app/ мекенжайымен беріледі (тұрақты origin: localStorage, fetch, CORS дұрыс жұмыс істейді).
+   Барлық деректер — ашық жобада: бір GeoPackage (.gpkg) файлы (main/gpkg.js, main/projects.js). Жоба ашылмаса, бет
+   бастапқы терезені көрсетеді (жаңа жоба / соңғы жобалар / файлдан ашу — src/js/project.js).
    mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js); mura://app/routes — маршруттар (main/routes.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
 const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, clipboard } = require('electron');
 const path = require('node:path');
@@ -8,6 +10,10 @@ const { pathToFileURL } = require('node:url');
 const { Store } = require('./store');
 const { MarksStore } = require('./marks');
 const { RoutesStore } = require('./routes');
+const { Projects } = require('./projects');
+const { noTable } = require('./gpkg');
+const { find: findRegion } = require('./regions');
+const gpkgRead = require('./gpkg-read');
 const updates = require('./updates');
 
 const SRC = path.join(__dirname, '..', 'src');
@@ -24,8 +30,21 @@ let win = null;
 let store = null;
 let marks = null;
 let routes = null;
+let projects = null;
+
+/** Ашық жобаның қабаттарына қоймаларды байлау (жоба жоқ болса — бос тізім, жазу қате береді). */
+function bindStores() {
+  const p = projects.current;
+  const t = name => (p ? p.table(name) : noTable);
+  store = new Store(t('zones'));
+  marks = new MarksStore(t('marks'), t('imports'));
+  routes = new RoutesStore(t('routes'));
+  if (win) win.setTitle(p ? (projects.info().current.name + ' — Mura GIS') : 'Mura GIS');
+  buildMenu();
+}
 
 ipcMain.on('mura:version', e => { e.returnValue = app.getVersion(); });
+ipcMain.on('mura:project-info', e => { e.returnValue = projects ? projects.info() : { current: null, recent: [], legacy: null }; });
 
 /* Алмасу буфері (картаның оң жақ мәзірі: координатаны көшіру / қою) — тек бағдарламаның өз бетінен */
 const fromApp = e => String(e.senderFrame && e.senderFrame.url || '').startsWith('mura://app/');
@@ -52,6 +71,109 @@ ipcMain.handle('mura:pdf', async (e, html) => {
     fs.rm(tmp, { force: true }, () => {});
   }
 });
+
+/* ---------- Жобалар: бастапқы терезе мен баптаулардан ---------- */
+const ok = o => ({ ok: true, ...o });
+const fail = e => ({ ok: false, error: e && e.message || String(e) });
+const guard = fn => async (e, ...a) => {
+  if (!fromApp(e)) return fail('Рұқсат жоқ');
+  try { return await fn(...a); } catch (err) { return fail(err); }
+};
+/** Жоба мәліметтерін тексеру: атауы, облыс (тізімнен не бос), аудан (сол облыстікі не бос). */
+function cleanMeta(m) {
+  m = m && typeof m === 'object' ? m : {};
+  const cut = (v, n) => [...String(v ?? '').trim()].slice(0, n).join('');
+  const name = cut(m.name, 120);
+  if (!name) throw new Error('Жоба атауын енгізіңіз.');
+  const r = findRegion(cut(m.oblast, 80));
+  const oblast = r ? r.name : '';
+  const district = r && r.units.includes(cut(m.district, 80)) ? cut(m.district, 80) : '';
+  return { name, oblast, district };
+}
+function afterSwitch() {
+  bindStores();
+  if (win) win.webContents.reload();
+}
+const safeName = s => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Жоба';
+
+async function newProject(meta, opts) {
+  const m = cleanMeta(meta);
+  const r = await dialog.showSaveDialog(win, {
+    title: 'Жаңа жобаны сақтау (GeoPackage)',
+    defaultPath: path.join(app.getPath('documents'), safeName(m.name) + '.gpkg'),
+    filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }],
+  });
+  if (r.canceled || !r.filePath) return ok({ canceled: true });
+  let file = r.filePath;
+  if (!/\.gpkg$/i.test(file)) file += '.gpkg';
+  if (projects.current && projects.current.file === path.resolve(file)) projects.close();   // ашық жобаның үстінен жазу
+  projects.create(file, { ...m, app_version: app.getVersion() }, { importLegacy: !!(opts && opts.importLegacy) });
+  afterSwitch();
+  return ok({ path: file });
+}
+async function openProject(file) {
+  if (!file) {
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Жобаны ашу', properties: ['openFile'],
+      defaultPath: projects.current ? path.dirname(projects.current.file) : app.getPath('documents'),
+      filters: [{ name: 'Mura GIS жобасы (GeoPackage)', extensions: ['gpkg'] }, { name: 'Барлық файлдар', extensions: ['*'] }],
+    });
+    if (r.canceled || !r.filePaths[0]) return ok({ canceled: true });
+    file = r.filePaths[0];
+  }
+  file = path.resolve(String(file));
+  if (projects.current && projects.current.file === file) return ok({ path: file, same: true });
+  // Бөтен GeoPackage (Mura GIS жобасы емес): оның қабаттарын ашық жобаға импорттау ұсынылады — файлдың өзі өзгермейді
+  if (fs.existsSync(file) && !gpkgRead.isMuraProject(file)) {
+    const cur = !!projects.current;
+    const r = await dialog.showMessageBox(win, {
+      type: 'question', title: 'Бөтен GeoPackage',
+      message: path.basename(file) + ' — Mura GIS жобасы емес.',
+      detail: cur
+        ? 'Оның қабаттарын (ескерткіштер, ескерткіш аумақтары, қорғау аймақтары, маршруттар) ашық «' + projects.info().current.name + '» жобасына импорттауға болады: атрибуттар сәйкестендіріледі, аймақтар заңнамаға сәйкестігі тексеріледі. Файлдың өзі өзгермейді.'
+        : 'Деректерін алу үшін алдымен жаңа жоба құрып, «Файл → GeoPackage-тен импорттау» арқылы қабаттарын импорттаңыз (файлдың өзі өзгермейді). Не файлды жоба ретінде ашуға болады — оған Mura GIS қабаттары қосылады.',
+      buttons: cur ? ['Жобаға импорттау…', 'Жоба ретінде ашу', 'Бас тарту'] : ['Жоба ретінде ашу', 'Бас тарту'],
+      defaultId: 0, cancelId: cur ? 2 : 1, noLink: true,
+    });
+    if (cur && r.response === 0) { ui('import-gpkg\n' + file); return ok({ canceled: true, importing: true }); }
+    if (r.response !== (cur ? 1 : 0)) return ok({ canceled: true });
+  }
+  projects.open(file);
+  afterSwitch();
+  return ok({ path: file });
+}
+/** GeoPackage импорты: файлды таңдау (берілмесе) және оқу — қабаттар, атрибуттар, WGS 84 геометриясы. */
+ipcMain.handle('mura:gpkg-inspect', guard(async file => {
+  if (!file) {
+    const r = await dialog.showOpenDialog(win, {
+      title: 'GeoPackage-тен импорттау', properties: ['openFile'],
+      defaultPath: projects.current ? path.dirname(projects.current.file) : app.getPath('documents'),
+      filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }, { name: 'Барлық файлдар', extensions: ['*'] }],
+    });
+    if (r.canceled || !r.filePaths[0]) return ok({ canceled: true });
+    file = r.filePaths[0];
+  }
+  file = path.resolve(String(file));
+  if (projects.current && projects.current.file === file) throw new Error('Бұл — ашық жобаның өз файлы.');
+  return ok({ data: gpkgRead.inspect(file) });
+}));
+ipcMain.handle('mura:project-new', guard((meta, opts) => newProject(meta, opts)));
+ipcMain.handle('mura:project-open', guard(file => openProject(file)));
+ipcMain.handle('mura:project-settings', guard(meta => {
+  projects.updateMeta(cleanMeta(meta));
+  afterSwitch();
+  return ok();
+}));
+ipcMain.handle('mura:project-close', guard(() => { projects.close(); afterSwitch(); return ok(); }));
+ipcMain.handle('mura:project-forget', guard(file => { projects.forget(file); buildMenu(); return ok({ recent: projects.recent() }); }));
+ipcMain.handle('mura:project-reveal', guard(() => { if (projects.current) shell.showItemInFolder(projects.current.file); return ok(); }));
+
+/** Мәзірден / бағдарламадан ашу (қате болса — хабар терезесі). */
+async function openFromMenu(file) {
+  const r = await guard(openProject)({ senderFrame: { url: 'mura://app/' } }, file);
+  if (!r.ok) dialog.showErrorBox('Жобаны ашу', r.error);
+}
+const ui = cmd => { if (win) win.webContents.send('mura:ui', cmd); };
 
 function serveFile(urlPath) {
   const rel = decodeURIComponent(urlPath).replace(/^\/+/, '') || 'index.html';
@@ -100,6 +222,12 @@ function createWindow() {
   });
 }
 
+function recentMenu() {
+  const list = projects ? projects.recent().filter(x => x.exists) : [];
+  if (!list.length) return [{ label: 'Әзірге жоқ', enabled: false }];
+  return list.slice(0, 10).map((x, i) => ({ label: (i + 1) + '. ' + (x.name || path.basename(x.path)).replace(/&/g, '&&') + '  —  ' + x.path.replace(/&/g, '&&'), click: () => openFromMenu(x.path) }));
+}
+
 function buildMenu() {
   const isMac = process.platform === 'darwin';
   const tpl = [
@@ -107,10 +235,18 @@ function buildMenu() {
     {
       label: 'Файл',
       submenu: [
-        { label: 'Сақталған аймақтарды файлға экспорттау…', click: exportStore },
-        { label: 'Сақталған аймақтарды файлдан импорттау…', click: importStore },
+        { label: 'Жаңа жоба…', accelerator: 'CmdOrCtrl+N', click: () => ui('new') },
+        { label: 'Жобаны ашу…', accelerator: 'CmdOrCtrl+O', click: () => openFromMenu() },
+        { label: 'Соңғы жобалар', submenu: recentMenu() },
+        { label: 'Бастапқы терезе', click: () => ui('start') },
         { type: 'separator' },
-        { label: 'Деректер қалтасын ашу', click: () => shell.openPath(store.dir) },
+        { label: 'Баптаулар…', accelerator: 'CmdOrCtrl+,', enabled: !!(projects && projects.current), click: () => ui('settings') },
+        { label: 'Жоба қалтасын ашу', enabled: !!(projects && projects.current), click: () => shell.showItemInFolder(projects.current.file) },
+        { label: 'Жобаны жабу', enabled: !!(projects && projects.current), click: () => { projects.close(); afterSwitch(); } },
+        { type: 'separator' },
+        { label: 'GeoPackage-тен импорттау…', accelerator: 'CmdOrCtrl+I', enabled: !!(projects && projects.current), click: () => ui('import-gpkg') },
+        { label: 'Сақталған аймақтарды файлға экспорттау…', enabled: !!(projects && projects.current), click: exportStore },
+        { label: 'Сақталған аймақтарды файлдан импорттау…', enabled: !!(projects && projects.current), click: importStore },
         { type: 'separator' },
         isMac ? { role: 'close', label: 'Жабу' } : { role: 'quit', label: 'Шығу' },
       ],
@@ -162,7 +298,8 @@ function about() {
       'реттеу аймақтарының және қорғалатын табиғи ландшафт аймақтарының шекаралары (7–9-тармақтар);\n' +
       '• ескерткіштер тізімі кестесінің үлгісі — облыс әкімдігінің жергілікті маңызы бар тарих және мәдениет ескерткіштерінің ' +
       'мемлекеттік тізімін бекіту туралы қаулысына қосымша (мыс. Түркістан облысы әкімдігінің 2020 ж. 17 қыркүйектегі № 188 қаулысы).\n\n' +
-      'Деректер қалтасы: ' + store.dir + '\n' +
+      (projects.current ? 'Ашық жоба: ' + projects.current.file + '\n' : '') +
+      'Баптаулар қалтасы: ' + projects.dir + '\n' +
       'Electron ' + process.versions.electron,
   }).then(r => {
     if (r.response === 1) shell.openExternal(REPO_URL);
@@ -177,7 +314,7 @@ async function exportStore() {
     filters: [{ name: 'JSON', extensions: ['json'] }],
   });
   if (r.canceled || !r.filePath) return;
-  try { store.exportTo(r.filePath); dialog.showMessageBox(win, { type: 'info', message: 'Экспортталды: ' + r.filePath }); }
+  try { fs.writeFileSync(r.filePath, store.exportJson()); dialog.showMessageBox(win, { type: 'info', message: 'Экспортталды: ' + r.filePath }); }
   catch (e) { dialog.showErrorBox('Экспорт', e.message); }
 }
 
@@ -185,19 +322,32 @@ async function importStore() {
   const r = await dialog.showOpenDialog(win, { title: 'Сақталған аймақтарды импорттау', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
   if (r.canceled || !r.filePaths[0]) return;
   try {
-    const { added, updated } = store.importFrom(r.filePaths[0]);
+    const { added, updated } = store.importFrom(fs.readFileSync(r.filePaths[0], 'utf8'));
     await dialog.showMessageBox(win, { type: 'info', message: 'Импортталды: жаңа — ' + added + ', жаңартылған — ' + updated + '.', detail: 'Тізім жаңарту үшін бет қайта жүктеледі.' });
     win.webContents.reload();
   } catch (e) { dialog.showErrorBox('Импорт', e.message); }
 }
 
-app.on('second-instance', () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
+/** Командалық жолда берілген .gpkg файлы (жобаны «Ашу» арқылы не файлды бағдарламаға сүйреп әкелгенде). */
+const argProject = argv => argv.slice(1).find(a => /\.gpkg$/i.test(a) && fs.existsSync(a)) || '';
+
+app.on('second-instance', (_e, argv) => {
+  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
+  const f = argProject(argv);
+  if (f) openFromMenu(f);
+});
 
 app.whenReady().then(() => {
-  store = new Store(path.join(app.getPath('userData'), 'data'));
-  marks = new MarksStore(store.dir);
-  routes = new RoutesStore(store.dir);
-  try { store.seedSample(); } catch (e) { console.error('Үлгі жазба қосылмады:', e.message); }
+  projects = new Projects(path.join(app.getPath('userData'), 'data'));
+  // Бағдарлама бастапқы терезеден басталады; .gpkg файлы берілсе (не MURA_PROJECT — тесттер үшін), бірден сол ашылады
+  const startFile = argProject(process.argv) || process.env.MURA_PROJECT || '';
+  if (startFile) {
+    try {
+      if (fs.existsSync(startFile)) projects.open(startFile);
+      else projects.create(startFile, { name: path.basename(startFile, '.gpkg'), oblast: process.env.MURA_OBLAST || '', district: process.env.MURA_DISTRICT || '', app_version: app.getVersion() });
+    } catch (e) { console.error('Жоба ашылмады:', e.message); }
+  }
+  bindStores();
 
   protocol.handle('mura', req => {
     const u = new URL(req.url);
@@ -222,10 +372,11 @@ app.whenReady().then(() => {
   // Тек геолокация т.б. рұқсаттары керек емес; толық экран — рұқсат
   session.defaultSession.setPermissionRequestHandler((wc, perm, cb) => cb(perm === 'fullscreen' || perm === 'clipboard-sanitized-write'));
 
-  buildMenu();
   createWindow();
+  bindStores();
   setTimeout(() => updates.check(win, { manual: false }), 4000);
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('will-quit', () => { if (projects) projects.close(); });   // жоба файлы (SQLite) дұрыс жабылады
 app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });

@@ -8,6 +8,10 @@ const os = require('node:os');
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mura-smoke-'));
 app.setPath('userData', tmp);
+// Жоба — уақытша .gpkg файлы (бағдарлама бастапқы терезесіз бірден ашады)
+const gpkg = path.join(tmp, 'test.gpkg');
+process.env.MURA_PROJECT = gpkg;
+const countRows = t => { const { DatabaseSync } = require('node:sqlite'); const db = new DatabaseSync(gpkg); try { return db.prepare('SELECT count(*) AS n FROM "' + t + '"').get().n; } finally { db.close(); } };
 const shot = process.argv.find(a => a.endsWith('.png')) || path.join(tmp, 'smoke.png');
 const errors = [];
 
@@ -58,24 +62,28 @@ async function run(win) {
     out.parseOurs = __qa.parseZonesGeojson(ours).map(m => m.name + ' ' + [m.fields.d1, m.fields.d2, m.fields.d3].join('/') + ' ' + m.fields.district).join(', ');
     must(out.parseOurs === 'В 50/100/300 Алға ауданы, Г 20// ', out.parseOurs);
     // Mura GIS-тің өз «GeoJSON + QML» ZIP экспорты → терезе → барлығын тізімге қайта сақтау
-    const recs = l.items.filter(x => x.fields), zip = (await __qa.buildGeoBundle(recs)).blob;
+    const fd2 = new FormData();   // екінші жазба — басқа қашықтықтармен (экспорттан қайта алынуы тексеріледі)
+    fd2.append('data', JSON.stringify({ fields: { name: 'Тест-2', d1: '50', d2: '100', d3: '300' }, pts: __qa.state.pts.map(p => ({ lat: p.lat + 0.01, lon: p.lon })) }));
+    await fetch(QA_API + '&op=save', { method: 'POST', body: fd2 });
+    const l1 = await list();
+    const recs = l1.filter(x => x.fields), zip = (await __qa.buildGeoBundle(recs)).blob;
     const inp = document.getElementById('qaGeoFile'), dt = new DataTransfer();
     dt.items.add(new File([zip], 'Qorgau_aimaqtary.zip')); inp.files = dt.files; inp.dispatchEvent(new Event('change')); await wait(800);
-    const dlg = document.querySelector('.gi-dlg');
+    const dlg = document.querySelector('.gj-dlg');
     must(dlg, 'терезе ашылмады (' + recs.length + ' жазба)');
-    out.impRows = dlg.querySelectorAll('.gi-row').length + ' жол, тізімде бар ' + dlg.querySelectorAll('.gi-tag').length + ': ' + [...dlg.querySelectorAll('.gi-row')].map(r => r.textContent).join(' | ');
-    must(recs.length >= 2 && dlg.querySelectorAll('.gi-row').length === recs.length && dlg.querySelectorAll('.gi-tag').length === recs.length, out.impRows);
-    must(document.getElementById('giSave').disabled, 'тізімде барлары әдепкіде белгіленбеуі керек');
-    document.getElementById('giAll').click(); document.getElementById('giSave').click(); await wait(800);
+    out.impRows = dlg.querySelectorAll('.gj-row').length + ' жол, тізімде бар ' + dlg.querySelectorAll('.gj-tag').length + ': ' + [...dlg.querySelectorAll('.gj-row')].map(r => r.textContent).join(' | ');
+    must(recs.length >= 2 && dlg.querySelectorAll('.gj-row').length === recs.length && dlg.querySelectorAll('.gj-tag').length === recs.length, out.impRows);
+    must(document.getElementById('gjSave').disabled, 'тізімде барлары әдепкіде белгіленбеуі керек');
+    document.getElementById('gjAll').click(); document.getElementById('gjSave').click(); await wait(800);
     const l2 = await list();
-    out.impSaved = (l2.length - l.items.length) + ' жаңа жазба, терезе ' + !!document.querySelector('.gi-dlg') + ', панель ' + !document.getElementById('qaPanelSaved').hidden;
-    must(l2.length === 2 * l.items.length && !document.querySelector('.gi-dlg'), out.impSaved);
+    out.impSaved = (l2.length - l1.length) + ' жаңа жазба, терезе ' + !!document.querySelector('.gj-dlg') + ', панель ' + !document.getElementById('qaPanelSaved').hidden;
+    must(l2.length === 2 * l1.length && !document.querySelector('.gj-dlg'), out.impSaved);
     const same = recs.every(r => l2.filter(x => x.name === r.name && x.fields.d1 === r.fields.d1 && x.fields.d3 === r.fields.d3 && x.pts.length === r.pts.length).length === 2);
     must(same, 'атауы, қашықтықтары, нүктелері сақталмады');
     // Бір ескерткіш — бұрынғыдай редакторға ашылады
     const one = { type: 'FeatureCollection', features: [gen.features[0]] };
     const dt1 = new DataTransfer(); dt1.items.add(new File([JSON.stringify(one)], 'bir.geojson')); inp.files = dt1.files; inp.dispatchEvent(new Event('change')); await wait(500);
-    out.impOne = 'терезе ' + !!document.querySelector('.gi-dlg') + ', нүкте ' + __qa.state.pts.length;
+    out.impOne = 'терезе ' + !!document.querySelector('.gj-dlg') + ', нүкте ' + __qa.state.pts.length;
     must(out.impOne === 'терезе false, нүкте 4', out.impOne);
     out.title = document.title; out.oldTop = !!document.querySelector('.qa-top');
     out.status = document.getElementById('muraRec').textContent + ' | ' + document.getElementById('muraScale').textContent; out.panelBtns = !!document.querySelector('.mura-bar #qaOpenInfo');
@@ -87,7 +95,6 @@ async function run(win) {
   await js("document.getElementById('qaOpenInfo').click()");
   await new Promise(res => setTimeout(res, 1200));
   fs.writeFileSync(shot.replace(/.png$/, '-panel.png'), (await win.webContents.capturePage()).toPNG());
-  const file = path.join(tmp, 'data', 'qorgau.json');
   // Карта қабаттары: мәзір, OpenTopoMap, Esri топо, спутник + атаулар қабаты
   await js("document.querySelector('#qaOpenInfo').click(); document.querySelector('.bm-trigger').click()");
   await new Promise(res => setTimeout(res, 600));
@@ -121,7 +128,7 @@ async function run(win) {
   fs.writeFileSync(shot.replace(/.png$/, '-otm.png'), (await win.webContents.capturePage()).toPNG());
   r.tilesLoaded = await js("document.querySelectorAll('.leaflet-tile-loaded').length");
   r.requests = tiles;
-  r.storeFile = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')).length + ' жазба' : 'жоқ';
+  r.storeFile = countRows('zones') + ' жазба (GeoPackage)';
   console.log(JSON.stringify(r, null, 1));
   console.log('Скриншот:', shot);
   const real = errors.filter(e => !/tile|Failed to load resource/i.test(e));

@@ -1,0 +1,158 @@
+/* Mura GIS: бастапқы терезе (жобалар), «Баптаулар» терезесі, құралдар панелін баптау (js/project.js). */
+
+/* ===== Құралдар жолағы: пайдаланушы жасырған батырмалар, тек иконкалар ===== */
+body.mura .mura-uhide { display: none !important; }
+body.mura .mura-bar.mura-icons .qa-tmain .qa-tl { display: none; }
+
+/* ===== Күй жолағындағы жоба ===== */
+.mura-status .mura-st-proj { display: inline-flex; align-items: center; gap: 6px; max-width: 42vw; border: 0; background: none; padding: 0 8px; font: inherit; color: var(--ink); cursor: pointer; }
+.mura-status .mura-st-proj:hover { color: var(--terr); }
+.mura-st-proj b, .mura-st-proj span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mura-st-proj span { color: var(--soft); }
+.mura-st-proj svg { flex: none; }
+
+/* ===== Бастапқы терезе ===== */
+html.mura-starting .mura-status, html.mura-starting .qa-tb { visibility: hidden; }
+.mura-start { position: fixed; inset: 0; z-index: 3600; display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+  background: radial-gradient(120% 90% at 20% 0%, #f7f2e7 0%, var(--paper2) 60%, #ddd3bf 100%); overflow: auto; }
+.mura-start-card { width: min(940px, 100%); max-height: 100%; display: flex; flex-direction: column; background: var(--white); border: 1px solid var(--line);
+  border-radius: 16px; box-shadow: 0 24px 60px rgba(34, 29, 22, .18); overflow: hidden; }
+.mura-start-head { display: flex; align-items: center; gap: 14px; padding: 18px 22px; border-bottom: 1px solid var(--line); background: var(--paper); }
+.mura-start-head h1 { margin: 0; font-size: 21px; line-height: 1.2; color: var(--ink); }
+.mura-start-head p { margin: 2px 0 0; font-size: 13px; color: var(--soft); }
+.mura-start-head img { flex: none; border-radius: 10px; }
+.mura-start-x { margin-left: auto; flex: none; width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px;
+  background: none; color: var(--soft); cursor: pointer; }
+.mura-start-x:hover { background: var(--paper2); color: var(--ink); }
+.mura-start-body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); min-height: 0; overflow: auto; }
+.mura-start-body > * { padding: 18px 22px 20px; min-width: 0; }
+.mura-start-recent { border-left: 1px solid var(--line); background: #fbf9f4; display: flex; flex-direction: column; }
+.mura-start h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; font-size: 15px; color: var(--ink); }
+.mura-start h2 svg { color: var(--terr); }
+.mura-start label { display: block; margin: 0 0 11px; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.mura-start input[type="text"], .mura-start select { display: block; width: 100%; margin-top: 4px; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px;
+  background: #fff; font: 400 13.5px/1 inherit; font-family: inherit; color: var(--ink); }
+.mura-start select[disabled], .mura-set select[disabled] { background: var(--paper); color: var(--soft); }
+.mura-start input:focus-visible, .mura-start select:focus-visible { outline: 2px solid var(--terr); outline-offset: 0; border-color: transparent; }
+.mura-start .mura-dlg-btns .btn { margin-top: 0; display: inline-flex; align-items: center; gap: 7px; }
+.mura-start-note { margin: 14px 0 0; }
+.mura-cb { display: flex !important; align-items: baseline; gap: 8px; font-weight: 400 !important; cursor: pointer; }
+.mura-cb input { flex: none; width: auto !important; height: auto !important; margin: 0 !important; transform: translateY(1px); }
+.mura-cb > span:last-child { flex: 1 1 auto; min-width: 0; }
+.mura-cb small { color: var(--soft); }
+.mura-start .mura-cb { margin: 4px 0 12px; }
+
+/* Соңғы жобалар */
+.mura-rcl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; overflow: auto; min-height: 0; }
+.mura-rc { position: relative; display: flex; align-items: stretch; border: 1px solid rgba(34, 29, 22, .12); border-radius: 10px; background: #fff; }
+.mura-rc:hover { border-color: var(--sand); }
+.mura-rc.is-current { margin-bottom: 8px; background: #fbf3e6; border-color: var(--sand); align-items: center; }
+.mura-rc-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 9px 12px; border: 0; background: none; text-align: left; font: inherit; color: var(--ink); cursor: pointer; border-radius: 10px; }
+div.mura-rc-main { cursor: default; }
+button.mura-rc-main:focus-visible { outline: 2px solid var(--terr); outline-offset: -2px; }
+.mura-rc-main b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mura-rc-main span { font-size: 12.5px; color: var(--steppe); }
+.mura-rc-main small { font: 11px/1.35 ui-monospace, Consolas, monospace; color: var(--soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; }
+.mura-rc.is-missing .mura-rc-main b { color: var(--soft); text-decoration: line-through; }
+.mura-rc.is-missing .mura-rc-main span { color: var(--terr); }
+.mura-rc-x { flex: none; width: 32px; border: 0; background: none; color: var(--soft); cursor: pointer; border-radius: 0 10px 10px 0; opacity: 0; }
+.mura-rc:hover .mura-rc-x, .mura-rc-x:focus-visible, .mura-rc.is-missing .mura-rc-x { opacity: 1; }
+.mura-rc-x:hover { color: var(--terr); background: var(--paper); }
+.mura-rc-tag { flex: none; margin-right: 12px; font-size: 11px; font-weight: 700; color: #fff; background: var(--steppe); border-radius: 10px; padding: 2px 8px; }
+.mura-rc-empty { margin: 4px 0 0; }
+.mura-start-open { margin-top: auto; padding-top: 14px; justify-content: flex-start; }
+.mura-start-open .btn svg { color: var(--terr); }
+
+@media (max-width: 760px) {
+  .mura-start-body { grid-template-columns: 1fr; }
+  .mura-start-recent { border-left: 0; border-top: 1px solid var(--line); }
+}
+
+/* ===== «Баптаулар» терезесі ===== */
+.mura-set-back { z-index: 3550; }
+.mura-dlg.mura-set { width: min(600px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.mura-set-head { display: flex; align-items: center; padding: 12px 12px 0 20px; }
+.mura-set-head h3 { display: flex; align-items: center; gap: 8px; margin: 0; }
+.mura-set-head h3 svg { color: var(--terr); }
+.mura-tabs { display: flex; gap: 2px; padding: 10px 20px 0; border-bottom: 1px solid var(--line); }
+.mura-tabs button { height: 34px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; background: none; font: 600 13px/1 inherit; font-family: inherit; color: var(--soft); cursor: pointer; margin-bottom: -1px; }
+.mura-tabs button:hover { color: var(--ink); }
+.mura-tabs button[aria-selected="true"] { color: var(--terr); border-bottom-color: var(--terr); }
+.mura-pane { padding: 16px 20px 16px; overflow: auto; min-height: 0; }
+.mura-pane[hidden] { display: none; }
+.mura-set-file { margin: 0 0 10px; font-size: 12.5px; color: var(--soft); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 6px; }
+.mura-set-file code { font-size: 11.5px; color: var(--ink); word-break: break-all; }
+.mura-set-file .lnk { font-size: 12.5px; font-weight: 600; }
+.mura-sp { flex: 1 1 auto; }
+.mura-set .mura-dlg-btns { align-items: center; }
+.mura-tb-opts { margin: 0 0 6px; }
+.mura-tb-sec h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: .03em; text-transform: uppercase; color: var(--steppe); }
+.mura-tb-list { list-style: none; margin: 0 0 8px; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: #fff; }
+.mura-tb-list li { display: flex; align-items: center; gap: 4px; padding: 3px 6px 3px 10px; border-top: 1px solid rgba(34, 29, 22, .07); }
+.mura-tb-list li:first-child { border-top: 0; }
+.mura-tb-list .mura-cb { flex: 1 1 auto; margin: 0 !important; align-items: center; padding: 4px 0; font-size: 13px !important; }
+.mura-tb-list .mura-cb input { transform: none; }
+.mura-tb-ic { display: inline-flex; color: var(--soft); }
+.mura-tb-ic svg { width: 16px; height: 16px; }
+.mura-mv { flex: none; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 6px; background: none; color: var(--soft); cursor: pointer; }
+.mura-mv:hover:not([disabled]) { background: var(--paper2); color: var(--ink); }
+.mura-mv[disabled] { opacity: .3; cursor: default; }
+
+/* Жобаға бекітілген «Облыс» / «Аудан» өрістері (js/regions.js) — оқылатын күйде */
+body.mura #qaOblast:disabled, body.mura #qaDistrict:disabled, .mk-dlg select:disabled { color: var(--ink); background-color: var(--paper); opacity: 1; cursor: default; }
+
+/* ===== Импортталған аймақ полигондары: заңнамаға сәйкестік (qorgau/app.js) ===== */
+.qa-sc-legal { margin: 6px 0 0; padding: 6px 9px; border-radius: 8px; background: var(--paper); font-size: 12px; color: var(--steppe); display: flex; flex-direction: column; gap: 3px; }
+.qa-sc-legal.is-bad { background: #fbeee6; color: #8a3311; font-weight: 600; }
+.qa-sc-legal small { font-weight: 400; color: var(--ink); line-height: 1.4; }
+.qa-sc-legal span, .qa-legal-act { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.qa-sc-legal .lnk, .qa-legal-act .lnk { font-size: 12.5px; font-weight: 600; }
+.qa-legal-act { margin-top: 6px; }
+
+/* ===== GeoPackage импорты (js/gpkg-import.js) ===== */
+.gi-back { z-index: 3560; }
+.mura-dlg.gi-dlg { position: relative; width: min(860px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.gi-head { display: flex; align-items: center; gap: 8px; padding: 14px 12px 10px 20px; border-bottom: 1px solid var(--line); }
+.gi-head h3 { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gi-head .mura-start-x { margin-left: auto; }
+.gi-body { padding: 14px 20px; overflow: auto; min-height: 0; }
+.gi-body > p { margin: 0 0 10px; }
+.gi-foot { display: flex; align-items: center; gap: 8px; padding: 10px 20px 14px; border-top: 1px solid var(--line); background: #fbf9f4; }
+.gi-foot .btn { margin: 0; }
+.gi-sp { flex: 1 1 auto; }
+.gi-busy { color: var(--soft); }
+.gi-tbl { width: 100%; border-collapse: collapse; font-size: 13px; margin: 0 0 8px; }
+.gi-tbl th { text-align: left; font-size: 11px; letter-spacing: .03em; text-transform: uppercase; color: var(--steppe); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.gi-tbl td { padding: 8px; border-bottom: 1px solid rgba(34, 29, 22, .08); vertical-align: top; }
+.gi-tbl tr.is-dis td { opacity: .7; }
+.gi-tbl select { margin: 0; width: 100%; min-width: 200px; }
+.gi-tbl small { color: var(--soft); font-weight: 400; }
+.gi-st { min-width: 190px; }
+.gi-st .btn { margin: 6px 0 0; display: block; }
+.gi-sub { font-size: 12px; color: var(--soft); margin-top: 2px; }
+.gi-note { color: #8a6a22; }
+.gi-chip { display: inline-block; font-size: 11.5px; font-weight: 600; border-radius: 10px; padding: 2px 8px; background: var(--paper2); color: var(--steppe); line-height: 1.35; }
+.gi-chip.is-ok { background: #e3f1e6; color: #1f6b33; }
+.gi-chip.is-warn { background: #fbe6da; color: #9a3510; }
+.gi-chip.is-part { background: #f6ecd6; color: #7a5a10; }
+.gi-chip.is-err { background: #f6dede; color: #8b1a1a; white-space: normal; }
+.gi-map { position: absolute; inset: 0; z-index: 2; display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; background: rgba(34, 29, 22, .28); overflow: auto; }
+.gi-map-in { width: min(560px, 100%); background: var(--white); border-radius: 12px; box-shadow: 0 14px 40px rgba(0, 0, 0, .25); padding: 16px 18px; }
+.gi-map-in h4 { margin: 0 0 8px; font-size: 15px; }
+.gi-mtbl { width: 100%; border-collapse: collapse; margin: 6px 0 10px; }
+.gi-mtbl th { text-align: left; font-size: 12.5px; font-weight: 600; padding: 4px 10px 4px 0; width: 38%; vertical-align: middle; }
+.gi-mtbl th label { margin: 0; font-size: inherit; }
+.gi-mtbl td { padding: 3px 0; }
+.gi-mtbl select { margin: 0; }
+.gi-h4 { margin: 14px 0 8px; font-size: 14px; }
+.gi-h4 small { font-weight: 400; color: var(--soft); }
+.gi-warn { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 9px; background: #fbeee6; color: #8a3311; font-weight: 600; font-size: 13px; margin-bottom: 10px; }
+.gi-warn span { display: flex; gap: 16px; font-weight: 600; }
+.gi-mons { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.gi-mon { border: 1px solid rgba(34, 29, 22, .12); border-radius: 10px; padding: 9px 12px; background: #fff; }
+.gi-mon.is-bad { border-color: #e2a184; }
+.gi-mon-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.gi-lines { margin: 6px 0 0; padding: 0 0 0 18px; font-size: 12.5px; }
+.gi-lines li.is-bad { color: #9a3510; font-weight: 600; }
+.gi-choice { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.gi-choice .mura-cb { margin: 0 !important; font-size: 12.5px !important; }

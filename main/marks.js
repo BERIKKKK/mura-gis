@@ -1,15 +1,13 @@
-/* Ескерткіш белгілері (картадағы нүктелер) — компьютердегі JSON файл: data/marks.json.
-   Қорғау аймақтарынан (store.js → qorgau.json) бөлек сақталады — екі функция бір-біріне тимейді.
+/* Ескерткіш белгілері (картадағы нүктелер) — ашық жобаның (.gpkg) marks қабаты.
+   Қорғау аймақтарынан (zones қабаты) бөлек сақталады — екі функция бір-біріне тимейді.
    Клиент (src/marks/marks.js): POST mura://app/marks?op=list|save|delete|import
      save   — FormData data = бір белгі (JSON), id болса — жаңартылады;
-     delete — FormData id;
+     delete — FormData id (бірнешеуі — үтір арқылы);
      import — FormData data = белгілер тізімі (JSON), id бірдей болса жаңасы қалады;
-     ilist / iadd / idel — импортталған нүктелер (KML, KMZ, GPX): data/imports.json. Олар белгі емес — «Сәйкестендіру»
-       арқылы белгі ретінде сақталғанда ғана тізімнен алынады (idel). iadd: data = [{ name, desc, lat, lon, file, folder }],
+     ilist / iadd / idel — импортталған нүктелер (KML, KMZ, GPX). Олар белгі емес — «Сәйкестендіру»
+       арқылы белгі ретінде сақталғанда ғана тізімнен алынады (idel); жобаның imports қабаты. iadd: data = [{ name, desc, lat, lon, file, folder }],
        idel: id = 'all' не id-лер үтір арқылы.
    Жауап: { ok, items, imports, id, added, updated, error }. */
-const fs = require('node:fs');
-const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 
@@ -19,28 +17,18 @@ const CATEGORIES = ['', 'intl', 'rep', 'local'];
 const STATUSES = ['state', 'prelim', 'archreg', 'excluded'];
 
 class MarksStore {
-  constructor(dir) {
-    this.dir = dir;
-    this.file = path.join(dir, 'marks.json');
-    this.ifile = path.join(dir, 'imports.json');
-    fs.mkdirSync(dir, { recursive: true });
+  /** marks, imports — жобаның қабаттары ({ load(), write(items) }). */
+  constructor(marks, imports) {
+    this.t = marks;
+    this.it = imports;
   }
 
   load() {
-    try {
-      const j = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      return Array.isArray(j) ? j.filter(x => x && typeof x === 'object' && x.id) : [];
-    } catch (e) {
-      if (e.code === 'ENOENT') return [];
-      throw new Error('Белгілер файлы оқылмады: ' + this.file + ' (' + e.message + ')');
-    }
+    return this.t.load().filter(x => x && typeof x === 'object' && x.id);
   }
 
   write(items) {
-    const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(items, null, 1));
-    if (fs.existsSync(this.file)) fs.copyFileSync(this.file, this.file + '.bak');
-    fs.renameSync(tmp, this.file);
+    this.t.write(items);
   }
 
   list() {
@@ -49,18 +37,10 @@ class MarksStore {
 
   /* ---------- Импортталған нүктелер ---------- */
   loadImports() {
-    try {
-      const j = JSON.parse(fs.readFileSync(this.ifile, 'utf8'));
-      return Array.isArray(j) ? j.filter(x => x && typeof x === 'object' && x.id) : [];
-    } catch (e) {
-      if (e.code === 'ENOENT') return [];
-      throw new Error('Импорт файлы оқылмады: ' + this.ifile + ' (' + e.message + ')');
-    }
+    return this.it.load().filter(x => x && typeof x === 'object' && x.id);
   }
   writeImports(items) {
-    const tmp = this.ifile + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(items, null, 1));
-    fs.renameSync(tmp, this.ifile);
+    this.it.write(items);
   }
   addImports(raw) {
     let list;
@@ -120,12 +100,14 @@ class MarksStore {
     return id;
   }
 
+  /** Бір белгіні не бірнешеуін (id-лер үтір арқылы) өшіру; өшірілгендер саны. */
   remove(id) {
+    const ids = new Set(String(id || '').split(',').map(s => s.trim()).filter(Boolean));
     const items = this.load();
-    const i = items.findIndex(x => x.id === String(id || ''));
-    if (i < 0) throw new Error('Белгі табылмады.');
-    items.splice(i, 1);
-    this.write(items);
+    const left = items.filter(x => !ids.has(x.id));
+    if (left.length === items.length) throw new Error('Белгі табылмады.');
+    this.write(left);
+    return items.length - left.length;
   }
 
   /** Тізімді қосу (GeoJSON-нан не басқа компьютерден): id бірдей болса — жаңасы қалады, id жоғы — жаңа белгі. */
@@ -162,7 +144,7 @@ class MarksStore {
       if (op === 'iadd') { const r = this.addImports(fd.get('data')); return out({ ok: true, ...r, imports: this.loadImports() }); }
       if (op === 'idel') { this.removeImports(fd.get('id')); return out({ ok: true, imports: this.loadImports() }); }
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
-      if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, items: this.list() }); }
+      if (op === 'delete') { const removed = this.remove(fd.get('id')); return out({ ok: true, removed, items: this.list() }); }
       if (op === 'import') { const r = this.importMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
       return out({ ok: false, error: 'Белгісіз әрекет.' });
     } catch (e) {

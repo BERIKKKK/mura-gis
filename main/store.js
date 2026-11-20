@@ -1,44 +1,30 @@
-/* Сақталған қорғау аймақтары — компьютердегі JSON файл.
+/* Сақталған қорғау аймақтары — ашық жобаның (.gpkg) zones қабаты (main/gpkg.js).
    Клиенттік код (src/qorgau/app.js) POST сұранысын жібереді:
-     mura://app/api?v=1&op=list|save|savemany|delete  (FormData: data / id)
+     mura://app/api?v=1&op=list|save|delete  (FormData: data / id)
    Жауап пішімі: { ok, items, id, error }. */
-const fs = require('node:fs');
-const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
 
-const currentUser = () => { try { return os.userInfo().username; } catch (e) { return ''; } };
-
 class Store {
-  constructor(dir) {
-    this.dir = dir;
-    this.file = path.join(dir, 'qorgau.json');
-    fs.mkdirSync(dir, { recursive: true });
+  /** table — { load(), write(items) }: жобаның қабаты (gpkg.js → Project.table('zones')) не noTable. */
+  constructor(table) {
+    this.t = table;
   }
 
   load() {
-    try {
-      const j = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      return Array.isArray(j) ? j.filter(x => x && typeof x === 'object') : [];
-    } catch (e) {
-      if (e.code === 'ENOENT') return [];
-      throw new Error('Деректер файлы оқылмады: ' + this.file + ' (' + e.message + ')');
-    }
+    return this.t.load().filter(x => x && typeof x === 'object');
   }
 
   write(items) {
-    const tmp = this.file + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(items, null, 1));
-    if (fs.existsSync(this.file)) fs.copyFileSync(this.file, this.file + '.bak');
-    fs.renameSync(tmp, this.file);
+    this.t.write(items);
   }
 
   list() {
     return this.load().sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
   }
 
-  /** Жазбаның нүктелері мен өрістерін тексеру: { pts, fields }, қате болса — Error. */
-  clean(d) {
+  /** Жазбаны тексеріп, қалыпқа келтіру: { fields, pts, custom } (қате болса — Error). */
+  static clean(d) {
     if (!d || typeof d !== 'object') throw new Error('Дерек оқылмады.');
     const pts = [];
     for (const p of Array.isArray(d.pts) ? d.pts : []) {
@@ -53,23 +39,25 @@ class Store {
     for (const [k, max] of Object.entries(limits)) fields[k] = [...String(src[k] ?? '').trim()].slice(0, max).join('');
     if (!fields.name) throw new Error('Ескерткіш атауын енгізіңіз.');
     for (const k of ['d1', 'd2', 'd3']) if (!(parseFloat(fields[k].replace(',', '.')) > 0)) throw new Error('Аймақ қашықтықтарын енгізіңіз.');
-    return { pts, fields };
+
+    return { fields, pts, custom: Store.cleanCustom(d.custom) };
   }
 
   /** Жазбаны тексеріп сақтау. */
   save(raw) {
     let d;
     try { d = JSON.parse(String(raw || '')); } catch (e) { d = null; }
-    const { pts, fields } = this.clean(d);
+    const { fields, pts, custom } = Store.clean(d);
     const items = this.load();
     const now = new Date().toISOString();
-    const user = currentUser();
+    const user = (() => { try { return os.userInfo().username; } catch (e) { return ''; } })();
     let id = String(d.id || '');
     const i = id ? items.findIndex(x => x.id === id) : -1;
     const old = i >= 0 ? items[i] : null;
     if (!old) id = crypto.randomBytes(8).toString('hex');
     const rec = {
       id, name: fields.name, district: fields.district, fields, pts,
+      ...(custom ? { custom } : {}),
       created_at: old?.created_at || now, created_by: old?.created_by || user,
       updated_at: now, updated_by: user,
     };
@@ -78,24 +66,46 @@ class Store {
     return id;
   }
 
-  /** Бірнеше жаңа жазбаны бірден қосу (GeoJSON импорты): дұрыстары бір жазумен сақталады, қателілері — тізімде.
-      Жауап: { added, ids, errors: [{ index, name, error }] }. */
-  saveMany(raw) {
+  /** Жаңа жазбалар тізімін қосу (GeoPackage импорты): әрқайсысы тексеріледі, бәрі бір рет жазылады. */
+  addMany(raw) {
     let list;
     try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
-    if (!Array.isArray(list)) throw new Error('Дерек оқылмады.');
-    if (list.length > 2000) throw new Error('Бір реттік импорт 2000 жазбадан аспауы керек.');
-    const items = this.load(), now = new Date().toISOString(), user = currentUser(), ids = [], errors = [];
-    list.forEach((d, index) => {
+    if (!Array.isArray(list)) throw new Error('Жазбалар тізімі оқылмады.');
+    if (list.length > 5000) throw new Error('Бір импортта жазба тым көп (5000-нан аспауы керек).');
+    const items = this.load();
+    const now = new Date().toISOString();
+    const user = (() => { try { return os.userInfo().username; } catch (e) { return ''; } })();
+    let added = 0;
+    const errors = [];
+    list.forEach((d, i) => {
       try {
-        const { pts, fields } = this.clean(d);
-        const id = crypto.randomBytes(8).toString('hex');
-        items.push({ id, name: fields.name, district: fields.district, fields, pts, created_at: now, created_by: user, updated_at: now, updated_by: user });
-        ids.push(id);
-      } catch (e) { errors.push({ index, name: String(d && d.fields && d.fields.name || ''), error: e.message }); }
+        const { fields, pts, custom } = Store.clean(d);
+        items.push({ id: crypto.randomBytes(8).toString('hex'), name: fields.name, district: fields.district, fields, pts, ...(custom ? { custom } : {}),
+          created_at: now, created_by: user, updated_at: now, updated_by: user });
+        added++;
+      } catch (e) { errors.push((d && d.fields && d.fields.name || (i + 1) + '-жазба') + ': ' + e.message); }
     });
-    if (ids.length) this.write(items);
-    return { added: ids.length, ids, errors };
+    if (added) this.write(items);
+    return { added, skipped: errors.length, errors: errors.slice(0, 50) };
+  }
+
+  /** Импортталған дайын аймақ полигондары (GeoPackage импорты): { rings: [қорғау, реттеу, ландшафт] — [{lat, lon}] не null,
+      source — файл/қабат атауы, accepted — заңнамаға сәйкес еместігі туралы ескертуді пайдаланушы қабылдады ма}. */
+  static cleanCustom(c) {
+    if (!c || typeof c !== 'object' || !Array.isArray(c.rings)) return null;
+    const rings = [0, 1, 2].map(i => {
+      const r = c.rings[i];
+      if (!Array.isArray(r) || r.length < 3 || r.length > 5000) return null;
+      const out = [];
+      for (const p of r) {
+        const lat = Number(p && p.lat), lon = Number(p && p.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+        out.push({ lat: Math.round(lat * 1e8) / 1e8, lon: Math.round(lon * 1e8) / 1e8 });
+      }
+      return out;
+    });
+    if (!rings.some(Boolean)) return null;
+    return { rings, source: [...String(c.source || '')].slice(0, 300).join(''), accepted: !!c.accepted };
   }
 
   remove(id) {
@@ -106,9 +116,9 @@ class Store {
     this.write(items);
   }
 
-  /** Басқа файлдан (басқа компьютерден) жазбаларды қосу; id бірдей болса — жаңасы қалады. */
-  importFrom(file) {
-    let j = JSON.parse(fs.readFileSync(file, 'utf8'));
+  /** JSON мәтінінен (басқа компьютерден, ескі нұсқадан) жазбаларды қосу; id бірдей болса — жаңасы қалады. */
+  importFrom(text) {
+    let j = JSON.parse(String(text));
     if (j && !Array.isArray(j) && Array.isArray(j.items)) j = j.items;
     if (!Array.isArray(j)) throw new Error('Файлда сақталған аймақтар тізімі жоқ.');
     const items = this.load();
@@ -123,31 +133,8 @@ class Store {
     return { added, updated };
   }
 
-  /** Үлгі жазба «Қорғау аймақтары» тізімінде — бір рет қосылады (белгі файлы). Пайдаланушы өшірсе, келесі
-      іске қосу мен жаңартуларда қайта қосылмайды. */
-  seedSample() {
-    const flag = path.join(this.dir, '.sample-v1');
-    if (fs.existsSync(flag)) return false;
-    const c = { lat: 50.4123, lon: 57.0412 };
-    const pts = [[0.00062, -0.00035], [0.00068, -0.00012], [0.00030, 0.00095], [-0.00055, 0.00010], [-0.00060, -0.00020], [-0.00020, -0.00050]]
-      .map(([a, b]) => ({ lat: Math.round((c.lat + a) * 1e8) / 1e8, lon: Math.round((c.lon + b) * 1e8) / 1e8 }));
-    const now = new Date().toISOString();
-    const items = this.load();
-    items.push({
-      id: crypto.randomBytes(8).toString('hex'), name: 'Үлгі қорымы', district: 'Қарғалы ауданы',
-      fields: { name: 'Үлгі қорымы', gen: 'Үлгі қорымының', period: 'қола дәуірі', oblast: 'Ақтөбе облысы', district: 'Қарғалы ауданы',
-        place: 'Егінді жылғасының жоғарғы оң жақ жағалауында (үлгі мәтін)',
-        desc: 'Бейіт үш қорғаннан тұрады. Қорғандардың диаметрі 6–10 метр, биіктігі 0,2–0,3 метр (үлгі мәтін). Бұл — үлгі жазба: қажет болмаса, өшіріңіз.',
-        type: 'archeo', height: '10', d1: '40', d2: '40', d3: '40' },
-      pts, created_at: now, created_by: 'Mura GIS', updated_at: now, updated_by: 'Mura GIS',
-    });
-    this.write(items);
-    fs.writeFileSync(flag, now + '\n');
-    return true;
-  }
-
-  exportTo(file) {
-    fs.writeFileSync(file, JSON.stringify(this.load(), null, 1));
+  exportJson() {
+    return JSON.stringify(this.load(), null, 1);
   }
 
   async handle(request) {
@@ -159,8 +146,8 @@ class Store {
       const fd = await request.formData();
       if (op === 'list') return out({ ok: true, items: this.list() });
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
-      if (op === 'savemany') { const r = this.saveMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
       if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, items: this.list() }); }
+      if (op === 'add') { const r = this.addMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
       return out({ ok: false, error: 'Белгісіз әрекет.' });
     } catch (e) {
       return out({ ok: false, error: e.message || String(e) });
