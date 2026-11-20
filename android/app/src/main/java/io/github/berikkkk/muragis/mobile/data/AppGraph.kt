@@ -9,6 +9,7 @@ import io.github.berikkkk.muragis.core.db.LayerStore
 import io.github.berikkkk.muragis.core.db.LocalStore
 import io.github.berikkkk.muragis.core.db.MapLayer
 import io.github.berikkkk.muragis.core.server.LocalTileServer
+import io.github.berikkkk.muragis.core.server.TileProvider
 import io.github.berikkkk.muragis.core.sources.OfflinePolicy
 import io.github.berikkkk.muragis.core.sources.SourcePolicy
 import io.github.berikkkk.muragis.core.sources.TileSource
@@ -31,7 +32,7 @@ class AppGraph(val context: Context) {
     val backups = Backups(File(context.filesDir, "backups"), dbFile)
 
     @Volatile var tiles: TileRegistry = TileRegistry(layers); private set
-    val server: LocalTileServer = LocalTileServer { id, z, x, y -> tiles.tile(id, z, x, y) }
+    val server: LocalTileServer = LocalTileServer(TileProvider { id, z, x, y -> tiles.tile(id, z, x, y) })
 
     init {
         seedBuiltInLayers()
