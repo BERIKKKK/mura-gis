@@ -4,6 +4,7 @@
 //   node desktop-compat.mjs write-gpkg <file>        — жұмыс үстелі коды арқылы жоба жасайды (2 белгі, 1 маршрут)
 //   node desktop-compat.mjs marks-geojson            — жұмыс үстеліндегі geojson() экспорты (stdout)
 //   node desktop-compat.mjs routes-export            — жұмыс үстеліндегі toGeojson() және toGpx() (stdout, JSON)
+//   node desktop-compat.mjs find-path <file.json>    — routes/graph.js: желі құрып, жол іздейді ({routes, marks, queries} → нәтижелер)
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -45,6 +46,17 @@ if (cmd === 'read-gpkg') {
 } else if (cmd === 'routes-export') {
   const { toGeojson, toGpx } = await import(pathToFileURL(path.join(repo, 'src', 'routes', 'tracks.js')).href);
   process.stdout.write(JSON.stringify({ geojson: toGeojson(ROUTES), gpx: toGpx(ROUTES.map(r => ({ name: r.name, desc: r.note, pts: r.pts }))) }));
+} else if (cmd === 'find-path') {
+  const { buildNetwork, findPath } = await import(pathToFileURL(path.join(repo, 'src', 'routes', 'graph.js')).href);
+  const fs = await import('node:fs');
+  const inp = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const net = buildNetwork(inp.routes, inp.marks);
+  const out = inp.queries.map(q => {
+    const r = findPath(net, q.from, q.to, q.opt);
+    return r.ok ? { ok: true, len: r.len, time: r.time, n: r.coords.length, legs: r.legs.map(l => l.route.id),
+      offStart: r.offStart ? r.offStart.len : 0, offEnd: r.offEnd ? r.offEnd.len : 0 } : { ok: false };
+  });
+  process.stdout.write(JSON.stringify({ nodes: net.nodes.length, edges: net.edges.length, results: out }));
 } else {
   console.error('Белгісіз команда'); process.exit(2);
 }
