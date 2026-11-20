@@ -38,6 +38,45 @@ async function run(win) {
     out.save = s.ok ? 'ok ' + s.id : s.error;
     const l = await (await fetch(QA_API + '&op=list', { method: 'POST', body: new FormData() })).json();
     out.listed = l.items ? l.items.length : l.error;
+    // GeoJSON импорты: бір файлда бірнеше ескерткіш
+    const wait = t => new Promise(r => setTimeout(r, t));
+    const must = (ok, msg) => { if (!ok) throw new Error('Импорт: ' + msg); };
+    const list = async () => (await (await fetch(QA_API + '&op=list', { method: 'POST', body: new FormData() })).json()).items;
+    const sq = (lat, lon, d = 0.0005) => [[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]];
+    const gen = { type: 'FeatureCollection', features: [
+      { type: 'Feature', properties: { name: 'А обасы' }, geometry: { type: 'Polygon', coordinates: [sq(50.1, 57.1)] } },
+      { type: 'Feature', properties: { NAME: 'Б қорымы' }, geometry: { type: 'MultiPolygon', coordinates: [[sq(50.2, 57.2)], [sq(50.21, 57.2)]] } },
+      { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [sq(50.3, 57.3)] } } ] };
+    out.parseGeneric = __qa.parseZonesGeojson(gen, 'файл').map(m => m.name + ':' + m.pts.length).join(', ');
+    must(out.parseGeneric === 'А обасы:4, Б қорымы (1-бөлік):4, Б қорымы (2-бөлік):4, файл — 4:4', out.parseGeneric);
+    // Mura GIS пішімі, monument_id жоқ: аймақтар (қашықтықтарымен) файлдағы алдыңғы ескерткішке тиесілі
+    const zf = (zone, p, c) => ({ type: 'Feature', properties: { zone, ...p }, geometry: { type: 'Polygon', coordinates: [c] } });
+    const ours = { type: 'FeatureCollection', features: [
+      zf('monument', { monument: 'В', district: 'Алға ауданы' }, sq(50.4, 57.4)), zf('protection', { distance_m: 50 }, sq(50.4, 57.4, 0.002)),
+      zf('regulation', { distance_m: 100 }, sq(50.4, 57.4, 0.003)), zf('landscape', { distance_m: 300 }, sq(50.4, 57.4, 0.006)),
+      zf('monument', { monument: 'Г' }, sq(50.5, 57.5)), zf('protection', { distance_m: 20 }, sq(50.5, 57.5, 0.002)) ] };
+    out.parseOurs = __qa.parseZonesGeojson(ours).map(m => m.name + ' ' + [m.fields.d1, m.fields.d2, m.fields.d3].join('/') + ' ' + m.fields.district).join(', ');
+    must(out.parseOurs === 'В 50/100/300 Алға ауданы, Г 20// ', out.parseOurs);
+    // Mura GIS-тің өз «GeoJSON + QML» ZIP экспорты → терезе → барлығын тізімге қайта сақтау
+    const recs = l.items.filter(x => x.fields), zip = (await __qa.buildGeoBundle(recs)).blob;
+    const inp = document.getElementById('qaGeoFile'), dt = new DataTransfer();
+    dt.items.add(new File([zip], 'Qorgau_aimaqtary.zip')); inp.files = dt.files; inp.dispatchEvent(new Event('change')); await wait(800);
+    const dlg = document.querySelector('.gi-dlg');
+    must(dlg, 'терезе ашылмады (' + recs.length + ' жазба)');
+    out.impRows = dlg.querySelectorAll('.gi-row').length + ' жол, тізімде бар ' + dlg.querySelectorAll('.gi-tag').length + ': ' + [...dlg.querySelectorAll('.gi-row')].map(r => r.textContent).join(' | ');
+    must(recs.length >= 2 && dlg.querySelectorAll('.gi-row').length === recs.length && dlg.querySelectorAll('.gi-tag').length === recs.length, out.impRows);
+    must(document.getElementById('giSave').disabled, 'тізімде барлары әдепкіде белгіленбеуі керек');
+    document.getElementById('giAll').click(); document.getElementById('giSave').click(); await wait(800);
+    const l2 = await list();
+    out.impSaved = (l2.length - l.items.length) + ' жаңа жазба, терезе ' + !!document.querySelector('.gi-dlg') + ', панель ' + !document.getElementById('qaPanelSaved').hidden;
+    must(l2.length === 2 * l.items.length && !document.querySelector('.gi-dlg'), out.impSaved);
+    const same = recs.every(r => l2.filter(x => x.name === r.name && x.fields.d1 === r.fields.d1 && x.fields.d3 === r.fields.d3 && x.pts.length === r.pts.length).length === 2);
+    must(same, 'атауы, қашықтықтары, нүктелері сақталмады');
+    // Бір ескерткіш — бұрынғыдай редакторға ашылады
+    const one = { type: 'FeatureCollection', features: [gen.features[0]] };
+    const dt1 = new DataTransfer(); dt1.items.add(new File([JSON.stringify(one)], 'bir.geojson')); inp.files = dt1.files; inp.dispatchEvent(new Event('change')); await wait(500);
+    out.impOne = 'терезе ' + !!document.querySelector('.gi-dlg') + ', нүкте ' + __qa.state.pts.length;
+    must(out.impOne === 'терезе false, нүкте 4', out.impOne);
     out.title = document.title; out.oldTop = !!document.querySelector('.qa-top');
     out.status = document.getElementById('muraRec').textContent + ' | ' + document.getElementById('muraScale').textContent; out.panelBtns = !!document.querySelector('.mura-bar #qaOpenInfo');
     return out;

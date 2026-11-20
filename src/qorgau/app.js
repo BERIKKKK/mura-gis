@@ -1470,22 +1470,193 @@ function describe(r, axis) {
   const v = axis === 'lat' && r.lat !== undefined ? r.lat : axis === 'lon' && r.lon !== undefined ? r.lon : r.v;
   return '= ' + v.toFixed(7) + '° · ' + fmtCoord(v, 'dm') + ' · ' + fmtCoord(v, 'dms');
 }
-function importGeojson(o) {
-  const feats = o.type === 'FeatureCollection' ? o.features : o.type === 'Feature' ? [o] : [{ type: 'Feature', properties: {}, geometry: o }];
-  const pick = feats.find(f => f?.properties?.zone === 'monument') || feats.find(f => /Polygon/.test(f?.geometry?.type || '')) || feats.find(f => f?.geometry?.type === 'LineString');
-  let ring = null;
-  if (pick) {
-    const g = pick.geometry;
-    ring = g.type === 'Polygon' ? g.coordinates[0] : g.type === 'MultiPolygon' ? g.coordinates[0][0] : g.coordinates;
-    const p = pick.properties || {};
-    if (p.monument && !F.name.value.trim()) { F.name.value = p.monument; syncGen(); }
-  } else {
-    ring = feats.filter(f => f?.geometry?.type === 'Point').map(f => f.geometry.coordinates);
-  }
-  if (!ring || !ring.length) throw new Error('Файлда полигон не нүктелер табылмады.');
-  let pts = ring.map(c => ({ lat: +c[1], lon: +c[0] })).filter(p => isFinite(p.lat) && isFinite(p.lon));
+/* ---------- GeoJSON импорты: бір файлда бір не бірнеше ескерткіш ---------- */
+const NAME_KEYS = ['monument', 'name', 'Name', 'NAME', 'title', 'Title', 'атауы', 'Атауы', 'label'];
+const ZONE_D = { protection: 'd1', regulation: 'd2', landscape: 'd3' };   // аймақ → оның қашықтық өрісі
+const MAX_SAVE_PTS = 500;                                                   // сақтау қызметінің шегі (main/store.js)
+/** Геометрияның сыртқы шекаралары (әр полигонның бірінші сақинасы не сызық). */
+function outerRings(g) {
+  if (!g || !Array.isArray(g.coordinates)) return [];
+  if (g.type === 'Polygon') return g.coordinates.length ? [g.coordinates[0]] : [];
+  if (g.type === 'MultiPolygon') return g.coordinates.filter(p => p && p.length).map(p => p[0]);
+  if (g.type === 'LineString') return [g.coordinates];
+  if (g.type === 'MultiLineString') return g.coordinates;
+  return [];
+}
+function ringToPts(ring) {
+  const pts = (ring || []).map(c => ({ lat: +(c && c[1]), lon: +(c && c[0]) })).filter(p => isFinite(p.lat) && isFinite(p.lon));
   if (pts.length > 1) { const a = pts[0], z = pts[pts.length - 1]; if (a.lat === z.lat && a.lon === z.lon) pts.pop(); }
   return pts;
+}
+const propStr = (p, keys) => { for (const k of keys) { const v = p && p[k]; if (v != null && String(v).trim()) return String(v).trim(); } return ''; };
+/**
+ * GeoJSON → ескерткіштер: [{ name, pts, fields: { name, period, district, oblast, place, d1, d2, d3 } }].
+ * • Mura GIS экспорты (properties.zone): әр «monument» объектісі — бір ескерткіш; оның қорғау, реттеу,
+ *   ландшафт аймақтарының distance_m мәндері — қашықтықтары. Топтау monument_id бойынша, ол жоқ болса —
+ *   файлдағы рет бойынша (аймақтар алдыңғы ескерткішке тиесілі).
+ * • Басқа файлдар: әр полигон (MultiPolygon-ның әр бөлігі) — бөлек ескерткіш; полигон жоқ болса — әр сызық;
+ *   олар да жоқ болса — барлық нүкте бір ескерткіштің шекарасы.
+ */
+export function parseZonesGeojson(o, base = 'Ескерткіш') {
+  if (!o || typeof o !== 'object') throw new Error('Файл GeoJSON емес.');
+  const feats = (o.type === 'FeatureCollection' ? o.features || [] : o.type === 'Feature' ? [o] : [{ type: 'Feature', properties: {}, geometry: o }])
+    .filter(f => f && f.geometry);
+  const groups = [];
+  const zoneKeys = ZONES.map(z => z.key);
+  const ours = feats.filter(f => f.properties && zoneKeys.includes(f.properties.zone));
+  if (ours.some(f => f.properties.zone === 'monument')) {
+    const byId = new Map();
+    let last = null;
+    for (const f of ours) {
+      const p = f.properties, id = p.monument_id == null ? '' : String(p.monument_id);
+      let g = id ? byId.get(id) : (p.zone === 'monument' ? null : last);
+      if (!g) { g = { props: {}, d: {}, ring: null, part: 0 }; groups.push(g); if (id) byId.set(id, g); }
+      if (p.zone === 'monument') { g.props = p; g.ring = outerRings(f.geometry)[0] || null; }
+      else if (ZONE_D[p.zone] && +p.distance_m > 0) g.d[ZONE_D[p.zone]] = String(+p.distance_m);
+      last = g;
+    }
+  } else {
+    const polys = feats.filter(f => /Polygon$/.test(f.geometry.type));
+    const lines = polys.length ? [] : feats.filter(f => /LineString$/.test(f.geometry.type));
+    for (const f of polys.length ? polys : lines) {
+      const rings = outerRings(f.geometry);
+      rings.forEach((ring, k) => groups.push({ props: f.properties || {}, d: {}, ring, part: rings.length > 1 ? k + 1 : 0 }));
+    }
+    if (!groups.length) {
+      const ring = feats.filter(f => f.geometry.type === 'Point').map(f => f.geometry.coordinates);
+      if (ring.length) groups.push({ props: {}, d: {}, ring, part: 0 });
+    }
+  }
+  const mons = groups.filter(g => g.ring).map(g => ({ g, pts: ringToPts(g.ring) })).filter(x => x.pts.length);
+  if (!mons.length) throw new Error('Файлда полигон не нүктелер табылмады.');
+  return mons.map(({ g, pts }, i) => {
+    const p = g.props;
+    let name = propStr(p, NAME_KEYS) || (mons.length > 1 ? base + ' — ' + (i + 1) : '');
+    if (name && g.part) name += ' (' + g.part + '-бөлік)';
+    return {
+      name, pts,
+      fields: { name, period: propStr(p, ['period', 'кезеңі']), district: propStr(p, ['district', 'ауданы']), oblast: propStr(p, ['oblast', 'облысы']),
+        place: propStr(p, ['place']), d1: g.d.d1 || '', d2: g.d.d2 || '', d3: g.d.d3 || '' },
+    };
+  });
+}
+/** Файлдың мәтіні: .zip болса (Mura GIS «GeoJSON + QML» экспорты) — ішіндегі бірінші .geojson / .json. */
+async function geoFileText(f) {
+  const buf = new Uint8Array(await f.arrayBuffer());
+  if (buf[0] !== 0x50 || buf[1] !== 0x4b) return new TextDecoder().decode(buf);   // «PK» — ZIP емес
+  const fflate = await loadFflate(), files = fflate.unzipSync(buf);
+  const name = Object.keys(files).find(n => /\.(geo)?json$/i.test(n));
+  if (!name) throw new Error('ZIP ішінде GeoJSON файлы жоқ.');
+  return fflate.strFromU8(files[name]);
+}
+const hasDists = m => ['d1', 'd2', 'd3'].every(k => +m.fields[k] > 0);
+/** Бір ескерткішті редакторға жүктеу: нүктелер, бос өрістерге — атауы, кезеңі, ауданы; файлдағы қашықтықтар. */
+function loadImported(m) {
+  state.pts = m.pts;
+  const f = m.fields;
+  if (f.name && !F.name.value.trim()) { F.name.value = f.name; syncGen(); }
+  for (const k of ['period', 'oblast', 'place']) if (f[k] && !F[k].value.trim()) F[k].value = f[k];
+  if (f.district && !F.district.value.trim() && [...F.district.options].some(o => o.value === f.district)) F.district.value = f.district;
+  if (hasDists(m)) { F.d1.value = f.d1; F.d2.value = f.d2; F.d3.value = f.d3; }
+  recompute(true, true); fit();
+  toast(m.pts.length + ' нүкте файлдан алынды' + (hasDists(m) ? ', аймақ қашықтықтары: ' + [f.d1, f.d2, f.d3].join(' / ') + ' м.' : '.'));
+}
+/** Сақтауға дайын жазба: файлда қашықтық жоқ болса — ағымдағы «Аймақ өлшемдері» (түрі мен қашықтықтары). */
+function importRecord(m) {
+  const own = hasDists(m), D = own ? [m.fields.d1, m.fields.d2, m.fields.d3] : [F.d1.value, F.d2.value, F.d3.value];
+  const rule = ruleDistance().d, sameRule = rule && D.every(d => +d === rule);
+  return {
+    id: '', pts: m.pts,
+    fields: { ...m.fields, oblast: m.fields.oblast || F.oblast.value.trim(), gen: genitive(m.name), desc: '', type: own && !sameRule ? 'custom' : F.type.value, height: F.height.value, d1: String(D[0]), d2: String(D[1]), d3: String(D[2]) },
+  };
+}
+/** Бірнеше ескерткіш: қайсысын «Қорғау аймақтары» тізіміне сақтауды таңдау терезесі. */
+function importDialog(mons, fileName) {
+  closePanelOnMobile();
+  const have = new Set(saved.map(r => String(r.name || '').trim().toLowerCase()));
+  const curD = [F.d1.value, F.d2.value, F.d3.value].join(' / ');
+  const rows = mons.map((m, i) => {
+    const err = !m.name ? 'атауы жоқ' : m.pts.length < MIN_POINTS ? m.pts.length + ' нүкте — кемінде ' + MIN_POINTS + ' керек'
+      : m.pts.length > MAX_SAVE_PTS ? m.pts.length + ' нүкте — ' + MAX_SAVE_PTS + '-ден аспауы керек' : '';
+    const dup = !err && have.has(m.name.trim().toLowerCase());
+    const meta = m.pts.length + ' нүкте · ' + (hasDists(m) ? [m.fields.d1, m.fields.d2, m.fields.d3].join(' / ') + ' м' : 'қашықтық файлда жоқ: ' + curD + ' м') +
+      (m.fields.district ? ' · ' + m.fields.district : '');
+    return '<li class="gi-row' + (err ? ' is-bad' : '') + '"><label class="qa-check"><input type="checkbox" data-i="' + i + '"' + (err ? ' disabled' : dup ? '' : ' checked') + '>' +
+      '<span><b>' + esc(m.name || '—') + '</b>' + (dup ? ' <span class="gi-tag">тізімде бар</span>' : '') +
+      '<small>' + esc(err || meta) + '</small></span></label>' +
+      (m.pts.length ? '<button type="button" class="lnk" data-open="' + i + '">Ашу</button>' : '') + '</li>';
+  }).join('');
+  const back = document.createElement('div');
+  back.className = 'qa-dlg-back';
+  back.innerHTML = '<div class="qa-dlg qa-glass gi-dlg" role="dialog" aria-modal="true" aria-labelledby="giT">' +
+    '<h3 id="giT">Файлда ' + mons.length + ' ескерткіш</h3>' +
+    '<p class="qa-hint">' + esc(fileName) + '. Белгіленгендері «Қорғау аймақтары» тізіміне жеке жазба болып сақталады; ' +
+    'біреуін ғана өңдеуге ашу үшін — «Ашу».</p>' +
+    '<label class="qa-check gi-all"><input type="checkbox" id="giAll"> Барлығын таңдау</label>' +
+    '<ul class="gi-list">' + rows + '</ul>' +
+    '<div class="qa-dlg-btns"><button type="button" class="btn btn--ghost btn--sm" data-v="0">Бас тарту</button>' +
+    '<button type="button" class="btn btn--primary btn--sm" data-v="1" id="giSave"></button></div></div>';
+  const boxes = [...back.querySelectorAll('input[data-i]')], all = back.querySelector('#giAll'), btn = back.querySelector('#giSave');
+  function paint() {
+    const on = boxes.filter(b => b.checked).length, ok = boxes.filter(b => !b.disabled).length;
+    btn.textContent = 'Тізімге сақтау' + (on ? ' (' + on + ')' : '');
+    btn.disabled = !on;
+    all.checked = on > 0 && on === ok; all.indeterminate = on > 0 && on < ok;
+  }
+  const prev = document.activeElement;
+  function done() { back.remove(); document.removeEventListener('keydown', onKey, true); if (prev && prev.focus && document.contains(prev)) prev.focus({ preventScroll: true }); }
+  function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(); } }
+  all.addEventListener('change', () => { boxes.forEach(b => { if (!b.disabled) b.checked = all.checked; }); paint(); });
+  back.addEventListener('change', e => { if (e.target.matches('input[data-i]')) paint(); });
+  back.addEventListener('click', async e => {
+    const o = e.target.closest('[data-open]');
+    if (o) {
+      const m = mons[+o.dataset.open];
+      if (isDirty() && !(await ask('Ағымдағы сақталмаған өзгерістер «' + (m.name || 'ескерткіш') + '» нүктелерімен ауыстырылады. Жалғастырасыз ба?', { ok: 'Ашу' }))) return;
+      done();
+      state.loadedId = null; state.loadedName = ''; cleanSig = null;
+      for (const k of FIELD_KEYS) if (!['oblast', 'type', 'height', 'd1', 'd2', 'd3'].includes(k)) F[k].value = '';
+      genTouched = false;
+      loadImported(m);
+      return;
+    }
+    const v = e.target.closest('[data-v]');
+    if (!v && e.target === back) { done(); return; }
+    if (!v) return;
+    if (v.dataset.v === '0') { done(); return; }
+    const pick = boxes.filter(b => b.checked).map(b => mons[+b.dataset.i]);
+    btn.disabled = true; btn.classList.add('is-busy');
+    try {
+      const r = await saveImported(pick.map(importRecord));
+      done();
+      saved = r.items || saved; savedLoaded = true; renderSaved();
+      if (globalThis.QAUI) globalThis.QAUI.openPanel('saved', { trigger: $('qaOpenSaved') });
+      toast(r.added + ' қорғау аймағы тізімге сақталды' + (r.errors.length ? '; сақталмады: ' + r.errors.map(x => x.name + ' (' + x.error + ')').join(', ') : '.'), r.errors.length > 0);
+    } catch (err) { toast('Сақталмады: ' + err.message, true); btn.classList.remove('is-busy'); paint(); }
+  });
+  document.addEventListener('keydown', onKey, true);
+  document.body.appendChild(back);
+  paint();
+  (boxes.find(b => b.checked) || btn).focus({ preventScroll: true });
+}
+/** Бірнеше жазбаны сақтау: бір сұраныспен (savemany); ескі сақтау қызметі білмесе — бір-бірлеп. */
+async function saveImported(recs) {
+  try { return await api('savemany', { data: JSON.stringify(recs) }); }
+  catch (e) {
+    if (!/Белгісіз әрекет/.test(e.message)) throw e;
+    let items = null, added = 0; const errors = [];
+    for (const r of recs) {
+      try { items = (await api('save', { data: JSON.stringify(r) })).items; added++; }
+      catch (er) { errors.push({ name: r.fields.name, error: er.message }); }
+    }
+    return { added, errors, items };
+  }
+}
+async function openGeoFile(f) {
+  const base = String(f.name || '').replace(/\.(geo)?json$|\.zip$/i, '') || 'Ескерткіш';
+  const mons = parseZonesGeojson(JSON.parse(await geoFileText(f)), base);
+  if (mons.length === 1) loadImported(mons[0]);
+  else { await refreshSaved(); importDialog(mons, f.name); }   // «тізімде бар» белгісі — сақтау қызметінің соңғы күйінен
 }
 
 /* ======================= Оқиғалар ======================= */
@@ -1601,13 +1772,12 @@ fmtSel.addEventListener('change', () => {
   renderTable();
 });
 $('qaGeoOpen').addEventListener('click', () => $('qaGeoFile').click());
+$('qaSavedImport').addEventListener('click', () => $('qaGeoFile').click());
 $('qaGeoFile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = '';
   if (!f) return;
   try {
-    const pts = importGeojson(JSON.parse(await f.text()));
-    state.pts = pts; recompute(true, true); fit();
-    toast(pts.length + ' нүкте файлдан алынды.');
+    await openGeoFile(f);
   } catch (err) { toast('GeoJSON оқылмады: ' + err.message, true); }
 });
 
@@ -1961,4 +2131,4 @@ paintLoaded();
 refreshSaved();
 
 // Тест/жөндеу үшін
-globalThis.__qa = { rectangle, computeZones, genitive, state, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };
+globalThis.__qa = { rectangle, computeZones, parseZonesGeojson, genitive, state, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };

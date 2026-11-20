@@ -405,6 +405,7 @@ document.documentElement.classList.add('qa-full');
         <div class="qa-slist" id="qaSaved"><div class="qa-empty">Жүктелуде…</div></div>
       </div>
       <footer class="qa-df">
+        <button type="button" class="btn btn--ghost btn--sm" id="qaSavedImport" title="GeoJSON не ZIP файлынан қорғау аймақтарын тізімге қосу — файлдағы барлық ескерткіш">GeoJSON импорттау</button>
         <button type="button" class="btn btn--steppe btn--sm" id="qaCombGeo" disabled title="Таңдалғандар: бір GeoJSON және QGIS стилі (.qml) — ZIP">GeoJSON + QML</button>
         <button type="button" class="btn btn--primary btn--sm" id="qaCombine" disabled>DOCX біріктіру</button>
         <details class="qa-combine">
@@ -459,7 +460,7 @@ document.documentElement.classList.add('qa-full');
           <p class="qa-hint qa-bad" id="qaPasteErr"></p>
           <div class="qa-tools">
             <button type="button" class="btn btn--primary btn--sm" id="qaPasteRun">Нүктелерді ауыстыру</button>
-            <input type="file" id="qaGeoFile" accept=".geojson,.json,application/geo+json,application/json" hidden>
+            <input type="file" id="qaGeoFile" accept=".geojson,.json,.zip,application/geo+json,application/json,application/zip" hidden>
             <button type="button" class="btn btn--ghost btn--sm" id="qaGeoOpen">GeoJSON ашу</button>
             <button type="button" class="lnk lnk--danger" id="qaClear">Барлық нүктені өшіру</button>
           </div>

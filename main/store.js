@@ -1,11 +1,13 @@
 /* Сақталған қорғау аймақтары — компьютердегі JSON файл.
    Клиенттік код (src/qorgau/app.js) POST сұранысын жібереді:
-     mura://app/api?v=1&op=list|save|delete  (FormData: data / id)
+     mura://app/api?v=1&op=list|save|savemany|delete  (FormData: data / id)
    Жауап пішімі: { ok, items, id, error }. */
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
+
+const currentUser = () => { try { return os.userInfo().username; } catch (e) { return ''; } };
 
 class Store {
   constructor(dir) {
@@ -35,10 +37,8 @@ class Store {
     return this.load().sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')));
   }
 
-  /** Жазбаны тексеріп сақтау. */
-  save(raw) {
-    let d;
-    try { d = JSON.parse(String(raw || '')); } catch (e) { d = null; }
+  /** Жазбаның нүктелері мен өрістерін тексеру: { pts, fields }, қате болса — Error. */
+  clean(d) {
     if (!d || typeof d !== 'object') throw new Error('Дерек оқылмады.');
     const pts = [];
     for (const p of Array.isArray(d.pts) ? d.pts : []) {
@@ -53,10 +53,17 @@ class Store {
     for (const [k, max] of Object.entries(limits)) fields[k] = [...String(src[k] ?? '').trim()].slice(0, max).join('');
     if (!fields.name) throw new Error('Ескерткіш атауын енгізіңіз.');
     for (const k of ['d1', 'd2', 'd3']) if (!(parseFloat(fields[k].replace(',', '.')) > 0)) throw new Error('Аймақ қашықтықтарын енгізіңіз.');
+    return { pts, fields };
+  }
 
+  /** Жазбаны тексеріп сақтау. */
+  save(raw) {
+    let d;
+    try { d = JSON.parse(String(raw || '')); } catch (e) { d = null; }
+    const { pts, fields } = this.clean(d);
     const items = this.load();
     const now = new Date().toISOString();
-    const user = (() => { try { return os.userInfo().username; } catch (e) { return ''; } })();
+    const user = currentUser();
     let id = String(d.id || '');
     const i = id ? items.findIndex(x => x.id === id) : -1;
     const old = i >= 0 ? items[i] : null;
@@ -69,6 +76,26 @@ class Store {
     if (old) items[i] = rec; else items.push(rec);
     this.write(items);
     return id;
+  }
+
+  /** Бірнеше жаңа жазбаны бірден қосу (GeoJSON импорты): дұрыстары бір жазумен сақталады, қателілері — тізімде.
+      Жауап: { added, ids, errors: [{ index, name, error }] }. */
+  saveMany(raw) {
+    let list;
+    try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
+    if (!Array.isArray(list)) throw new Error('Дерек оқылмады.');
+    if (list.length > 2000) throw new Error('Бір реттік импорт 2000 жазбадан аспауы керек.');
+    const items = this.load(), now = new Date().toISOString(), user = currentUser(), ids = [], errors = [];
+    list.forEach((d, index) => {
+      try {
+        const { pts, fields } = this.clean(d);
+        const id = crypto.randomBytes(8).toString('hex');
+        items.push({ id, name: fields.name, district: fields.district, fields, pts, created_at: now, created_by: user, updated_at: now, updated_by: user });
+        ids.push(id);
+      } catch (e) { errors.push({ index, name: String(d && d.fields && d.fields.name || ''), error: e.message }); }
+    });
+    if (ids.length) this.write(items);
+    return { added: ids.length, ids, errors };
   }
 
   remove(id) {
@@ -132,6 +159,7 @@ class Store {
       const fd = await request.formData();
       if (op === 'list') return out({ ok: true, items: this.list() });
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
+      if (op === 'savemany') { const r = this.saveMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
       if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, items: this.list() }); }
       return out({ ok: false, error: 'Белгісіз әрекет.' });
     } catch (e) {

@@ -172,4 +172,16 @@ html.qa-full,html.qa-full body{height:100%;overflow:hidden}
 .qa-dlg-msg{margin:0 0 16px;font-size:14.5px;line-height:1.45;color:var(--ink)}
 .qa-dlg-btns{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
 .qa-dlg-btns .btn{margin-top:0;min-height:38px}
+/* GeoJSON импорты: бір файлдағы бірнеше ескерткішті таңдау (app.js, importDialog) */
+.qa-dlg.gi-dlg{width:min(560px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column}
+.gi-dlg h3{margin:0 0 6px;font-size:16px}
+.gi-dlg .qa-hint{margin:0 0 10px}
+.gi-all{margin:0 0 6px}
+.gi-list{list-style:none;margin:0 0 14px;padding:0;overflow:auto;min-height:0;flex:1 1 auto;border-top:1px solid var(--line)}
+.gi-row{display:flex;align-items:center;gap:10px;padding:6px 2px;border-bottom:1px solid var(--line)}
+.gi-row .qa-check{flex:1 1 auto;min-width:0;align-items:flex-start;margin:0}
+.gi-row .qa-check>span{min-width:0}
+.gi-row small{display:block;color:var(--soft);font-size:12px}
+.gi-row.is-bad small{color:#b3261e}
+.gi-tag{font-size:11px;font-weight:600;color:#7a4612;background:#f6e7d2;border-radius:99px;padding:1px 7px}
 [hidden]{display:none!important}
