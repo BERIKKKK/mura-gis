@@ -294,6 +294,22 @@ async function run(win) {
     eq(document.getElementById('qaToast').textContent, 'Барлық аймақ белгілермен синхрондалған.', 'қайта синхрондау — өзгеріс жоқ');
     out.syncBadges = document.querySelectorAll('#qaSaved .qa-mk').length + ' / ' + document.querySelectorAll('#qaSaved .qa-sc').length;
 
+    // 5) аймақ алдымен сызылды, белгі кейін қойылды → белгі терезесінде аймақ ұсынылады, мәліметтері толтырылады, сақтағанда байланысады
+    const zD = (await zapi('save', { data: JSON.stringify({ fields: zf('Сәйкес-V қорғаны', { name_ru: 'Курган Сайкес-V', period: 'ерте темір дәуірі', place: 'Д ауылынан 4 км', type: 'archeo' }), pts: sq(50.63, 57.63) }) })).id;
+    await __qa.refreshSaved();
+    M.openDialog({ lat: 50.6301, lon: 57.6302 }); await wait(400);
+    mf = document.querySelector('.mk-dlg').elements;
+    const zs = document.getElementById('mkZoneSel');
+    out.zoneLink = zs.selectedOptions[0].textContent + ' → ' + mf.name.value + ' / ' + mf.name_ru.value + ' / ' + mf.period.value + ' / ' + mf.district.value;
+    eq(zs.value, zD, 'шекара ішіндегі аймақ өзі таңдалды'); eq(mf.place.value, 'Д ауылынан 4 км', 'аймақтан толтырылды');
+    eq([...zs.options].some(o => o.value === zA), false, 'басқа белгіге байланысқан аймақ ұсынылмайды');
+    document.querySelector('.mk-dlg').requestSubmit(); await wait(800);
+    const sD = M.items.find(m => m.name === 'Сәйкес-V қорғаны');
+    eq(!!sD && (await zrec(zD)).mark_id, sD && sD.id, 'аймақ жаңа белгіге байланысты');
+    M.openDialog(sD); await wait(400);
+    eq(document.getElementById('mkZoneSel').value, zD, 'байланысқан аймақ көрсетіледі');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());

@@ -2340,6 +2340,42 @@ async function syncFromMark(m) {
   return patches.length;
 }
 
+/* ---------- Белгіні сақталған аймақпен сәйкестендіру (белгі терезесі, marks.js) ----------
+   Аймақ алдымен сызылып, белгі кейін қойылса: белгі терезесінде аймақ таңдалады, мәліметтері белгіге толтырылады,
+   белгі сақталғанда аймаққа mark_id жазылады (аймақтың өз протоколы арқылы). */
+function inRing(p, poly) {                           // нүкте көпбұрыш ішінде ме (сәуле әдісі)
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[i], b = poly[j];
+    if ((a.lat > p.lat) !== (b.lat > p.lat) && p.lon < (b.lon - a.lon) * (p.lat - a.lat) / (b.lat - a.lat) + a.lon) c = !c;
+  }
+  return c;
+}
+
+/** Белгіге ұсынылатын аймақтар: p — белгінің орны ({ lat, lon } не null), markId — белгінің id-і (жаңа болса — null).
+    Реті: осы белгіге байланысқаны, шекарасы нүктені қамтитыны, қалғаны қашықтығы бойынша. Басқа белгіге байланысқан аймақ кірмейді. */
+async function zonesForMark(p, markId) {
+  if (!savedLoaded) await refreshSaved();
+  const ids = new Set(((marksMod() || {}).items || []).map(m => m.id));
+  return saved.filter(r => !r.mark_id || r.mark_id === markId || !ids.has(r.mark_id)).map(r => {
+    const pts = (r.pts || []).map(q => ({ lat: +q.lat, lon: +q.lon })).filter(q => isFinite(q.lat) && isFinite(q.lon));
+    const c = ringCenter(pts);
+    return { id: r.id, name: recName(r), fields: { ...(r.fields || {}) }, linked: !!markId && r.mark_id === markId,
+      in: !!p && pts.length >= 3 && inRing(p, pts), d: p && c ? distLL(p, c) : Infinity };
+  }).sort((a, b) => (b.linked - a.linked) || (b.in - a.in) || (a.d - b.d) || compareNames(a.name, b.name));
+}
+
+/** Аймақты сақталған белгіге байланыстыру (mark_id); айырмашылық болса — аймақтың өрістері белгіден жаңарады. Байланысса — true. */
+async function linkZoneToMark(zoneId, m) {
+  if (!m || !m.id) return false;
+  if (!savedLoaded) await refreshSaved();
+  const r = saved.find(x => x.id === zoneId);
+  if (!r || r.mark_id === m.id) return false;
+  const { zp } = syncDiff(r.fields || {}, m, 'mark');
+  await applyZonePatches([{ id: r.id, mark_id: m.id, ...(zp ? { fields: zp } : {}) }]);
+  return true;
+}
+
 /** Аймақ шекарасының ортасы (көпбұрыштың ауырлық центрі; жіңішке болса — нүктелердің ортасы). */
 function ringCenter(pts) {
   const P = (pts || []).map(p => ({ lat: +p.lat, lon: +p.lon })).filter(p => isFinite(p.lat) && isFinite(p.lon));
@@ -2592,4 +2628,4 @@ paintLoaded();
 refreshSaved();
 
 // Тест/жөндеу үшін
-globalThis.__qa = { rectangle, computeZones, parseZonesGeojson, checkLegal, legalLines, legalDistance, refreshSaved, genitive, state, syncFromMark, syncAllMarks, syncDiff, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };
+globalThis.__qa = { rectangle, computeZones, parseZonesGeojson, checkLegal, legalLines, legalDistance, refreshSaved, genitive, state, syncFromMark, syncAllMarks, syncDiff, zonesForMark, linkZoneToMark, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };
