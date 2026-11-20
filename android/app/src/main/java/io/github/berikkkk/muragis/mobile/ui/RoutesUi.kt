@@ -194,6 +194,7 @@ private fun RouteSaveDialog(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Un
     val vLabels = Vehicle.entries.associateWith { vehicleLabel(it) }
     val sLabels = Season.entries.associateWith { seasonLabel(it) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogAdjustResize()
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.systemBarsPadding().imePadding()) {
                 TopAppBar(

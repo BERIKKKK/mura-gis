@@ -202,6 +202,7 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
 
     // decorFitsSystemWindows = false: пернетақта ашылғанда терезе imePadding арқылы кішірейеді, белсенді өріс оның үстіне шығады
     Dialog(onDismissRequest = { vm.closeEditor() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        DialogAdjustResize()
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
                 TopAppBar(

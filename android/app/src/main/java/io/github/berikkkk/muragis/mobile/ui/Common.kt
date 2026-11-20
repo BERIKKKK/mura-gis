@@ -6,6 +6,10 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.composed
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import android.view.WindowManager
 import androidx.compose.ui.focus.onFocusEvent
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -118,7 +122,20 @@ fun Modifier.bringIntoViewOnFocus(): Modifier = composed {
     val req = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
     bringIntoViewRequester(req).onFocusEvent { f ->
-        if (f.isFocused) scope.launch { delay(350); req.bringIntoView() }
+        // Пернетақта анимациясының ортасында да, соңында да (терезе толық кішірейгеннен кейін)
+        if (f.isFocused) scope.launch { delay(250); req.bringIntoView(); delay(300); req.bringIntoView() }
+    }
+}
+
+/**
+ * Толық экранды диалогта пернетақта ашылғанда терезе кішірейсін (adjustResize). Әйтпесе жүйе терезені тек жылжытады,
+ * WindowInsets.ime келмейді және imePadding жұмыс істемейді — өріс пернетақтаның астында қалады.
+ */
+@Composable
+fun DialogAdjustResize() {
+    val view = LocalView.current
+    SideEffect {
+        (view.parent as? DialogWindowProvider)?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
     }
 }
 
