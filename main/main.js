@@ -359,7 +359,7 @@ function aboutRu() {
 async function exportStore() {
   const r = await dialog.showSaveDialog(win, {
     title: tx('Сақталған аймақтарды экспорттау', 'Экспорт сохранённых зон'),
-    defaultPath: path.join(app.getPath('documents'), 'mura-gis-qorgau-' + new Date().toISOString().slice(0, 10) + '.json'),
+    defaultPath: path.join(app.getPath('documents'), tx('Mura_GIS_қорғау_аймақтары_', 'Mura_GIS_охранные_зоны_') + new Date().toISOString().slice(0, 10) + '.json'),
     filters: [{ name: 'JSON', extensions: ['json'] }],
   });
   if (r.canceled || !r.filePath) return;

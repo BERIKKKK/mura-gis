@@ -255,6 +255,12 @@ async function run(win) {
     document.querySelector('.mk-dlg').requestSubmit(); await wait(1200);
     eq(qp.value + ' / ' + qt.value + ' / ' + document.getElementById('qaD1').value, 'В ауылынан 5 км / archeo / 40', 'редактор жаңарды');
     eq(document.getElementById('qaDirty').hidden, true, 'сақталмаған өзгеріс жоқ');
+    // Экспорт файлының атауы — құжат тілінде
+    const names = [], aClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () { if (this.download) names.push(this.download.replace(/\\d{4}-\\d\\d-\\d\\d/, 'D')); else aClick.call(this); };
+    for (const l of ['kk', 'ru']) { MuraI18n.setDocLang(l); document.getElementById('qaGeo').click(); document.getElementById('mkGeo').click(); }
+    HTMLAnchorElement.prototype.click = aClick; MuraI18n.setDocLang('kk');
+    eq(names.join(' | '), 'Синхрон-II_қорғаны_қорғау_аймағы.geojson | Ескерткіштер_тізімі_D.geojson | Синхрон-II_қорғаны_охранная_зона.geojson | Список_памятников_D.geojson', 'файл атауы тілге қарай');
     // 4) «Белгілермен синхрондау»: атауы бірдей жақын белгімен байланыстыру, белгісі жоқ аймаққа белгі жасау
     await M.api('save', { data: JSON.stringify({ ...base, name: 'Синхрон-III обасы', district: 'Мәртөк ауданы', lat: 50.61, lon: 57.61 }) });
     const sB = M.items.find(m => m.name === 'Синхрон-III обасы');

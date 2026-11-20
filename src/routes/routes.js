@@ -41,7 +41,7 @@ function download(text, type, name) {
   a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
-const fileSafe = s => String(s || 'marshrut').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '_').slice(0, 80);
+const fileSafe = s => String(s || 'маршрут').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '_').slice(0, 80);
 
 /* ======================= Сақтау (main/routes.js) ======================= */
 let items = [];
@@ -464,7 +464,7 @@ $('rtGpx').addEventListener('click', () => {
 });
 $('rtGeo').addEventListener('click', () => {
   const list = filtered();
-  download(JSON.stringify(toGeojson(list), null, 1), 'application/geo+json', 'marshruttar_' + today() + '.geojson');
+  download(JSON.stringify(toGeojson(list), null, 1), 'application/geo+json', tx('Маршруттар_', 'Маршруты_') + today() + '.geojson');
   toast('GeoJSON: ' + list.length + tx(' маршрут.', ' маршр.'));
 });
 
