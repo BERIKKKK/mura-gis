@@ -15,7 +15,8 @@
 сондықтан `:app` тек GitHub Actions-та компиляцияланады. `:core` жергілікті: `./gradlew -PcoreOnly=true :core:test`.
 
 ## Келесі қадамдар (рет бойынша)
-1. Actions → Android → соңғы іске қосу: `Debug APK` және `Lint` қадамдары. Алғашқы іске қосу (run 44709629070) аяқталмай қалды —
+1. ✅ Debug APK CI-да жиналды (run 44711522055, екі компиляция қатесі түзетілді). Lint есебін (`reports` артефакті) қарау.
+   Бұрынғы жазба: Actions → Android → соңғы іске қосу: `Debug APK` және `Lint` қадамдары. Алғашқы іске қосу (run 44709629070) аяқталмай қалды —
    қате болса, `mcp__github__get_job_logs` (failed_only) арқылы оқып, `:app` компиляция қателерін түзету.
    Соңғы коммитте тағы: ImportMapWorker түзетуі, androidTest, ui-test тәуелділіктері — олар да CI-да тексерілуі керек.
 2. `android.yml`-ге эмулятор жұмысын қосу (мыс. `reactivecircus/android-emulator-runner@v2`, api-level 30, `:app:connectedDebugAndroidTest`).

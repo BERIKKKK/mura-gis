@@ -9,7 +9,8 @@
 | `:core:test` — 26 JUnit тест (модель, координаталар, сұрыптау, GeoJSON/KML/KMZ/GPX, SQLite репозиторийлер, GeoPackage, MBTiles, XYZ/SAS.Planet/ZIP, GPKG тайлдары, жүктеуші, loopback сервер, лицензия саясаты) | әзірлеу контейнері (JDK 21) және GitHub Actions | **өтті** (0 қате, 0 өткізілген) |
 | Жұмыс үстелі кодымен кросс-тексеру (`DesktopCompatTest`, `desktopGeojsonExportIsImported`, routes): main/gpkg.js, marks.js, routes.js, export.js, tracks.js — Node 22 | сол | **өтті** |
 | `:core:largeFileTest` — 412 МБ MBTiles (25 600 тайл) және 213 МБ ZIP (102 400 жазба), JVM жады 128 МБ | контейнер және CI | **өтті** (MBTiles: ашу + 2000 тайл 65 мс; ZIP талдау 333 мс) |
-| `:app:assembleDebug`, `:app:lintDebug` | GitHub Actions | алғашқы іске қосу жүріп жатыр — нәтижесін HANDOFF.md-ден қараңыз |
+| `:app:assembleDebug` | GitHub Actions (run 44711522055) | **өтті** — debug APK артефакт ретінде жүктелді |
+| `:app:lintDebug` | сол | қадам жасыл, бірақ `continue-on-error` қосулы — есепті (`reports` артефакті) әлі қаралмаған |
 | `app/src/androidTest` — құрылғы тестілері (AndroidSqlDb, loopback сервер, EPSG:3395, белгілер, қосымшаны ашу, тіл ауыстыру) | эмулятор | **жазылған, әлі іске қосылмаған** |
 
 ## ТТ-ның 11-бөліміндегі сценарийлер
