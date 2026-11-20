@@ -105,7 +105,8 @@
       '<button type="button" class="btn btn--ghost btn--sm" id="mkPdf" disabled title="Ескерткіштер тізімі — PDF кестесі">PDF</button>' +
       '<button type="button" class="btn btn--ghost btn--sm mk-imponly" id="mkIDelAll" hidden title="Барлық импортталған нүктелерді тізімнен өшіру (белгілерге әсер етпейді)">Барлығын өшіру</button>' +
       '<input type="file" id="mkGeoFile" accept=".geojson,.json,.kml,.kmz,.gpx,application/geo+json,application/json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml" multiple hidden>' +
-      '<button type="button" class="lnk qa-grow" id="mkImport" title="Импорттау: KML, KMZ, GPX — «Импортталғандарға» (сәйкестендіру үшін); GeoJSON (Mura GIS белгілері) — бірден белгілерге">Импорттау (KML, KMZ, GPX, GeoJSON)</button>' +
+      // Импорт батырмасы — тек құралдар жолағында («Ескерткіштер → Импорт», js/services.js); мұндағы жасырын элемент соның әрекетін орындайды
+      '<button type="button" id="mkImport" hidden>Импорттау</button><span class="qa-grow"></span>' +
       '<span class="qa-cinfo" id="mkBusy" role="status"></span>' +
     '</footer>';
   stage.appendChild(d);

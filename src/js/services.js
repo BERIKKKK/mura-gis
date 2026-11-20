@@ -44,7 +44,7 @@
     var imp = document.createElement('button');
     imp.type = 'button'; imp.className = 'qa-tbtn'; imp.id = 'mkImportBtn';
     imp.setAttribute('data-prio', '3'); imp.setAttribute('aria-label', 'Импорт');
-    imp.setAttribute('data-tip', 'Импорттау: KML, KMZ, GPX, GeoJSON');
+    imp.setAttribute('data-tip', 'Импорттау: KML, KMZ, GPX, GeoJSON → «Импортталғандар» (сәйкестендіру үшін)');
     imp.innerHTML = svg('<path d="M12 3v12"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>') + '<span class="qa-tl">Импорт</span>';
     imp.addEventListener('click', function () { var b = $('mkImport'); if (b) b.click(); });
     gMarks.appendChild(imp);

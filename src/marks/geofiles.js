@@ -3,7 +3,9 @@
      KML — Placemark: Point (бірнеше болса — әрқайсысы), Polygon / LineString — орта нүктесі (desc-те белгіленеді);
            атауы — <name>, сипаттамасы — <description> (HTML тегтерінсіз) және ExtendedData; бума — Folder/Document <name>.
      KMZ — ZIP ішіндегі бірінші .kml (әдетте doc.kml).
-     GPX — wpt (жол нүктелері), олар жоқ болса — rtept; name, desc, cmt. */
+     GPX — wpt (жол нүктелері), олар жоқ болса — rtept; name, desc, cmt.
+     GeoJSON — Point / MultiPoint (әр нүкте), Polygon / LineString — орта нүктесі; атауы — name, атауы, название т.б.,
+           қалған қасиеттері — сипаттамаға «кілт: мән» жолдарымен. */
 
 const text = el => (el ? el.textContent.trim() : '');
 const child = (el, tag) => { for (const c of el.children) if (c.localName === tag) return c; return null; };
@@ -72,6 +74,36 @@ export function parseGpx(str, file = '') {
     const desc = [text(child(p, 'desc')), text(child(p, 'cmt'))].filter((v, k, a) => v && a.indexOf(v) === k).map(stripHtml).join('\n');
     return { name: text(child(p, 'name')) || 'Нүкте ' + (i + 1), desc, lat, lon, folder, file };
   }).filter(p => isFinite(p.lat) && isFinite(p.lon));
+}
+
+const NAME_KEYS = ['name', 'Name', 'NAME', 'атауы', 'Атауы', 'атау', 'название', 'Название', 'наименование', 'Наименование', 'title', 'Title', 'label'];
+export function parseGeojsonPoints(o, file = '') {
+  const feats = o && o.type === 'FeatureCollection' ? o.features : o && o.type === 'Feature' ? [o] : [];
+  const out = [];
+  (feats || []).forEach((f, i) => {
+    const g = f && f.geometry, p = (f && f.properties) || {};
+    if (!g || !Array.isArray(g.coordinates)) return;
+    const nk = NAME_KEYS.find(k => p[k] != null && String(p[k]).trim());
+    const name = nk ? String(p[nk]).trim() : 'Нүкте ' + (i + 1);
+    const rest = Object.entries(p).filter(([k, v]) => k !== nk && v != null && typeof v !== 'object' && String(v).trim()).map(([k, v]) => k + ': ' + String(v).trim());
+    const ll = c => ({ lon: +c[0], lat: +c[1] });
+    let pts = [], note = '';
+    if (g.type === 'Point') pts = [ll(g.coordinates)];
+    else if (g.type === 'MultiPoint') pts = g.coordinates.map(ll);
+    else if (g.type === 'LineString') { pts = [centroid(g.coordinates.map(ll))]; note = '(сызықтың орта нүктесі)'; }
+    else if (g.type === 'Polygon' && g.coordinates[0]) { pts = [centroid(g.coordinates[0].map(ll))]; note = '(полигонның орта нүктесі)'; }
+    else if (g.type === 'MultiPolygon' && g.coordinates[0] && g.coordinates[0][0]) { pts = [centroid(g.coordinates[0][0].map(ll))]; note = '(полигонның орта нүктесі)'; }
+    for (const q of pts) if (isFinite(q.lat) && isFinite(q.lon)) out.push({ name, desc: [...rest, note].filter(Boolean).join('\n'), lat: q.lat, lon: q.lon, folder: o.name || '', file });
+  });
+  return out;
+}
+/** Mura GIS-тің өз белгілер экспорты ма (әр нүктеде id, type_kk, status_kk) — ондай файл бірден белгілерге қайтарылады. */
+export function isMuraMarks(o) {
+  const feats = o && o.type === 'FeatureCollection' ? o.features : [];
+  return !!feats && feats.length > 0 && feats.every(f => {
+    const p = f && f.properties || {};
+    return /^[0-9a-f]{16}$/.test(String(p.id || '')) && p.type_kk != null && p.status_kk != null;
+  });
 }
 
 /** Файл кеңейтуі бойынша оқу. fflate — KMZ үшін. */

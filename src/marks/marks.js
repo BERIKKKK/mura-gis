@@ -7,7 +7,7 @@
    Интерфейс бөліктері — marks/marks-dom.js, экспорт — marks/export.js, сұрыптау — marks/sort.js. */
 import { parseOne, genitive } from '../qorgau/app.js';
 import { sortMarks, arabizeRoman, compareText, compareNames } from './sort.js';
-import { parseGeoFile } from './geofiles.js';
+import { parseGeoFile, parseGeojsonPoints, isMuraMarks } from './geofiles.js';
 import { TYPES, CATEGORIES, STATUSES, SYMBOL_FILE, typeOf, categoryOf, statusOf, geojson, fromGeojson, docxBlob, pdfHtml, defaultTitle, sections, coordLines, nameCell } from './export.js';
 
 const $ = id => document.getElementById(id);
@@ -484,7 +484,8 @@ $('mkDocx').addEventListener('click', () => busy('Word құжаты жасалу
 $('mkPdf').addEventListener('click', () => busy('PDF жасалуда…', async () => { download(await buildPdf(), '', fileName('pdf')); }));
 
 /* ======================= Импорт ======================= */
-// GeoJSON (Mura GIS белгілері, QGIS) — бірден белгілерге; KML, KMZ, GPX — «Импортталғандарға»: сәйкестендірілгенше белгі емес
+// KML, KMZ, GPX және сырттағы GeoJSON — «Импортталғандарға»: «Сәйкестендіру» басылмайынша белгі емес.
+// Тек Mura GIS-тің өз белгілер экспорты (GeoJSON: әр нүктеде id, type_kk, status_kk) бірден белгілерге қайтарылады.
 $('mkImport').addEventListener('click', () => $('mkGeoFile').click());
 $('mkGeoFile').addEventListener('change', async e => {
   const files = [...(e.target.files || [])];
@@ -503,6 +504,16 @@ $('mkGeoFile').addEventListener('change', async e => {
       }
       let o;
       try { o = JSON.parse(await f.text()); } catch (ex) { throw new Error(f.name + ': файл оқылмады (JSON емес).'); }
+      if (!isMuraMarks(o)) {
+        const pts = parseGeojsonPoints(o, f.name);
+        if (!pts.length) throw new Error(f.name + ': нүкте не полигон табылмады.');
+        const r = await api('iadd', { data: JSON.stringify(pts) });
+        toast(f.name + ': ' + r.added + ' нүкте импортталды' + (r.skipped ? ', ' + r.skipped + ' қайталанған не қате нүкте алынбады' : '') + '. Оларды «Импортталғандар» қойындысынан сәйкестендіріңіз.');
+        setTab('imp');
+        const fresh = imports.filter(x => x.file === f.name);
+        if (fresh.length) map.fitBounds(L.latLngBounds(fresh.map(x => [x.lat, x.lon])).pad(0.2), { maxZoom: 15 });
+        return;
+      }
       const list = fromGeojson(o).filter(m => m.name && isFinite(m.lat) && isFinite(m.lon));
       if (!list.length) throw new Error(f.name + ': атауы бар нүкте (Point) табылмады.');
       const r = await api('import', { data: JSON.stringify(list) });
@@ -598,7 +609,7 @@ function renderImports() {
   const list = filteredImports();
   $('mkIInfo').textContent = list.length === imports.length ? imports.length + ' нүкте' : list.length + ' / ' + imports.length + ' нүкте';
   const box = $('mkImpList');
-  if (!imports.length) { box.innerHTML = '<div class="qa-empty">Импортталған нүкте жоқ. Төмендегі «Импорттау» арқылы KML, KMZ не GPX файлын таңдаңыз.</div>'; return; }
+  if (!imports.length) { box.innerHTML = '<div class="qa-empty">Импортталған нүкте жоқ. Құралдар жолағындағы «Импорт» арқылы KML, KMZ, GPX не GeoJSON файлын таңдаңыз.</div>'; return; }
   if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай нүкте табылмады.</div>'; return; }
   let html = '', last = null;
   for (const x of list.slice(0, 1000)) {
