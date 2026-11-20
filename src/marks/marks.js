@@ -1,8 +1,8 @@
 /* Mura GIS: «Белгі қою» — ескерткіштерді картада нүктемен белгілеу (қорғау аймағынан бөлек негізгі функция).
    Қорғау аймағымен үйлесімі:
      • бір карта, бірақ бөлек қабат және бөлек сақтау орны (data/marks.json — main/marks.js);
-     • режимдер бірін-бірі өшіреді: «Белгі қою» қосылса — шекара нүктесін қою мен сызғыш өшеді, және керісінше;
-     • шекара нүктесін қою не сызғыш режимінде белгілер басуды өткізіп жібереді (шекараны белгінің үстінен де қоюға болады);
+     • режимдер бірін-бірі өшіреді: «Белгі қою» қосылса — шекара нүктесін қою, сызғыш пен циркуль өшеді, және керісінше;
+     • шекара нүктесін қою, сызғыш не циркуль режимінде белгілер басуды өткізіп жібереді (шекараны белгінің үстінен де қоюға болады);
      • белгілер панелі мен «Мәліметтер» / «Сақталған аймақтар» / «Нүктелер» панельдері бірін-бірі жабады.
    Интерфейс бөліктері — marks/marks-dom.js, экспорт — marks/export.js, сұрыптау — marks/sort.js. */
 import { parseOne, genitive } from '../qorgau/app.js';
@@ -109,13 +109,14 @@ function paintLayerVisibility() {
 }
 
 /* ======================= Режим: «Белгі қою» ======================= */
-const addBtn = $('qaAddMode'), rulerBtn = $('qaRuler');
+const addBtn = $('qaAddMode'), rulerBtn = $('qaRuler'), compassBtn = $('qaCompass');
 const pressed = b => b && b.getAttribute('aria-pressed') === 'true';
 function setMarking(on) {
   if (on) {
     // Қорғау аймағының режимдерін өшіреміз (app.js өз батырмасы арқылы — оның күйі дұрыс жаңарады)
     if (pressed(addBtn)) addBtn.click();
     if (pressed(rulerBtn)) rulerBtn.click();
+    if (pressed(compassBtn)) compassBtn.click();
     if (!$('mkShow').checked) { $('mkShow').checked = true; paintLayerVisibility(); }
   }
   marking = on;
@@ -125,9 +126,9 @@ function setMarking(on) {
   for (const mk of markers.values()) { if (mk.dragging) (on ? mk.dragging.enable() : mk.dragging.disable()); }
 }
 modeBtn.addEventListener('click', () => setMarking(!marking));
-// Шекара нүктесін қою не сызғыш қосылса — белгі қою өшеді
-const modeObs = new MutationObserver(() => { if (marking && (pressed(addBtn) || pressed(rulerBtn))) setMarking(false); });
-for (const b of [addBtn, rulerBtn]) if (b) modeObs.observe(b, { attributes: true, attributeFilter: ['aria-pressed'] });
+// Шекара нүктесін қою, сызғыш не циркуль қосылса — белгі қою өшеді
+const modeObs = new MutationObserver(() => { if (marking && (pressed(addBtn) || pressed(rulerBtn) || pressed(compassBtn))) setMarking(false); });
+for (const b of [addBtn, rulerBtn, compassBtn]) if (b) modeObs.observe(b, { attributes: true, attributeFilter: ['aria-pressed'] });
 
 map.on('click', e => {
   if (!marking || dragging) return;

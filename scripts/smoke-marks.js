@@ -161,6 +161,38 @@ async function run(win) {
     out.rulerBefore = document.querySelectorAll('#qaRulerList li').length + ' өлшем, × ' + document.querySelectorAll('.mura-rdel').length;
     document.querySelector('.mura-rdel')?.click(); await wait(200);
     out.rulerAfter = document.querySelectorAll('#qaRulerList li').length + ' өлшем, × ' + document.querySelectorAll('.mura-rdel').length;
+    // Сызғышты шеткі нүктеден жалғастыру (магнит), циркуль, «Барлық өлшемді жабу»
+    const at = (ll, dx = 0) => { const p = mq.latLngToContainerPoint(ll); p.x += dx; return { latlng: mq.containerPointToLatLng(p), containerPoint: p, originalEvent: new MouseEvent('click') }; };
+    const click = async (ll, dx) => { mq.fire('click', at(ll, dx)); await wait(120); };
+    const must = (ok, msg) => { if (!ok) throw new Error('Өлшеу: ' + msg); };
+    // Шекарадан алыс бос жер, ірі масштаб — нүктелер сызықтарға магниттелмейді
+    mq.setView([c0.lat + 0.05, c0.lng + 0.05], 18, { animate: false }); await wait(200);
+    const b0 = mq.getCenter(), d0 = { lat: b0.lat, lng: b0.lng }, d1 = { lat: b0.lat + 0.0003, lng: b0.lng + 0.0004 };
+    const c2 = { lat: b0.lat + 0.0006, lng: b0.lng - 0.0002 }, c3 = { lat: b0.lat - 0.0004, lng: b0.lng };
+    document.getElementById('qaRuler').click(); await wait(100);
+    await click(d0); await click(d1);                   // 1-кесінді
+    await click(d1, 6); await click(c2);                // d1-ге 6 px жақын басу — соңынан жалғасады
+    await click(d0, -5); await click(c3);               // басынан жалғасады
+    const rli = document.querySelectorAll('#qaRulerList li');
+    out.rulerChain = rli.length + ': ' + (rli[0] && rli[0].textContent);
+    must(rli.length === 1 && /Σ/.test(rli[0].textContent) && /3 кесінді/.test(rli[0].textContent), 'жалғастыру: ' + out.rulerChain);
+    const tot = [[c3, d0], [d0, d1], [d1, c2]].reduce((s, [a, b]) => s + mq.distance(a, b), 0);
+    out.rulerTotal = 'Leaflet ' + tot.toFixed(2) + ' м / бағдарлама ' + rli[0].querySelector('b').textContent;
+    must(Math.abs(parseFloat(rli[0].querySelector('b').textContent.replace('Σ', '').replace(',', '.')) - tot) < Math.max(0.5, tot * 0.01), 'жалпы ұзындық: ' + out.rulerTotal);
+    document.getElementById('qaCompass').click(); await wait(100);
+    out.modes = 'сызғыш ' + document.getElementById('qaRuler').getAttribute('aria-pressed') + ', циркуль ' + document.getElementById('qaCompass').getAttribute('aria-pressed');
+    must(out.modes === 'сызғыш false, циркуль true', 'режимдер: ' + out.modes);
+    await click(d0); await click(c2);
+    const cli = document.querySelectorAll('#qaRulerList li');
+    out.compass = cli.length + ' өлшем, × ' + document.querySelectorAll('.mura-rdel').length + ': ' + (cli[1] && cli[1].textContent);
+    const R = mq.distance(d0, c2), Rv = parseFloat(cli[1].querySelector('b').textContent.replace('R', '').replace(',', '.'));
+    must(cli.length === 2 && document.querySelectorAll('.mura-rdel').length === 2 && Math.abs(Rv - R) < Math.max(0.3, R * 0.01) && /D /.test(cli[1].textContent), 'циркуль: ' + out.compass);
+    const clr = document.getElementById('qaMeasureClear');
+    must(!clr.disabled, '«Жабу» батырмасы белсенді емес');
+    clr.click(); await wait(150);
+    out.cleared = document.querySelectorAll('#qaRulerList li').length + ' өлшем, жазу ' + document.querySelectorAll('.qa-rlbl').length + ', батырма ' + (clr.disabled ? 'өшік' : 'белсенді');
+    must(out.cleared === '0 өлшем, жазу 0, батырма өшік', 'жабу: ' + out.cleared);
+    document.getElementById('qaCompass').click(); await wait(100);
     // Импорт: KML, KMZ, GPX → «Импортталғандар», сәйкестендіру → белгі
     const kml = '<?xml version="1.0"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Барлау 2025</name><Folder><name>Қорғандар</name>' +
       '<Placemark><name>Қорған-ІІІ</name><description><![CDATA[<b>диаметрі</b> 12 м]]></description><Point><coordinates>57.05,50.42,0</coordinates></Point></Placemark>' +

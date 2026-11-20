@@ -175,7 +175,7 @@ $('qaInfoExport').addEventListener('click', () => $('qaResSec').scrollIntoView({
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape' || e.defaultPrevented) return;
   if (pop) { const t = popTrigger; closePop(); if (t && !t.hidden) t.focus(); return; }
-  if (panel && !document.querySelector('.qa-map.is-ruler')) closePanel();
+  if (panel && !document.querySelector('.qa-map.is-ruler, .qa-map.is-compass')) closePanel();
 });
 
 /* ======================= Төменгі координата панелі ======================= */

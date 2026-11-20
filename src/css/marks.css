@@ -1,8 +1,8 @@
 /* Mura GIS: «Белгі қою» — ескерткіш белгілері (marks/*.js). Қорғау аймағының стильдеріне (maptool.css) тимейді. */
 .qa-map.is-marking, .qa-map.is-marking .leaflet-grab { cursor: crosshair; }
-/* Шекара нүктесін қою не сызғыш режимінде белгілер басуды картаға өткізеді — шекара нүктесі белгінің үстіне де қойылады */
-.qa-map.is-adding .mk-pin, .qa-map.is-ruler .mk-pin { pointer-events: none; }
-.qa-map.is-adding .mk-pin, .qa-map.is-ruler .mk-pin { opacity: .8; }
+/* Шекара нүктесін қою, сызғыш не циркуль режимінде белгілер басуды картаға өткізеді — шекара нүктесі белгінің үстіне де қойылады */
+.qa-map.is-adding .mk-pin, .qa-map.is-ruler .mk-pin, .qa-map.is-compass .mk-pin { pointer-events: none; }
+.qa-map.is-adding .mk-pin, .qa-map.is-ruler .mk-pin, .qa-map.is-compass .mk-pin { opacity: .8; }
 
 /* ---------- Картадағы белгі: түрі — symbols/*.svg, түсі — мәртебесі (marks.js) ---------- */
 .mk-pin svg { display: block; overflow: visible; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .45)); }
@@ -101,7 +101,7 @@ body.mura .qa-map .leaflet-bottom.leaflet-right .qa-legend { margin-bottom: 6px;
 .mk-imp > span { width: 16px; height: 16px; border-radius: 50%; border: 2px dashed #2f6db5; background: rgba(255, 255, 255, .92); color: #2f6db5;
   font: 700 10px/12px system-ui, sans-serif; text-align: center; box-sizing: border-box; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .mk-imp--inline { flex: 0 0 auto; width: 18px; height: 18px; margin-top: 2px; }
-.qa-map.is-adding .mk-imp, .qa-map.is-ruler .mk-imp { pointer-events: none; }
+.qa-map.is-adding .mk-imp, .qa-map.is-ruler .mk-imp, .qa-map.is-compass .mk-imp { pointer-events: none; }
 .mk-imptip small { display: block; font-weight: 400; font-size: 10.5px; color: #2f6db5; }
 .mk-ident { color: #2f6db5 !important; }
 #mkIFile { width: auto; flex: 0 0 auto; max-width: 46%; }

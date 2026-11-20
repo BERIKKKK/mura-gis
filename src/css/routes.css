@@ -2,8 +2,8 @@
 .qa-map.is-routing, .qa-map.is-routing .leaflet-grab, .qa-map.is-picking, .qa-map.is-picking .leaflet-grab { cursor: crosshair; }
 /* Сызу мен картадан таңдау кезінде белгілер мен шекара нүктелері басуды картаға өткізеді (нүкте олардың үстіне де қойылады, жабысады) */
 .qa-map.is-routing .leaflet-marker-icon, .qa-map.is-picking .leaflet-marker-icon { pointer-events: none; }
-/* Басқа режимде (шекара нүктесі, белгі қою, сызғыш) маршрут сызықтары басуды өткізеді */
-.qa-map.is-adding .rt-line, .qa-map.is-marking .rt-line, .qa-map.is-ruler .rt-line, .qa-map.is-picking .rt-line { pointer-events: none; }
+/* Басқа режимде (шекара нүктесі, белгі қою, сызғыш, циркуль) маршрут сызықтары басуды өткізеді */
+.qa-map.is-adding .rt-line, .qa-map.is-marking .rt-line, .qa-map.is-ruler .rt-line, .qa-map.is-compass .rt-line, .qa-map.is-picking .rt-line { pointer-events: none; }
 .rt-tip small, .mk-tip small { display: block; font-weight: 400; color: #555; }
 
 /* Сызу кезіндегі ақпарат тақтасы */

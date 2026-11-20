@@ -130,7 +130,7 @@ function showPasted(p) {
 
 /* ---------- Карта ---------- */
 if (map) map.on('contextmenu', async e => {
-  if (mapEl.classList.contains('is-ruler')) return;                // сызғыш: оң жақ батырма — өлшеуден бас тарту (app.js)
+  if (mapEl.matches('.is-ruler, .is-compass')) return;            // сызғыш, циркуль: оң жақ батырма — өлшеуден бас тарту (app.js)
   const p = { lat: e.latlng.lat, lon: e.latlng.lng };
   const oe = e.originalEvent;
   const sel = String(getSelection() || '').trim();

@@ -1,8 +1,8 @@
-/* Mura GIS: құралдар жолағының поповерлері және сызғыш өлшемдерін өшіру.
+/* Mura GIS: құралдар жолағының поповерлері және сызғыш пен циркуль өлшемдерін өшіру.
    • Құралдар жолағындағы батырма ашатын кез келген терезе (бұрышты туралау, тіктөртбұрыш, «⋯» т.б.) сол батырманың
      дәл астында шығады. Жоғарғы қатардың батырмалары үшін терезе төменгі қатардың үстіне шығуы керек, сондықтан
      поповерлер карта аймағынан (#qaStage, overflow:hidden) бүкіл жұмыс аймағына (#qaApp) көшіріледі.
-   • Картада қалған әр сызғыш өлшемінің жазуының басында кішкентай «×» — сол өлшемді өшіреді
+   • Картада қалған әр сызғыш не циркуль өлшемінің жазуының басында кішкентай «×» — сол өлшемді өшіреді
      (өлшеу баптауларындағы тізімнің «×» батырмасы арқылы, app.js-тің өз логикасымен). */
 const $ = id => document.getElementById(id);
 const stage = $('qaApp');
@@ -34,24 +34,24 @@ for (const pop of document.querySelectorAll('.qa-pop')) {
 }
 addEventListener('resize', () => document.querySelectorAll('.qa-pop:not([hidden])').forEach(place));
 
-/* ---------- Сызғыш өлшемдерін картадан өшіру ---------- */
+/* ---------- Сызғыш пен циркуль өлшемдерін картадан өшіру ---------- */
 const map = globalThis.MuraMarks && globalThis.MuraMarks.map;
 const pane = map && map.getPane('markerPane');
 const list = $('qaRulerList');
 function addDel(lbl) {
   if (lbl.querySelector('.mura-rdel')) return;
-  const sm = lbl.querySelector('small');
-  const m = sm && /^(\d+) · /.exec(sm.textContent);       // тек сақталған өлшемдер («1 · 90,0°»), өлшеу кезіндегісі емес
-  if (!m) return;
+  const id = lbl.dataset.mdel;                // тек сақталған өлшемдер (r1 — сызғыш, c1 — циркуль); өлшеу кезіндегісі не кесінді жазуы емес
+  if (!id) return;
+  const sm = lbl.querySelector('small'), n = sm ? sm.textContent.split(' · ')[0] : '';
   const b = document.createElement('button');
   b.type = 'button'; b.className = 'mura-rdel';
-  b.title = m[1] + '-өлшемді өшіру'; b.setAttribute('aria-label', b.title);
+  b.title = id[0] === 'c' ? 'Шеңберді өшіру (' + n + ')' : n + '-өлшемді өшіру'; b.setAttribute('aria-label', b.title);
   b.textContent = '×';
   const stop = e => { e.stopPropagation(); };
   for (const ev of ['pointerdown', 'mousedown', 'mouseup', 'dblclick', 'contextmenu']) b.addEventListener(ev, stop);
   b.addEventListener('click', e => {
     e.stopPropagation(); e.preventDefault();
-    const del = list && list.querySelectorAll('li [data-rdel]')[+m[1] - 1];
+    const del = list && list.querySelector('[data-rdel="' + id + '"]');
     if (del) del.click();
   });
   lbl.prepend(b);

@@ -8,7 +8,7 @@
    (жергілікті метрлік проекцияда; дөңес бұрыштар — шеңберге сырттай сызылған сынық сызықпен, сондықтан
    шекараның еш нүктесі белгіленген қашықтықтан жақын емес). Экспорт: GeoJSON, PNG сызба, DOCX.
    Өлшеу құралдары: азимут көрсеткіші, қабырғаны дәл бұрышқа (45°, 90° т.б.) туралау, сызықтарға
-   магниттелетін перпендикуляр сызғыш. Бәрі браузерде жүреді. */
+   магниттелетін перпендикуляр сызғыш, циркуль. Бәрі браузерде жүреді. */
 
 const L = globalThis.L;
 const $ = id => document.getElementById(id);
@@ -317,7 +317,7 @@ function drawZones() {
 function drawMarkers() {
   markerLayer.clearLayers();
   state.pts.forEach((p, i) => {
-    const ruling = tool.mode === 'ruler';         // сызғыш режимінде нүктелер басуды картаға өткізеді
+    const ruling = MEASURE_MODES.includes(tool.mode);   // сызғыш не циркуль режимінде нүктелер басуды картаға өткізеді
     const mk = L.marker([p.lat, p.lon], {
       draggable: !ruling, interactive: !ruling, autoPan: true, title: 'Нүкте ' + (i + 1),
       icon: L.divIcon({ className: '', html: '<div class="qa-vx">' + (i + 1) + '</div>', iconSize: [24, 24], iconAnchor: [12, 12] }),
@@ -339,11 +339,12 @@ function drawMarkers() {
   });
 }
 
-/* ======================= Өлшеу құралдары: азимут, бұрышты туралау, сызғыш ======================= */
+/* ======================= Өлшеу құралдары: азимут, бұрышты туралау, сызғыш, циркуль ======================= */
 // Азимут — шынайы (географиялық) солтүстіктен сағат тілімен, 0–360°. Есеп жергілікті метрлік проекцияда
 // (makeProj) — бірнеше шақырымға дейінгі қашықтықта қателігі миллиметрден аз.
 const TOOLS_KEY = 'qa-tools-v1';
-const tool = { mode: 'add', snap: 0, ref: 'north', perp: true, sideLabels: true };   // mode: add | ruler | none
+const tool = { mode: 'add', snap: 0, ref: 'north', perp: true, sideLabels: true };   // mode: add | ruler | compass | none
+const MEASURE_MODES = ['ruler', 'compass'];                                           // өлшеу режимдері
 try {
   const o = JSON.parse(localStorage.getItem(TOOLS_KEY) || 'null');
   if (o) {
@@ -390,7 +391,7 @@ function neighbors(i) {
 let altDown = false, dragging = false, dragEndAt = 0;
 addEventListener('keydown', e => {
   if (e.key === 'Alt') altDown = true;
-  if (e.key === 'Escape' && ruler.a) { cancelRuler(); }
+  if (e.key === 'Escape' && (ruler.a || compass.c)) { cancelMeasure(); }
 });
 addEventListener('keyup', e => { if (e.key === 'Alt') altDown = false; });
 addEventListener('blur', () => { altDown = false; });
@@ -437,7 +438,7 @@ function guideMove(e) {
   if (dragging) return;
   clearGuide();
   const n = state.pts.length;
-  if (tool.mode !== 'add' || !n) { if (tool.mode !== 'ruler') hideHud(); return; }
+  if (tool.mode !== 'add' || !n) { if (!MEASURE_MODES.includes(tool.mode)) hideHud(); return; }
   const ins = insertIndexAt(e.containerPoint);
   if (ins >= 0) { hideHud(); return; }
   const a = state.pts[n - 1], sn = snapFrom(a, state.pts[n - 2], { lat: e.latlng.lat, lon: e.latlng.lng });
@@ -450,8 +451,8 @@ function guideMove(e) {
   }
   showHud(bearing(a, sn.p), n + '-нүктеден: ' + fmtLen(distM(a, sn.p)) + ' м' + (sn.snapped ? ' · туралау ' + tool.snap + '°' : ''), extra);
 }
-map.on('mousemove', e => { if (tool.mode === 'ruler') rulerMove(e); else guideMove(e); });
-mapEl.addEventListener('mouseleave', () => { clearGuide(); if (tool.mode !== 'ruler' || !ruler.a) hideHud(); });
+map.on('mousemove', e => { if (tool.mode === 'ruler') rulerMove(e); else if (tool.mode === 'compass') compassMove(e); else guideMove(e); });
+mapEl.addEventListener('mouseleave', () => { clearGuide(); if (!measuring()) hideHud(); });
 
 /* ---------- Қабырғаны кестеден дәл азимут/ұзындықпен беру ---------- */
 function editSide(i, key, raw) {
@@ -518,9 +519,10 @@ $('qaRectRun').addEventListener('click', async () => {
   toast((L === W ? 'Шаршы' : 'Тіктөртбұрыш') + ' салынды: ' + fmtLen(L) + ' × ' + fmtLen(W) + ' м, бағыты ' + fmtAz(az) + '.');
 });
 
-/* ---------- Сызғыш: сызықтарға магниттеледі, екінші сызыққа перпендикуляр түседі ---------- */
-const VERTEX_PX = 11, EDGE_PX = 14;
-const ruler = { a: null, list: [], seq: 0 };
+/* ---------- Сызғыш: сызықтарға магниттеледі, екінші сызыққа перпендикуляр түседі;
+   бар өлшемнің шеткі нүктесінен жалғасады (көп кесінді, жалпы ұзындығы) ---------- */
+const VERTEX_PX = 11, EDGE_PX = 14, END_PX = 13;
+const ruler = { a: null, list: [], seq: 0 };     // list: [{ id, pts: [нүкте], snaps: [магнит не null], perp: [кесінді ⊥ ме] }]
 const rulerLayer = L.layerGroup().addTo(map);
 const rulerTmp = L.layerGroup().addTo(map);
 /** Магниттелетін сызықтар: ескерткіш шекарасы және үш аймақ шекарасы. */
@@ -559,10 +561,25 @@ function footOn(p, a, b) {
   const t0 = l2 ? -(A[0] * dx + A[1] * dy) / l2 : 0, t = Math.max(0, Math.min(1, t0));
   return { p: pr.inv([A[0] + t * dx, A[1] + t * dy]), exact: t0 >= 0 && t0 <= 1 };
 }
+/** Курсор жанындағы бар сызғыш өлшемінің шеткі нүктесі (өлшемді сол жерден жалғастыру үшін): { id, end: 0 — басы | 1 — соңы, ll, snap }. */
+function rulerEndAt(cp) {
+  let best = null;
+  for (const m of ruler.list) [0, m.pts.length - 1].forEach((k, end) => {
+    const q = map.latLngToContainerPoint([m.pts[k].lat, m.pts[k].lon]), d = Math.hypot(q.x - cp.x, q.y - cp.y);
+    if (d < END_PX && (!best || d < best.d)) best = { d, id: m.id, end, ll: m.pts[k], snap: m.snaps[k] };
+  });
+  return best;
+}
 /** Сызғыштың нүктесін анықтау (бірінші не екінші). */
 function rulerPoint(e) {
   const raw = { lat: e.latlng.lat, lon: e.latlng.lng }, A = ruler.a;
-  if (!A) { const s = altDown ? null : snapAt(e.containerPoint); return { ll: s ? s.ll : raw, snap: s }; }
+  if (!A) {
+    // Бар өлшемнің шеткі нүктесі — магнит (басым): өлшем сол жерден жалғасады
+    const c = altDown ? null : rulerEndAt(e.containerPoint);
+    if (c) return { ll: c.ll, snap: c.snap, cont: c };
+    const s = altDown ? null : snapAt(e.containerPoint);
+    return { ll: s ? s.ll : raw, snap: s };
+  }
   // Екінші нүкте: перпендикуляр режимінде бірінші нүкте жатқан сызықтың өз қабырғаларына магниттелмейміз
   const s = altDown ? null : snapAt(e.containerPoint, tool.perp && A.snap ? A.snap.line : -1);
   if (s && s.kind === 'vertex') return { ll: s.ll, snap: s };
@@ -578,35 +595,52 @@ function rulerPoint(e) {
   const sn = snapFrom(A.ll, null, raw);
   return { ll: sn.p, snap: null, angle: sn.snapped };
 }
-function rulerLabel(a, b, sub) {
-  return '<span class="qa-rlbl">' + fmtLen(distM(a, b)) + ' м' + (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>';
+/** Картадағы өлшем жазуы. del — картадағы «×» өшіретін өлшем (js/desktop-ui.js), cls — қосымша класс. */
+function mLabel(text, sub, del, cls) {
+  return '<span class="qa-rlbl' + (cls ? ' ' + cls : '') + '"' + (del ? ' data-mdel="' + del + '"' : '') + '>' + text +
+    (sub ? '<small>' + esc(sub) + '</small>' : '') + '</span>';
 }
-function drawRulerLine(layer, a, b, label) {
-  const ll = [[a.lat, a.lon], [b.lat, b.lon]];
+const rulerLabel = (a, b, sub, del) => mLabel(fmtLen(distM(a, b)) + ' м', sub, del);
+const midLL = (a, b) => ({ lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 });
+/** Өлшем сызығы (бір не бірнеше кесінді): қара жиек, ақ үзік сызық, әр нүктеде дөңгелек. */
+function drawPath(layer, pts) {
+  const ll = pts.map(p => [p.lat, p.lon]);
   L.polyline(ll, { color: '#000', weight: 5, opacity: 0.6, interactive: false }).addTo(layer);
   L.polyline(ll, { color: '#fff', weight: 2.5, dashArray: '7 5', interactive: false }).addTo(layer);
-  for (const p of [a, b]) L.circleMarker([p.lat, p.lon], { radius: 4, color: '#111', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(layer);
-  L.marker([(a.lat + b.lat) / 2, (a.lon + b.lon) / 2], { interactive: false, keyboard: false, icon: L.divIcon({ className: '', html: label, iconSize: [0, 0], iconAnchor: [0, 0] }) }).addTo(layer);
+  for (const p of pts) L.circleMarker([p.lat, p.lon], { radius: 4, color: '#111', weight: 2, fillColor: '#fff', fillOpacity: 1, interactive: false }).addTo(layer);
 }
+function labelAt(layer, p, html) {
+  L.marker([p.lat, p.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: '', html, iconSize: [0, 0], iconAnchor: [0, 0] }) }).addTo(layer);
+}
+function drawRulerLine(layer, a, b, label) { drawPath(layer, [a, b]); labelAt(layer, midLL(a, b), label); }
 function snapDot(layer, s) {
   if (!s) return;
   L.marker([s.ll.lat, s.ll.lon], { interactive: false, keyboard: false, icon: L.divIcon({ className: '', html: '<div class="qa-snapdot' + (s.kind === 'edge' ? ' is-edge' : '') + '"></div>', iconSize: [14, 14], iconAnchor: [7, 7] }) }).addTo(layer);
 }
 const snapName = s => s ? s.name + (s.kind === 'vertex' ? ' (' + (s.idx + 1) + '-нүкте)' : '') : 'бос нүкте';
+/** Сызғыш өлшемінің кесінділері және жалпы ұзындығы. */
+function segsOf(m) {
+  const out = [];
+  for (let k = 1; k < m.pts.length; k++) out.push({ a: m.pts[k - 1], b: m.pts[k], d: distM(m.pts[k - 1], m.pts[k]), az: bearing(m.pts[k - 1], m.pts[k]), perp: m.perp[k - 1] });
+  return out;
+}
+const totalOf = segs => segs.reduce((s, g) => s + g.d, 0);
 function rulerMove(e) {
   rulerTmp.clearLayers();
   const P = rulerPoint(e);
   if (!ruler.a) {
-    snapDot(rulerTmp, P.snap);
+    snapDot(rulerTmp, P.cont ? { kind: 'vertex', ll: P.ll } : P.snap);
     hideHud();
     return;
   }
   const A = ruler.a;
-  snapDot(rulerTmp, A.snap);
+  snapDot(rulerTmp, A.cont ? { kind: 'vertex', ll: A.ll } : A.snap);
   if (P.snap) snapDot(rulerTmp, { kind: P.snap.kind, ll: P.ll });
-  const sub = fmtAz(bearing(A.ll, P.ll)) + (P.perp ? ' · ⊥' : '');
-  drawRulerLine(rulerTmp, A.ll, P.ll, rulerLabel(A.ll, P.ll, sub));
-  showHud(bearing(A.ll, P.ll), 'Сызғыш: ' + fmtLen(distM(A.ll, P.ll)) + ' м' + (P.perp ? ' (перпендикуляр)' : ''),
+  const d = distM(A.ll, P.ll), sub = fmtAz(bearing(A.ll, P.ll)) + (P.perp ? ' · ⊥' : '');
+  const m = A.cont && ruler.list.find(x => x.id === A.cont.id);
+  const tot = m ? totalOf(segsOf(m)) + d : 0;          // жалғастыру: жалпы ұзындық та көрсетіледі
+  drawRulerLine(rulerTmp, A.ll, P.ll, rulerLabel(A.ll, P.ll, sub + (m ? ' · Σ ' + fmtLen(tot) + ' м' : '')));
+  showHud(bearing(A.ll, P.ll), 'Сызғыш: ' + fmtLen(d) + ' м' + (P.perp ? ' (перпендикуляр)' : '') + (m ? ' · барлығы ' + fmtLen(tot) + ' м' : ''),
     snapName(A.snap) + ' → ' + snapName(P.snap));
 }
 function rulerClick(e) {
@@ -614,30 +648,104 @@ function rulerClick(e) {
   if (!ruler.a) { ruler.a = P; rulerMove(e); return; }
   const A = ruler.a;
   if (distM(A.ll, P.ll) < 0.005) return;
-  ruler.list.push({ id: ++ruler.seq, a: A.ll, b: P.ll, d: distM(A.ll, P.ll), az: bearing(A.ll, P.ll), from: snapName(A.snap), to: snapName(P.snap), perp: !!P.perp });
+  const m = A.cont && ruler.list.find(x => x.id === A.cont.id);
+  if (m && A.cont.end === 1) { m.pts.push(P.ll); m.snaps.push(P.snap); m.perp.push(!!P.perp); }          // соңынан жалғасады
+  else if (m) { m.pts.unshift(P.ll); m.snaps.unshift(P.snap); m.perp.unshift(!!P.perp); }                // басынан жалғасады
+  else ruler.list.push({ id: ++ruler.seq, pts: [A.ll, P.ll], snaps: [A.snap, P.snap], perp: [!!P.perp] });
   ruler.a = null;
   rulerTmp.clearLayers();
-  renderRuler();
+  renderMeasures();
   hideHud();
 }
-function cancelRuler() { ruler.a = null; rulerTmp.clearLayers(); hideHud(); }
-function clearRuler() { cancelRuler(); ruler.list = []; renderRuler(); }
-function renderRuler() {
+
+/* ---------- Циркуль: бірінші басу — центр, екінші — радиус; шеңбер, радиус пен диаметр ---------- */
+const compass = { c: null, list: [], seq: 0 };
+/** c центрлі, r метр радиусты шеңбердің нүктелері (жергілікті метрлік проекцияда — сызғышпен бірдей есеп). */
+function circleRing(c, r, n = 128) {
+  const pr = makeProj([c]), out = [];
+  for (let i = 0; i < n; i++) { const t = 2 * Math.PI * i / n; out.push(pr.inv([r * Math.sin(t), r * Math.cos(t)])); }
+  return out;
+}
+/** Циркульдің нүктесі: центр — сызықтарға, бұрылыс нүктелеріне магниттеледі; радиус нүктесі — оған қоса бұрышты туралау. */
+function compassPoint(e) {
+  const raw = { lat: e.latlng.lat, lon: e.latlng.lng }, C = compass.c;
+  const s = altDown ? null : snapAt(e.containerPoint);
+  if (s || !C) return { ll: s ? s.ll : raw, snap: s };
+  const sn = snapFrom(C.ll, null, raw);
+  return { ll: sn.p, snap: null };
+}
+function drawCircle(layer, c, p, label) {
+  const ring = circleRing(c, distM(c, p)).map(q => [q.lat, q.lon]);
+  L.polygon(ring, { color: '#000', weight: 5, opacity: 0.6, fill: false, interactive: false }).addTo(layer);
+  L.polygon(ring, { color: '#fff', weight: 2.5, dashArray: '7 5', fillColor: '#fff', fillOpacity: 0.08, interactive: false }).addTo(layer);
+  drawRulerLine(layer, c, p, label);
+}
+const compassLabel = (c, p, n, del) => { const r = distM(c, p); return mLabel('R ' + fmtLen(r) + ' м', (n ? '○' + n + ' · ' : '') + 'D ' + fmtLen(2 * r) + ' м', del); };
+function compassMove(e) {
+  rulerTmp.clearLayers();
+  const P = compassPoint(e), C = compass.c;
+  if (!C) { snapDot(rulerTmp, P.snap); hideHud(); return; }
+  snapDot(rulerTmp, C.snap);
+  if (P.snap) snapDot(rulerTmp, { kind: P.snap.kind, ll: P.ll });
+  const r = distM(C.ll, P.ll);
+  if (r >= 0.005) drawCircle(rulerTmp, C.ll, P.ll, compassLabel(C.ll, P.ll));
+  showHud(bearing(C.ll, P.ll), 'Циркуль: R ' + fmtLen(r) + ' м · D ' + fmtLen(2 * r) + ' м', 'центр: ' + snapName(C.snap));
+}
+function compassClick(e) {
+  const P = compassPoint(e);
+  if (!compass.c) { compass.c = P; compassMove(e); return; }
+  const C = compass.c;
+  if (distM(C.ll, P.ll) < 0.005) return;
+  compass.list.push({ id: ++compass.seq, c: C.ll, p: P.ll, r: distM(C.ll, P.ll), from: snapName(C.snap) });
+  compass.c = null;
+  rulerTmp.clearLayers();
+  renderMeasures();
+  hideHud();
+}
+
+/* ---------- Өлшемдер: сызғыш пен циркуль картада қатар тұрады ---------- */
+function cancelMeasure() { ruler.a = null; compass.c = null; rulerTmp.clearLayers(); hideHud(); }
+/** «Барлық өлшемді жабу»: картадағы барлық сызғыш пен циркуль өлшемі. */
+function clearMeasures() { cancelMeasure(); ruler.list = []; compass.list = []; renderMeasures(); }
+function renderMeasures() {
   rulerLayer.clearLayers();
-  ruler.list.forEach((m, k) => drawRulerLine(rulerLayer, m.a, m.b, rulerLabel(m.a, m.b, (k + 1) + ' · ' + fmtAz(m.az) + (m.perp ? ' · ⊥' : ''))));
-  const ul = $('qaRulerList');
-  ul.hidden = !ruler.list.length;
-  $('qaRulerClear').hidden = !ruler.list.length;
-  ul.innerHTML = ruler.list.map((m, k) => '<li><span>' + (k + 1) + '.</span><span>' + esc(m.from) + ' → ' + esc(m.to) + ':</span> <b>' + fmtLen(m.d) + ' м</b>' +
-    '<span class="muted">азимут ' + fmtAz(m.az) + (m.perp ? ', перпендикуляр' : '') + '</span>' +
-    '<button type="button" class="qa-x" data-rdel="' + m.id + '" aria-label="' + (k + 1) + '-өлшемді өшіру">×</button></li>').join('');
+  ruler.list.forEach((m, k) => {
+    const S = segsOf(m), n = k + 1;
+    drawPath(rulerLayer, m.pts);
+    if (S.length === 1) { labelAt(rulerLayer, midLL(S[0].a, S[0].b), mLabel(fmtLen(S[0].d) + ' м', n + ' · ' + fmtAz(S[0].az) + (S[0].perp ? ' · ⊥' : ''), 'r' + m.id)); return; }
+    // Көп кесінді: әр кесіндінің ұзындығы, соңғы нүктенің жанында — жалпы ұзындығы
+    for (const g of S) labelAt(rulerLayer, midLL(g.a, g.b), mLabel(fmtLen(g.d) + ' м', fmtAz(g.az) + (g.perp ? ' · ⊥' : ''), '', 'qa-rlbl--seg'));
+    labelAt(rulerLayer, m.pts[m.pts.length - 1], mLabel('Σ ' + fmtLen(totalOf(S)) + ' м', n + ' · ' + S.length + ' кесінді', 'r' + m.id, 'qa-rlbl--end'));
+  });
+  compass.list.forEach((m, k) => drawCircle(rulerLayer, m.c, m.p, compassLabel(m.c, m.p, k + 1, 'c' + m.id)));
+  const any = ruler.list.length + compass.list.length > 0, ul = $('qaRulerList');
+  ul.hidden = !any;
+  $('qaRulerClear').hidden = !any;
+  $('qaMeasureClear').disabled = !any;
+  const x = (id, what) => '<button type="button" class="qa-x" data-rdel="' + id + '" aria-label="' + what + ' өшіру">×</button></li>';
+  ul.innerHTML = ruler.list.map((m, k) => {
+    const S = segsOf(m), names = m.snaps.map(snapName);
+    const route = S.length === 1 ? esc(names[0]) + ' → ' + esc(names[1]) : esc(names[0]) + ' → … → ' + esc(names[names.length - 1]);
+    const more = S.length === 1 ? 'азимут ' + fmtAz(S[0].az) + (S[0].perp ? ', перпендикуляр' : '')
+      : S.length + ' кесінді: ' + S.map(g => fmtLen(g.d)).join(' + ') + ' м';
+    return '<li><span>' + (k + 1) + '.</span><span>' + route + ':</span> <b>' + (S.length > 1 ? 'Σ ' : '') + fmtLen(totalOf(S)) + ' м</b>' +
+      '<span class="muted">' + more + '</span>' + x('r' + m.id, (k + 1) + '-өлшемді');
+  }).join('') + compass.list.map((m, k) =>
+    '<li><span>○' + (k + 1) + '.</span><span>циркуль, центр: ' + esc(m.from) + ':</span> <b>R ' + fmtLen(m.r) + ' м</b>' +
+    '<span class="muted">D ' + fmtLen(2 * m.r) + ' м</span>' + x('c' + m.id, (k + 1) + '-шеңберді')).join('');
 }
 $('qaRulerList').addEventListener('click', e => {
   const b = e.target.closest('[data-rdel]'); if (!b) return;
-  ruler.list = ruler.list.filter(m => m.id !== +b.dataset.rdel); renderRuler();
+  const id = +b.dataset.rdel.slice(1);
+  if (b.dataset.rdel[0] === 'c') compass.list = compass.list.filter(m => m.id !== id);
+  else ruler.list = ruler.list.filter(m => m.id !== id);
+  if (ruler.a && ruler.a.cont && ruler.a.cont.id === id && b.dataset.rdel[0] === 'r') cancelMeasure();   // жалғастырылып жатқан өлшем өшірілді
+  renderMeasures();
 });
-$('qaRulerClear').addEventListener('click', clearRuler);
-map.on('contextmenu', () => { if (tool.mode === 'ruler' && ruler.a) cancelRuler(); });
+$('qaRulerClear').addEventListener('click', clearMeasures);
+$('qaMeasureClear').addEventListener('click', clearMeasures);
+const measuring = () => (tool.mode === 'ruler' && !!ruler.a) || (tool.mode === 'compass' && !!compass.c);
+map.on('contextmenu', () => { if (measuring()) cancelMeasure(); });
 
 /* ---------- Режимдер мен баптаулар ---------- */
 function setMode(m) {
@@ -649,12 +757,17 @@ function setMode(m) {
   const r = $('qaRuler'), on = m === 'ruler';
   r.setAttribute('aria-pressed', on ? 'true' : 'false');
   r.dataset.tip = on ? 'Сызғыш: қосулы (Esc — өлшеуден бас тарту)' : 'Сызғыш: сызықтарға магниттеледі, перпендикуляр түседі';
+  const c = $('qaCompass'), con = m === 'compass';
+  c.setAttribute('aria-pressed', con ? 'true' : 'false');
+  c.dataset.tip = con ? 'Циркуль: қосулы (Esc — өлшеуден бас тарту)' : 'Циркуль: бірінші басу — центр, екінші — радиус';
   mapEl.classList.toggle('is-adding', state.add);
   mapEl.classList.toggle('is-ruler', on);
-  cancelRuler(); clearGuide();
+  mapEl.classList.toggle('is-compass', con);
+  cancelMeasure(); clearGuide();
   drawMarkers();
 }
 $('qaRuler').addEventListener('click', () => setMode(tool.mode === 'ruler' ? 'none' : 'ruler'));
+$('qaCompass').addEventListener('click', () => setMode(tool.mode === 'compass' ? 'none' : 'compass'));
 $('qaSnap').value = String(tool.snap);
 $('qaSnapRef').value = tool.ref;
 $('qaPerp').checked = tool.perp;
@@ -682,6 +795,7 @@ function insertIndexAt(cp) {
 map.on('click', e => {
   if (Date.now() - dragEndAt < 250) return;
   if (tool.mode === 'ruler') { rulerClick(e); return; }
+  if (tool.mode === 'compass') { compassClick(e); return; }
   if (!state.add) return;
   const pt = { lat: e.latlng.lat, lon: e.latlng.lng };
   const best = insertIndexAt(e.containerPoint);
@@ -1548,7 +1662,7 @@ function resetAll() {
   $('qaGeoMode').value = 'ring';
   fmtSel.value = 'dd'; coordFmt = 'dd';
   setMode('add');
-  clearRuler();
+  clearMeasures();
   const paste = document.querySelector('.qa-paste'); if (paste) paste.open = false;
   try { localStorage.removeItem(STORE_KEY); localStorage.removeItem(FMT_KEY); } catch (e) { /* елемейміз */ }
   applyRule(true);
