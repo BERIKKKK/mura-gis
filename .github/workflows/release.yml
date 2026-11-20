@@ -1,7 +1,7 @@
 # Mura GIS: Windows нұсқасын құрастырып, GitHub Releases бетіне жариялау.
 # Іске қосылуы: v* тегі жіберілгенде (мыс. git tag v1.2.0 && git push origin v1.2.0)
 # не Actions бетінен қолмен (Run workflow): таңдалған тармақтан (әдетте main) құрастырылады; тег әлі жоқ болса,
-# релизбен бірге GitHub өзі жасайды (тармақтың соңғы коммитіне).
+# workflow оны тармақтың соңғы коммитіне өзі жасайды.
 # electron-builder орнатқыш (NSIS), портативті нұсқа және автоматты жаңартуға керек latest.yml файлын жүктейді.
 name: Release
 
@@ -41,6 +41,19 @@ jobs:
           if [ "v$v" != "$TAG" ]; then
             echo "::error::Тег $TAG, ал package.json нұсқасы $v — сәйкес емес. Алдымен package.json → version өзгертіңіз."
             exit 1
+          fi
+
+      - name: Тег жоқ болса — жасау (қолмен іске қосылғанда)
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "Тег $TAG бар."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "Mura GIS ${TAG#v}"
+            git push origin "$TAG"
+            echo "Тег $TAG жасалды: $(git rev-parse --short HEAD)"
           fi
 
       - run: npm ci
