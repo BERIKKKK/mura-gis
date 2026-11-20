@@ -8,6 +8,10 @@ body.mura .mura-bar.mura-icons .qa-tmain .qa-tl { display: none; }
 .mura-status .mura-st-proj { display: inline-flex; align-items: center; gap: 6px; max-width: 42vw; border: 0; background: none; padding: 0 8px; font: inherit; color: var(--ink); cursor: pointer; }
 .mura-status .mura-st-proj:hover { color: var(--terr); }
 .mura-st-proj b, .mura-st-proj span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mura-status .mura-st-unsaved { border: 0; background: none; font: inherit; color: var(--terr); font-weight: 600; cursor: pointer; }
+.mura-status .mura-st-unsaved:hover { text-decoration: underline; }
+.mura-bar .mura-psave.is-dirty { position: relative; color: var(--terr); }
+.mura-bar .mura-psave.is-dirty::after { content: ""; position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--terr); }
 .mura-st-proj span { color: var(--soft); }
 .mura-st-proj svg { flex: none; }
 

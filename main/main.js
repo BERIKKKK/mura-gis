@@ -16,6 +16,7 @@ const { find: findRegion } = require('./regions');
 const gpkgRead = require('./gpkg-read');
 const updates = require('./updates');
 const lang = require('./lang');
+const prefs = require('./prefs');
 const { tx } = lang;
 
 const SRC = path.join(__dirname, '..', 'src');
@@ -41,6 +42,7 @@ function bindStores() {
   store = new Store(t('zones'));
   marks = new MarksStore(t('marks'), t('imports'));
   routes = new RoutesStore(t('routes'));
+  if (p) { p.setAutosave(autosave()); p.onChange = sendDirty; }
   if (win) win.setTitle(p ? (projects.info().current.name + ' — Mura GIS') : 'Mura GIS');
   buildMenu();
 }
@@ -53,6 +55,43 @@ ipcMain.handle('mura:set-lang', (e, v) => {
   lang.set(v);
   buildMenu();
   return { ok: true, lang: lang.get() };
+});
+/* ---------- Жобаны сақтау: авто сақтау (баптау) не «Сақтау» батырмасы / Ctrl+S ---------- */
+const autosave = () => prefs.get('autosave', true) !== false;
+const isDirty = () => !!(projects && projects.current && projects.current.dirty());
+function sendDirty() {
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send('mura:dirty', isDirty());
+  if (process.platform === 'darwin') win.setDocumentEdited(isDirty());
+}
+/** Сақталмаған өзгерістер болса (авто сақтау өшік): «Сақтау / Сақтамау / Бас тарту»; false — бас тартты. */
+function confirmPending() {
+  if (!isDirty()) return true;
+  const p = projects.current, name = projects.info().current.name;
+  const r = dialog.showMessageBoxSync(win, {
+    type: 'warning', noLink: true, defaultId: 0, cancelId: 2,
+    buttons: [tx('Сақтау', 'Сохранить'), tx('Сақтамау', 'Не сохранять'), tx('Бас тарту', 'Отмена')],
+    title: 'Mura GIS', message: tx('«' + name + '» жобасында сақталмаған өзгерістер бар.', 'В проекте «' + name + '» есть несохранённые изменения.'),
+    detail: tx('Сақтамасаңыз, соңғы сақтаудан кейінгі өзгерістер жоғалады.', 'Если не сохранить, изменения после последнего сохранения будут потеряны.'),
+  });
+  if (r === 2) return false;
+  if (r === 0) p.save(); else p.discard();
+  sendDirty();
+  return true;
+}
+ipcMain.on('mura:prefs', e => { e.returnValue = { autosave: autosave() }; });
+ipcMain.handle('mura:set-autosave', (e, v) => {
+  if (!fromApp(e)) return { ok: false };
+  prefs.set('autosave', !!v);
+  if (projects && projects.current) projects.current.setAutosave(autosave());
+  sendDirty();
+  return { ok: true, autosave: autosave() };
+});
+ipcMain.handle('mura:project-save', e => {
+  if (!fromApp(e)) return { ok: false, error: tx('Рұқсат жоқ', 'Нет доступа') };
+  if (!projects || !projects.current) return { ok: false, error: tx('Жоба ашылмаған.', 'Проект не открыт.') };
+  try { const saved = projects.current.save(); sendDirty(); return { ok: true, saved, autosave: autosave() }; }
+  catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.on('mura:project-info', e => { e.returnValue = projects ? projects.info() : { current: null, recent: [], legacy: null }; });
 
@@ -114,6 +153,7 @@ async function newProject(meta, opts) {
     filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }],
   });
   if (r.canceled || !r.filePath) return ok({ canceled: true });
+  if (!confirmPending()) return ok({ canceled: true });
   let file = r.filePath;
   if (!/\.gpkg$/i.test(file)) file += '.gpkg';
   if (projects.current && projects.current.file === path.resolve(file)) projects.close();   // ашық жобаның үстінен жазу
@@ -150,6 +190,7 @@ async function openProject(file) {
     if (cur && r.response === 0) { ui('import-gpkg\n' + file); return ok({ canceled: true, importing: true }); }
     if (r.response !== (cur ? 1 : 0)) return ok({ canceled: true });
   }
+  if (!confirmPending()) return ok({ canceled: true });
   projects.open(file);
   afterSwitch();
   return ok({ path: file });
@@ -176,7 +217,7 @@ ipcMain.handle('mura:project-settings', guard(meta => {
   afterSwitch();
   return ok();
 }));
-ipcMain.handle('mura:project-close', guard(() => { projects.close(); afterSwitch(); return ok(); }));
+ipcMain.handle('mura:project-close', guard(() => { if (!confirmPending()) return ok({ canceled: true }); projects.close(); afterSwitch(); return ok(); }));
 ipcMain.handle('mura:project-forget', guard(file => { projects.forget(file); buildMenu(); return ok({ recent: projects.recent() }); }));
 ipcMain.handle('mura:project-reveal', guard(() => { if (projects.current) shell.showItemInFolder(projects.current.file); return ok(); }));
 
@@ -204,6 +245,8 @@ function createWindow() {
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, sandbox: true, spellcheck: false },
   });
   win.once('ready-to-show', () => { win.maximize(); win.show(); });
+  // Авто сақтау өшік болса — жабу алдында сақталмаған өзгерістер туралы сұраймыз
+  win.on('close', e => { if (!confirmPending()) e.preventDefault(); });
   win.loadURL('mura://app/index.html');
 
   // Сыртқы сілтемелер — жүйенің браузерінде
@@ -261,10 +304,12 @@ function buildMenu() {
         { label: tx('Соңғы жобалар', 'Последние проекты'), submenu: recentMenu() },
         { label: tx('Бастапқы терезе', 'Начальное окно'), click: () => ui('start') },
         { type: 'separator' },
+        { label: tx('Жобаны сақтау', 'Сохранить проект'), accelerator: 'CmdOrCtrl+S', enabled: !!(projects && projects.current), click: () => ui('save') },
+        { type: 'separator' },
         // Баптаулар жоба ашылмаса да қолжетімді: интерфейс тілі жобаға байланысты емес
         { label: tx('Баптаулар…', 'Настройки…'), accelerator: 'CmdOrCtrl+,', click: () => ui('settings') },
         { label: tx('Жоба қалтасын ашу', 'Открыть папку проекта'), enabled: !!(projects && projects.current), click: () => shell.showItemInFolder(projects.current.file) },
-        { label: tx('Жобаны жабу', 'Закрыть проект'), enabled: !!(projects && projects.current), click: () => { projects.close(); afterSwitch(); } },
+        { label: tx('Жобаны жабу', 'Закрыть проект'), enabled: !!(projects && projects.current), click: () => { if (!confirmPending()) return; projects.close(); afterSwitch(); } },
         { type: 'separator' },
         { label: tx('GeoPackage-тен импорттау…', 'Импорт из GeoPackage…'), accelerator: 'CmdOrCtrl+I', enabled: !!(projects && projects.current), click: () => ui('import-gpkg') },
         { label: tx('Сақталған аймақтарды файлға экспорттау…', 'Экспортировать сохранённые зоны в файл…'), enabled: !!(projects && projects.current), click: exportStore },
@@ -389,6 +434,7 @@ app.on('second-instance', (_e, argv) => {
 app.whenReady().then(() => {
   // Тіл: баптау → орнатқышта таңдалғаны → жүйе тілі (main/lang.js)
   lang.init(app.getPath('userData'), { installFile: app.isPackaged ? path.join(process.resourcesPath, 'install-lang.txt') : '', locale: app.getLocale() });
+  prefs.init(app.getPath('userData'));
   projects = new Projects(path.join(app.getPath('userData'), 'data'));
   // Бағдарлама бастапқы терезеден басталады; .gpkg файлы берілсе (не MURA_PROJECT — тесттер үшін), бірден сол ашылады
   const startFile = argProject(process.argv) || process.env.MURA_PROJECT || '';

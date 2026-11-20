@@ -15,6 +15,12 @@ contextBridge.exposeInMainWorld('mura', {
   projectClose: () => ipcRenderer.invoke('mura:project-close'),
   projectForget: file => ipcRenderer.invoke('mura:project-forget', file),
   projectReveal: () => ipcRenderer.invoke('mura:project-reveal'),
+  /** Жобаны сақтау («Сақтау» батырмасы, Ctrl+S); авто сақтау — баптау («Баптаулар → Жоба»). */
+  projectSave: () => ipcRenderer.invoke('mura:project-save'),
+  prefs: ipcRenderer.sendSync('mura:prefs'),
+  setAutosave: v => ipcRenderer.invoke('mura:set-autosave', !!v),
+  /** Сақталмаған өзгерістер күйі өзгергенде (авто сақтау өшік кезде). */
+  onDirty: cb => { ipcRenderer.on('mura:dirty', (_e, v) => cb(!!v)); },
   /** Бөтен GeoPackage-ті оқу (импорт үшін): file берілмесе — таңдау терезесі. */
   gpkgInspect: file => ipcRenderer.invoke('mura:gpkg-inspect', file || ''),
   /** Мәзір пәрмендері (Жаңа жоба, Баптаулар, Бастапқы терезе). */
