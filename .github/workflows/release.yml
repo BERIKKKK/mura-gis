@@ -1,0 +1,56 @@
+# Mura GIS: Windows нұсқасын құрастырып, GitHub Releases бетіне жариялау.
+# Іске қосылуы: v* тегі жіберілгенде (мыс. git tag v1.2.0 && git push origin v1.2.0)
+# не Actions бетінен қолмен (Run workflow — бар тегті көрсетіп).
+# electron-builder орнатқыш (NSIS), портативті нұсқа және автоматты жаңартуға керек latest.yml файлын жүктейді.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Жарияланатын тег (мыс. v1.2.0)'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Тег пен package.json нұсқасы сәйкес пе
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').version")
+          if [ "v$v" != "$TAG" ]; then
+            echo "::error::Тег $TAG, ал package.json нұсқасы $v — сәйкес емес. Алдымен package.json → version өзгертіңіз."
+            exit 1
+          fi
+
+      - run: npm ci
+
+      - name: Маршрут желісінің тесті (routes/graph.js)
+        shell: bash
+        run: node scripts/test-graph.mjs
+
+      - name: Құрастыру және жариялау
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
