@@ -34,19 +34,17 @@ import io.github.berikkkk.muragis.mobile.R
 import java.io.File
 
 /**
- * Баптаулар. Интерфейс тілі мен деректер тілі тәуелсіз: мыс. интерфейс — қазақша, тізім — орысша, экспорт — қазақша.
+ * Баптаулар (мәзірдің «Баптаулар» беті, интерфейс баптауларынан кейін). Интерфейс тілі мен деректер тілі тәуелсіз: мыс. интерфейс — қазақша, тізім — орысша, экспорт — қазақша.
  */
 @Composable
-fun SettingsPane(vm: MainViewModel, act: MainActivity) {
+fun SettingsContent(vm: MainViewModel, act: MainActivity) {
     val prefs by vm.prefs.collectAsState()
     val backups by vm.backups.collectAsState()
     var restore by remember { mutableStateOf<File?>(null) }
     val current = AppCompatDelegate.getApplicationLocales().toLanguageTags()
 
-    Surface(Modifier.fillMaxSize()) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-            Text(stringResource(R.string.tab_settings), style = MaterialTheme.typography.headlineSmall)
-
+    Column(Modifier.padding(bottom = 16.dp)) {
+        run {
             SectionTitle(stringResource(R.string.ui_language))
             listOf("" to stringResource(R.string.lang_system), "kk" to "Қазақша", "ru" to "Русский").forEach { (tag, label) ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {

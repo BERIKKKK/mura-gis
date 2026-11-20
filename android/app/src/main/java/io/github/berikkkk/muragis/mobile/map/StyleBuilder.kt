@@ -19,6 +19,11 @@ object StyleBuilder {
     const val SRC_EDIT = "edit"
     const val SRC_EDIT_PTS = "edit-pts"
     const val SRC_LOC = "location"
+    const val SRC_PLAN = "plan"
+    const val SRC_PLAN_PTS = "plan-pts"
+    const val SRC_TRACK = "track"
+    const val SRC_PIN = "pin"
+    const val LYR_PIN = "pin-dot"
     const val LYR_CLUSTER = "mon-cluster"
     const val LYR_MON = "mon-point"
     const val LYR_ROUTES = "routes-line"
@@ -52,6 +57,7 @@ object StyleBuilder {
         overlays.forEach { addRaster("ov-" + it.layer.id, it) }
 
         sources.put(SRC_ROUTES, geo()).put(SRC_EDIT, geo()).put(SRC_EDIT_PTS, geo()).put(SRC_MON, geo(cluster)).put(SRC_SEL, geo()).put(SRC_LOC, geo())
+            .put(SRC_PLAN, geo()).put(SRC_PLAN_PTS, geo()).put(SRC_TRACK, geo()).put(SRC_PIN, geo())
 
         // Маршруттар: түсі — көлік түрі бойынша; таңдалғаны қалыңырақ
         layers.put(JSONObject().put("id", "routes-casing").put("type", "line").put("source", SRC_ROUTES)
@@ -69,6 +75,20 @@ object StyleBuilder {
         layers.put(JSONObject().put("id", LYR_EDIT_PTS).put("type", "symbol").put("source", SRC_EDIT_PTS)
             .put("layout", JSONObject().put("icon-image", arr("get", "icon")).put("icon-allow-overlap", true).put("icon-ignore-placement", true)))
 
+        // Есептелген маршрут (А → Б): желі бойынша — тұтас, желіден тыс бөліктер (off = 1) — үзік сызық
+        val round = JSONObject().put("line-join", "round").put("line-cap", "round")
+        layers.put(JSONObject().put("id", "plan-casing").put("type", "line").put("source", SRC_PLAN).put("layout", round)
+            .put("paint", JSONObject().put("line-color", "#FFFFFF").put("line-width", 10)))
+        layers.put(JSONObject().put("id", "plan-line").put("type", "line").put("source", SRC_PLAN).put("filter", arr("==", arr("get", "off"), 0)).put("layout", round)
+            .put("paint", JSONObject().put("line-color", "#2251C9").put("line-width", 6)))
+        layers.put(JSONObject().put("id", "plan-off").put("type", "line").put("source", SRC_PLAN).put("filter", arr("==", arr("get", "off"), 1))
+            .put("paint", JSONObject().put("line-color", "#2251C9").put("line-width", 4).put("line-dasharray", arr(1.5, 1.2))))
+        // Жазылып жатқан трек (нақты жүрілген жол)
+        layers.put(JSONObject().put("id", "track-casing").put("type", "line").put("source", SRC_TRACK).put("layout", round)
+            .put("paint", JSONObject().put("line-color", "#FFFFFF").put("line-width", 8)))
+        layers.put(JSONObject().put("id", "track-line").put("type", "line").put("source", SRC_TRACK).put("layout", round)
+            .put("paint", JSONObject().put("line-color", "#E2553B").put("line-width", 4.5)))
+
         // Ескерткіштер: кластерлер және жеке белгілер
         layers.put(JSONObject().put("id", LYR_CLUSTER).put("type", "symbol").put("source", SRC_MON).put("filter", arr("has", "point_count"))
             .put("layout", JSONObject().put("icon-allow-overlap", true).put("icon-ignore-placement", true)
@@ -83,6 +103,14 @@ object StyleBuilder {
             .put("layout", JSONObject().put("icon-image", arr("get", "icon")).put("icon-anchor", "bottom")
                 .put("icon-allow-overlap", true).put("icon-ignore-placement", true))
             .put("paint", JSONObject().put("icon-opacity", arr("case", arr("==", arr("get", "x"), 1), 0.55, 1.0))))
+
+        // Қолмен енгізілген нүкте және маршруттың А/Б нүктелері
+        layers.put(JSONObject().put("id", "pin-halo").put("type", "circle").put("source", SRC_PIN)
+            .put("paint", JSONObject().put("circle-radius", 18).put("circle-color", "#D2AD74").put("circle-opacity", 0.35)))
+        layers.put(JSONObject().put("id", LYR_PIN).put("type", "circle").put("source", SRC_PIN)
+            .put("paint", JSONObject().put("circle-radius", 8).put("circle-color", "#23241F").put("circle-stroke-color", "#D2AD74").put("circle-stroke-width", 3.5)))
+        layers.put(JSONObject().put("id", "plan-ends").put("type", "symbol").put("source", SRC_PLAN_PTS)
+            .put("layout", JSONObject().put("icon-image", arr("get", "icon")).put("icon-allow-overlap", true).put("icon-ignore-placement", true)))
 
         // GPS: дәлдік шеңбері (метр → пиксель масштабқа қарай) және нүкте
         layers.put(JSONObject().put("id", "loc-acc").put("type", "circle").put("source", SRC_LOC)

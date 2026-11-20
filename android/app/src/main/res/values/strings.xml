@@ -232,8 +232,136 @@
     <string name="restore">Қалпына келтіру</string>
     <string name="confirm_restore">%1$s көшірмесінен қалпына келтіру керек пе? Ағымдағы деректер алдымен бөлек көшірмеге сақталады.</string>
     <string name="routing_engine">Жол желісі бойынша маршрут</string>
-    <string name="routing_engine_note">Автоматты маршрут есептеу үшін офлайн жол желісінің деректері мен маршруттау қозғалтқышы керек; бұл нұсқада ол орнатылмаған. Карта тайлдары жол табуға жарамайды. Маршрутты қолмен сызу интернетсіз толық жұмыс істейді.</string>
+    <string name="routing_engine_note">«Маршрут құру» жолды сақталған маршруттар мен тректер желісі бойынша есептейді (жұмыс үстеліндегі «жол табу» алгоритмі, интернетсіз). Карта тайлдары жол табуға жарамайды: OSM жол желісі бойынша есептеу үшін бөлек офлайн граф пен қозғалтқыш керек — бұл нұсқада жоқ.</string>
     <string name="about_version">Mura GIS Android %1$s (жинақ %2$d)</string>
     <string name="about_text">Тарихи-мәдени мұра объектілеріне арналған мобильді ГАЖ: ескерткіштер және маршруттар. Жұмыс үстеліндегі Mura GIS-тен бөлек нұсқаланады; деректері (GeoJSON, .gpkg жобасы, GPX) үйлесімді.</string>
     <string name="about_licenses">MapLibre Native — BSD-2-Clause; AndroidX, Kotlin — Apache 2.0. Карта деректері: © OpenStreetMap авторлары (ODbL), OpenTopoMap (CC-BY-SA), Esri, nakarte.me — әр қабаттың атрибуциясы картада көрсетіледі.</string>
+
+    <!-- Негізгі экран: құралдар панелі, координата жолағы, бүйір батырмалар -->
+    <string name="tb_menu">Мәзір</string>
+    <string name="tb_locate">Дәлдеу</string>
+    <string name="tb_record">Жазу</string>
+    <string name="tb_recording">Жазылуда</string>
+    <string name="tb_route">Маршрут</string>
+    <string name="tb_layers">Қабаттар</string>
+    <string name="zoom_in">Жақындату</string>
+    <string name="zoom_out">Алыстату</string>
+    <string name="place_mark">Белгі қою</string>
+    <string name="accuracy_m">±%1$d м</string>
+    <string name="gps_searching">GPS іздеуде…</string>
+    <string name="gps_tap_enable">Орынды көрсету үшін түртіңіз</string>
+    <string name="this_point">Осы нүкте</string>
+    <string name="pick_mark_hint">Жаңа белгі: картаны жылжытып, нысананы ескерткіш орнына қойыңыз не GPS орнын алыңыз.</string>
+    <string name="pick_a_hint">А нүктесі: картаны жылжытып, нысананы қажетті жерге қойыңыз.</string>
+    <string name="pick_b_hint">Б нүктесі: картаны жылжытып, нысананы қажетті жерге қойыңыз.</string>
+    <string name="pick_my_location_acc">Менің орным (±%1$d м)</string>
+
+    <!-- Координатаны көшіру -->
+    <string name="copy">Көшіру</string>
+    <string name="copy_coords">Координатаны көшіру</string>
+    <string name="copy_coords_sub">%1$s. Форматты таңдаңыз — содан кейін ғана көшіріледі.</string>
+    <string name="copy_title_gps">Ағымдағы орын (GPS)</string>
+    <string name="fmt_dd">Ондық градус</string>
+    <string name="fmt_dms">Градус, минут, секунд</string>
+    <string name="fmt_utm">UTM (WGS 84)</string>
+    <string name="msg_copied">%1$s көшірілді: %2$s</string>
+
+    <!-- Мәзір -->
+    <string name="back">Артқа</string>
+    <string name="menu_close">Мәзірді жабу</string>
+    <string name="menu_tagline">Тарихи-мәдени мұра · далалық нұсқа</string>
+    <string name="menu_search_hint">Ескерткіш атауы не координата</string>
+    <string name="menu_monuments_sub">%1$d нысан</string>
+    <string name="menu_routes_sub">%1$d маршрут · %2$d трек</string>
+    <string name="menu_settings_sub">Zoom: %1$s · панель: %2$s</string>
+    <string name="go_to_coord">Координатаға өту</string>
+    <string name="search_nothing">«%1$s» бойынша ештеңе табылмады. Ескерткіш атауын не «50.28, 57.16» түріндегі координатаны жазыңыз.</string>
+    <string name="coord_input">Координата енгізу</string>
+    <string name="routes_page_sub">Маршрут — алдын ала есептелген не сызылған жол. Трек — «Жазу» арқылы тіркелген нақты қозғалыс.</string>
+    <string name="routes_built">Маршруттар</string>
+    <string name="tracks_recorded">Жазылған тректер</string>
+    <string name="tracks_empty">Әзірге трек жоқ. Төменгі панельдегі «Жазу» батырмасы жүрген жолды тіркей бастайды.</string>
+    <string name="draw_route">Қолмен сызу</string>
+    <string name="kind_route">Маршрут</string>
+    <string name="kind_track">Жазылған трек</string>
+    <string name="layers_title">Карта қабаттары</string>
+
+    <!-- Баптаулар: интерфейс -->
+    <string name="set_zoom_side">Zoom батырмаларының орны</string>
+    <string name="set_bar_pos">Құралдар панелінің орны</string>
+    <string name="side_right">Оң жақ</string>
+    <string name="side_left">Сол жақ</string>
+    <string name="bar_bottom">Төменде</string>
+    <string name="bar_top">Жоғарыда</string>
+    <string name="set_defaults_note">Әдепкі: панель төменде, zoom оң жақта. «Белгі қою» батырмасы zoom-мен бір жақта.</string>
+    <string name="set_reset_ui">Әдепкі орналасуға қайтару</string>
+
+    <!-- Координата енгізу -->
+    <string name="cin_sub">WGS 84. Формат ауысқанда енгізілген мән жаңа пішімге түрленеді.</string>
+    <string name="cin_lat_n">Ендік (N)</string>
+    <string name="cin_lon_e">Бойлық (E)</string>
+    <string name="cin_zone">UTM аймағы</string>
+    <string name="cin_hint_dd">Оңтүстік / батыс — минус таңбасымен</string>
+    <string name="cin_hint_dms">градус · минут · секунд · жарты шар (N/S, E/W)</string>
+    <string name="cin_hint_utm">метр · N — солтүстік, S — оңтүстік жарты шар</string>
+    <string name="cin_show">Картада көрсету</string>
+    <string name="cin_err_dd">Ендік пен бойлықты сан түрінде жазыңыз, мысалы 50.283333.</string>
+    <string name="cin_err_lat">Ендік −90…90 аралығында болуы керек.</string>
+    <string name="cin_err_lon">Бойлық −180…180 аралығында болуы керек.</string>
+    <string name="cin_err_dms">Градус (бүтін сан), минут және секунд өрістерін толтырыңыз.</string>
+    <string name="cin_err_ms">Минут пен секунд 60-тан кіші болуы керек.</string>
+    <string name="cin_err_zone">UTM аймағы 1…60 аралығындағы бүтін сан.</string>
+    <string name="cin_err_easting">Easting 100 000…900 000 м аралығында болуы керек.</string>
+    <string name="cin_err_northing">Northing 0…10 000 000 м аралығында болуы керек.</string>
+    <string name="cin_err_switch">Форматты ауыстыру үшін алдымен ағымдағы мәнді түзетіңіз.</string>
+    <string name="input_point">Енгізілген нүкте</string>
+    <string name="route_here">Маршрут</string>
+    <string name="save_as_monument">Ескерткіш ретінде сақтау</string>
+    <string name="remove_point">Нүктені алып тастау</string>
+
+    <!-- Маршрут құру (А → Б) -->
+    <string name="plan_title">Маршрут құру</string>
+    <string name="plan_sub">А мен Б арасындағы жол алдын ала есептеледі. Жүрген жолды тіркеу — «Жазу».</string>
+    <string name="point_a">А</string>
+    <string name="point_b">Б</string>
+    <string name="plan_from_ph">Бастапқы нүкте</string>
+    <string name="plan_to_ph">Баратын жер</string>
+    <string name="plan_swap">А мен Б-ны ауыстыру</string>
+    <string name="plan_pick_map">Картадан нұсқау</string>
+    <string name="plan_find_monument">Ескерткішті табу</string>
+    <string name="plan_more_monuments">Тағы %1$d ескерткіш — атауын жазыңыз</string>
+    <string name="seg_car">Көлік</string>
+    <string name="seg_4x4">4×4</string>
+    <string name="seg_foot">Жаяу</string>
+    <string name="plan_wet">Ылғалды маусым: тек жыл бойы өтетін жолдар</string>
+    <string name="plan_build">Маршрут құру</string>
+    <string name="plan_busy">Есептелуде…</string>
+    <string name="plan_clear">Тазалау</string>
+    <string name="plan_on_map">Картада көру</string>
+    <string name="plan_time">≈ %1$s жолда</string>
+    <string name="plan_off_network">Желіден тыс (түзу сызық): %1$s</string>
+    <string name="plan_err_no_network">Таңдалған көлікке сай маршрут желісі жоқ. Маршрут сақталған маршруттар мен тректерден құралған желі бойынша есептеледі — алдымен маршрут сызыңыз, импорттаңыз не жолды жазыңыз.</string>
+    <string name="plan_err_not_connected">Бұл екі нүктені жалғайтын маршрут желіде жоқ (таңдалған көлік пен маусымға сай).</string>
+    <string name="plan_network_note">Жол карта суретінен емес, сақталған маршруттар мен тректер желісінен есептеледі (жұмыс үстеліндегідей). Желіден тыс бөліктер үзік сызықпен көрсетіледі.</string>
+    <string name="map_point_label">Картадағы нүкте · %1$s, %2$s</string>
+    <string name="dur_min">%1$d мин</string>
+    <string name="dur_h_min">%1$d сағ %2$d мин</string>
+
+    <!-- Жолды жазу -->
+    <string name="rec_stop">Тоқтату</string>
+    <string name="rec_decide">Шешу</string>
+    <string name="rec_paused">Кідіртілді</string>
+    <string name="rec_stop_title">Жазуды тоқтату</string>
+    <string name="rec_stop_sub">%1$s · %2$s · %3$d нүкте. Трек — нақты жүрілген жол.</string>
+    <string name="rec_save">Тректі сақтау</string>
+    <string name="rec_resume">Жазуды жалғастыру</string>
+    <string name="rec_delete_confirm">Иә, тректі жою</string>
+    <string name="rec_notif_channel">Жолды жазу</string>
+    <string name="rec_notif_title">Жол жазылып жатыр</string>
+    <string name="rec_notif_text">Mura GIS жүрген жолыңызды GPS бойынша тіркеп жатыр</string>
+    <string name="msg_rec_started">Жол жазылып жатыр. Экран өшсе де жазу жалғасады.</string>
+    <string name="msg_track_saved">Трек сақталды: Мәзір → Маршруттар</string>
+    <string name="msg_track_deleted">Трек жойылды</string>
+    <string name="err_track_short">Трек тым қысқа: кемінде 2 нүкте керек. Жазуды жалғастырыңыз не жойыңыз.</string>
+    <string name="track_name">Трек %1$s</string>
 </resources>

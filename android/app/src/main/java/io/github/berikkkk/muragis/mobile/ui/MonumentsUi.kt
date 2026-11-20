@@ -29,6 +29,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandLess
@@ -88,71 +89,6 @@ import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.map.MapController
 import java.util.Locale
 
-@Composable
-fun MonumentsPane(vm: MainViewModel, controller: MapController, act: MainActivity) {
-    val list by vm.filteredMonuments.collectAsState()
-    val all by vm.monuments.collectAsState()
-    val filter by vm.filter.collectAsState()
-    val selected by vm.selected.collectAsState()
-    val placing by vm.placing.collectAsState()
-    val prefs by vm.prefs.collectAsState()
-    val edit by vm.edit.collectAsState()
-    var expanded by remember { mutableStateOf(false) }
-    var showFilter by remember { mutableStateOf(false) }
-    var dataDialog by remember { mutableStateOf<DataDialog?>(null) }
-    val lang = prefs.dataLang
-
-    Box(Modifier.fillMaxSize()) {
-        // Іздеу жолағы
-        Surface(shape = RoundedCornerShape(24.dp), shadowElevation = 3.dp, modifier = Modifier.align(Alignment.TopCenter).padding(start = 10.dp, end = 10.dp, top = 22.dp).fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 12.dp)) {
-                Icon(Icons.Filled.Search, null, tint = Color.Gray)
-                androidx.compose.foundation.text.BasicTextField(
-                    value = filter.query, onValueChange = { vm.setFilter(filter.copy(query = it)) }, singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 12.dp),
-                    decorationBox = { inner -> if (filter.query.isEmpty()) Text(stringResource(R.string.search_hint), color = Color.Gray); inner() },
-                )
-                if (filter.query.isNotEmpty()) IconButton(onClick = { vm.setFilter(filter.copy(query = "")) }) { Icon(Icons.Filled.Close, stringResource(R.string.clear)) }
-                IconButton(onClick = { showFilter = true }) {
-                    Icon(Icons.Filled.FilterList, stringResource(R.string.filter), tint = if (filter.copy(query = "").active) MaterialTheme.colorScheme.primary else Color.Gray)
-                }
-                DataMenu(onImport = { dataDialog = DataDialog.IMPORT }, onExport = { dataDialog = DataDialog.EXPORT })
-            }
-        }
-
-        val m = vm.monument(selected)
-        when {
-            placing -> Surface(tonalElevation = 3.dp, shadowElevation = 6.dp, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-                Column(Modifier.padding(12.dp)) {
-                    Text(stringResource(R.string.place_hint), style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                        OutlinedButton(onClick = { vm.setPlacing(false) }) { Text(stringResource(R.string.cancel)) }
-                        Button(onClick = { controller.center()?.let { (la, lo) -> vm.newMonumentAt(la, lo) } }) { Text(stringResource(R.string.place_here)) }
-                    }
-                }
-            }
-            m != null -> MonumentCard(vm, m, lang, prefs.coordFormatDms, inRouteEdit = edit != null, modifier = Modifier.align(Alignment.BottomCenter))
-            else -> {
-                Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-                    Row(Modifier.align(Alignment.End).padding(end = 10.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        FloatingActionButton(onClick = { act.withLocation { vm.newMonumentAtGps() } }, containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                            Icon(Icons.Filled.GpsFixed, stringResource(R.string.add_at_gps))
-                        }
-                        FloatingActionButton(onClick = { vm.setPlacing(true) }) { Icon(Icons.Filled.AddLocationAlt, stringResource(R.string.add_monument)) }
-                    }
-                    MonumentListPanel(vm, list, all.size, lang, expanded, { expanded = it }) { id ->
-                        vm.monument(id)?.let { controller.moveTo(it.lat, it.lon, maxOf(controller.zoom(), 14.0)) }
-                        vm.select(id); expanded = false
-                    }
-                }
-            }
-        }
-    }
-    if (showFilter) FilterDialog(vm, filter) { showFilter = false }
-    dataDialog?.let { DataDialogs(vm, it, ImportTarget.MONUMENTS, filter.active) { dataDialog = null } }
-}
-
 enum class DataDialog { IMPORT, EXPORT }
 
 @Composable
@@ -167,76 +103,39 @@ fun DataMenu(onImport: () -> Unit, onExport: () -> Unit) {
     }
 }
 
+/** Ескерткіш карточкасы (картадағы төменгі парақтың ішінде). */
 @Composable
-private fun MonumentListPanel(vm: MainViewModel, list: List<Monument>, total: Int, lang: Lang, expanded: Boolean, setExpanded: (Boolean) -> Unit, onPick: (String) -> Unit) {
-    val ui = uiLang()
-    Surface(tonalElevation = 2.dp, shadowElevation = 8.dp, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp), modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Row(Modifier.fillMaxWidth().clickable { setExpanded(!expanded) }.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (list.size == total) stringResource(R.string.monuments_count, total) else stringResource(R.string.monuments_count_filtered, list.size, total),
-                    style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f),
-                )
-                Icon(if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess, null)
-            }
-            if (expanded) {
-                HorizontalDivider()
-                if (list.isEmpty()) Text(stringResource(R.string.list_empty), modifier = Modifier.padding(16.dp), color = Color.Gray)
-                LazyColumn(Modifier.heightIn(max = 340.dp)) {
-                    items(list, key = { it.id }) { m ->
-                        Row(Modifier.fillMaxWidth().clickable { onPick(m.id) }.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.size(12.dp).clip(CircleShape).let { it.then(Modifier) }) {
-                                Surface(color = Color(m.category.fill.toInt()), modifier = Modifier.fillMaxSize()) {}
-                            }
-                            Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                                Text(m.name.display(lang), maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium,
-                                    color = if (m.name[lang].isBlank()) Color.Gray else Color.Unspecified)
-                                Text(listOf(m.period.display(lang), m.type.label(ui), m.district.display(lang)).filter { it.isNotBlank() }.joinToString(" · "),
-                                    style = MaterialTheme.typography.bodySmall, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MonumentCard(vm: MainViewModel, m: Monument, lang: Lang, dms: Boolean, inRouteEdit: Boolean, modifier: Modifier) {
+fun MonumentCardContent(vm: MainViewModel, m: Monument, lang: Lang, dms: Boolean) {
     val ui = uiLang()
     val ctx = LocalContext.current
     var confirmDelete by remember { mutableStateOf(false) }
-    Surface(tonalElevation = 3.dp, shadowElevation = 8.dp, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp), modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp).heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(Modifier.weight(1f)) {
-                    Text(m.name.display(lang), style = MaterialTheme.typography.titleMedium)
-                    if (m.name[lang].isBlank()) Text(stringResource(R.string.no_translation, langName(lang)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                }
-                IconButton(onClick = { vm.select(null) }) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
-            }
-            val lines = listOf(
-                m.period.display(lang), m.type.label(ui), m.category.label(ui), m.status.label(ui),
-                listOf(m.oblast.display(lang), m.district.display(lang)).filter { it.isNotBlank() }.joinToString(", "),
-                m.place.display(lang),
-                fmtCoord(m.lat, dms, true) + "  " + fmtCoord(m.lon, dms, false),
-                m.note.display(lang),
-            ).filter { it.isNotBlank() }
-            lines.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp)) }
-            Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { vm.openEditor(m) }) { Icon(Icons.Filled.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.edit)) }
-                TextButton(onClick = { vm.addMonumentToRoute(m.id) }) {
-                    Icon(Icons.Filled.Route, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp))
-                    Text(stringResource(if (inRouteEdit) R.string.add_to_route else R.string.new_route_from))
-                }
-                IconButton(onClick = {
-                    val label = Uri.encode(m.name.display(lang))
-                    runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:${m.lat},${m.lon}?q=${m.lat},${m.lon}($label)"))) }
-                }) { Icon(Icons.Filled.OpenInNew, stringResource(R.string.open_in_app)) }
-                IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error) }
-            }
+    SheetHeader(m.name.display(lang).ifBlank { "—" }, null) { vm.select(null) }
+    if (m.name[lang].isBlank()) Text(stringResource(R.string.no_translation, langName(lang)), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+    val lines = listOf(
+        m.period.display(lang), m.type.label(ui), m.category.label(ui), m.status.label(ui),
+        listOf(m.oblast.display(lang), m.district.display(lang)).filter { it.isNotBlank() }.joinToString(", "),
+        m.place.display(lang),
+        fmtCoord(m.lat, dms, true) + "  " + fmtCoord(m.lon, dms, false),
+        m.note.display(lang),
+    ).filter { it.isNotBlank() }
+    lines.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp)) }
+    Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        BigButton(stringResource(R.string.copy), Modifier.weight(1f), icon = { Icon(Icons.Filled.ContentCopy, null, Modifier.size(20.dp)) }) {
+            vm.openSheet(Sheet.Copy(m.lat, m.lon, m.name.display(lang)))
         }
+        BigButton(stringResource(R.string.route_here), Modifier.weight(1f), primary = true, icon = { Icon(Icons.Filled.Route, null, Modifier.size(20.dp)) }) {
+            vm.monumentPoint(m.id)?.let { vm.openPlan(it) }
+        }
+    }
+    Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = { vm.openEditor(m) }) { Icon(Icons.Filled.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.edit)) }
+        TextButton(onClick = { vm.addMonumentToRoute(m.id) }) { Text(stringResource(R.string.new_route_from), maxLines = 1) }
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = {
+            val label = Uri.encode(m.name.display(lang))
+            runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:${m.lat},${m.lon}?q=${m.lat},${m.lon}($label)"))) }
+        }) { Icon(Icons.Filled.OpenInNew, stringResource(R.string.open_in_app)) }
+        IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error) }
     }
     if (confirmDelete) ConfirmDialog(stringResource(R.string.confirm_delete_monument, m.name.display(lang)), stringResource(R.string.delete),
         onConfirm = { vm.deleteMonuments(listOf(m.id)) }, onDismiss = { confirmDelete = false })
@@ -244,7 +143,7 @@ private fun MonumentCard(vm: MainViewModel, m: Monument, lang: Lang, dms: Boolea
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun FilterDialog(vm: MainViewModel, f: MonumentFilter, onDismiss: () -> Unit) {
+fun FilterDialog(vm: MainViewModel, f: MonumentFilter, onDismiss: () -> Unit) {
     val ui = uiLang()
     var cur by remember { mutableStateOf(f) }
     AlertDialog(

@@ -72,83 +72,42 @@ import io.github.berikkkk.muragis.core.model.Vehicle
 import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.map.MapController
 
+/** Маршрутты қолмен сызу (өңдеу) режимі — картаның үстінде. */
 @Composable
 fun RoutesPane(vm: MainViewModel, controller: MapController) {
     val edit by vm.edit.collectAsState()
     Box(Modifier.fillMaxSize()) {
-        if (edit != null) RouteEditorPanel(vm, edit!!, controller) else RoutesBrowser(vm, controller)
+        edit?.let { RouteEditorPanel(vm, it, controller) }
     }
 }
 
 @Composable
-private fun vehicleLabel(v: Vehicle) = stringResource(when (v) { Vehicle.CAR -> R.string.v_car; Vehicle.OFFROAD -> R.string.v_4x4; Vehicle.FOOT -> R.string.v_foot })
-
-@Composable
 private fun seasonLabel(s: Season) = stringResource(when (s) { Season.ALL -> R.string.s_all; Season.DRY -> R.string.s_dry })
 
+/** Таңдалған маршрут не трек карточкасы (картадағы төменгі парақтың ішінде). */
 @Composable
-private fun androidx.compose.foundation.layout.BoxScope.RoutesBrowser(vm: MainViewModel, controller: MapController) {
-    val routes by vm.routes.collectAsState()
-    val selected by vm.selectedRoute.collectAsState()
+fun RouteCardContent(vm: MainViewModel, r: Route, controller: MapController) {
     val prefs by vm.prefs.collectAsState()
-    var expanded by remember { mutableStateOf(false) }
-    var dialog by remember { mutableStateOf<DataDialog?>(null) }
-    var exportOne by remember { mutableStateOf<String?>(null) }
-    var confirmDelete by remember { mutableStateOf<Route?>(null) }
+    var exportOne by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
     val lang = prefs.dataLang
-    val r = routes.firstOrNull { it.id == selected }
-
-    Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-        if (r == null) Row(Modifier.align(Alignment.End).padding(end = 10.dp, bottom = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ExtendedFloatingActionButton(onClick = { vm.startNewRoute() }, icon = { Icon(Icons.Filled.Add, null) }, text = { Text(stringResource(R.string.new_route)) })
-        }
-        Surface(tonalElevation = 2.dp, shadowElevation = 8.dp, shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp), modifier = Modifier.fillMaxWidth()) {
-            if (r != null) Column(Modifier.padding(16.dp).heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Text(r.name.display(lang), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { vm.selectRoute(null) }) { Icon(Icons.Filled.Close, stringResource(R.string.close)) }
-                }
-                val ab = listOf(r.aName.display(lang), r.bName.display(lang)).filter { it.isNotBlank() }.joinToString(" → ")
-                if (ab.isNotBlank()) Text(ab)
-                Text(stringResource(R.string.route_summary, fmtLength(r.lengthMeters()), r.points.size, vehicleLabel(r.vehicle), seasonLabel(r.season)))
-                if (r.checked.isNotBlank()) Text(stringResource(R.string.route_checked, r.checked), style = MaterialTheme.typography.bodySmall)
-                if (r.note.display(lang).isNotBlank()) Text(r.note.display(lang), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                Row(Modifier.padding(top = 8.dp)) {
-                    TextButton(onClick = { vm.editRoute(r.id) }) { Icon(Icons.Filled.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.edit)) }
-                    IconButton(onClick = { Geo.bounds(r.points.map { LatLon(it.lat, it.lon) })?.let { controller.fit(it) } }) { Icon(Icons.Filled.ZoomOutMap, stringResource(R.string.zoom_to)) }
-                    IconButton(onClick = { exportOne = r.id }) { Icon(Icons.Filled.FileUpload, stringResource(R.string.export_data)) }
-                    IconButton(onClick = { confirmDelete = r }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error) }
-                }
-            } else Column {
-                Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.routes_count, routes.size), style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                    DataMenu(onImport = { dialog = DataDialog.IMPORT }, onExport = { dialog = DataDialog.EXPORT })
-                    Icon(if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess, null, Modifier.padding(end = 8.dp))
-                }
-                if (expanded) {
-                    HorizontalDivider()
-                    if (routes.isEmpty()) Text(stringResource(R.string.routes_empty), color = Color.Gray, modifier = Modifier.padding(16.dp))
-                    LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                        itemsIndexed(routes.sortedBy { it.name.display(lang) }, key = { _, it -> it.id }) { _, x ->
-                            Column(Modifier.fillMaxWidth().clickable {
-                                vm.selectRoute(x.id); expanded = false
-                                Geo.bounds(x.points.map { LatLon(it.lat, it.lon) })?.let { controller.fit(it) }
-                            }.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                Text(x.name.display(lang), fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(fmtLength(x.lengthMeters()) + " · " + vehicleLabel(x.vehicle), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    val track = MainViewModel.isTrack(r)
+    SheetHeader(r.name.display(lang).ifBlank { "—" }, stringResource(if (track) R.string.kind_track else R.string.kind_route)) { vm.selectRoute(null) }
+    val ab = listOf(r.aName.display(lang), r.bName.display(lang)).filter { it.isNotBlank() }.joinToString(" → ")
+    if (ab.isNotBlank()) Text(ab)
+    Text(stringResource(R.string.route_summary, fmtLength(r.lengthMeters()), r.points.size, vehicleLabel(r.vehicle), seasonLabel(r.season)))
+    if (r.checked.isNotBlank()) Text(stringResource(R.string.route_checked, r.checked), style = MaterialTheme.typography.bodySmall)
+    if (r.note.display(lang).isNotBlank()) Text(r.note.display(lang), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+    Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = { vm.editRoute(r.id) }) { Icon(Icons.Filled.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.edit)) }
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = { Geo.bounds(r.points.map { LatLon(it.lat, it.lon) })?.let { controller.fit(it) } }) { Icon(Icons.Filled.ZoomOutMap, stringResource(R.string.zoom_to)) }
+        IconButton(onClick = { exportOne = true }) { Icon(Icons.Filled.FileUpload, stringResource(R.string.export_data)) }
+        IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Filled.Delete, stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error) }
     }
-    dialog?.let { DataDialogs(vm, it, ImportTarget.ROUTES, false) { dialog = null } }
-    exportOne?.let { DataDialogs(vm, DataDialog.EXPORT, ImportTarget.ROUTES, false, routeId = it) { exportOne = null } }
-    confirmDelete?.let { x ->
-        ConfirmDialog(stringResource(R.string.confirm_delete_route, x.name.display(lang)), stringResource(R.string.delete),
-            onConfirm = { vm.deleteRoute(x.id) }, onDismiss = { confirmDelete = null })
-    }
+    if (exportOne) DataDialogs(vm, DataDialog.EXPORT, ImportTarget.ROUTES, false, routeId = r.id) { exportOne = false }
+    if (confirmDelete) ConfirmDialog(stringResource(R.string.confirm_delete_route, r.name.display(lang)), stringResource(R.string.delete),
+        onConfirm = { vm.deleteRoute(r.id) }, onDismiss = { confirmDelete = false })
 }
 
 /** Маршрутты картада өңдеу: картаны басу — нүкте қосу, нүктені сүйреу — жылжыту, ескерткішті басу — ескерткішті қосу. */

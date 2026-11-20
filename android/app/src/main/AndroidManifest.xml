@@ -11,6 +11,8 @@
     <!-- Ұзақ жүктеу/импорт: алдыңғы қатардағы қызмет (Android 14+: dataSync түрі) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Жолды жазу: экран өшсе де GPS тректі тіркеу (Android 14+: location түрі) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
@@ -61,6 +63,12 @@
                 android:name="autoStoreLocales"
                 android:value="true" />
         </service>
+
+        <!-- Жолды жазу (трек) — пайдаланушы «Жазу» батырмасын басқанда ғана іске қосылады -->
+        <service
+            android:name=".work.TrackService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
 
         <!-- WorkManager алдыңғы қатардағы қызметі: деректерді жүктеу/импорт -->
         <service
