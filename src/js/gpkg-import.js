@@ -14,33 +14,50 @@ const QA = globalThis.__qa;
 const REG = globalThis.MuraRegions;
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const nf = n => Number(n).toLocaleString('ru-RU');
+const tx = (kk, ru) => (globalThis.MuraI18n && globalThis.MuraI18n.ru ? ru : kk);
 
 /* ======================= Мақсаттар мен өрістер ======================= */
 const TARGETS = {
-  marks: { label: 'Ескерткіштер (белгі)', geom: ['Point', 'Polygon'], fields: [
-    ['name', 'Атауы', true], ['period', 'Мерзімі (дәуірі)'], ['oblast', 'Облыс'], ['district', 'Аудан / қала'], ['place', 'Орналасқан жері'],
-    ['type', 'Түрі (Заңның 5-бабы)'], ['category', 'Санаты'], ['status', 'Мәртебесі'], ['note', 'Ескертпе']] },
-  zones: { label: 'Ескерткіш аумағы → қорғау аймағы жазбасы', geom: ['Polygon'], fields: [
-    ['name', 'Атауы', true], ['gen', 'Атауы (ілік септік)'], ['period', 'Мерзімі (дәуірі)'], ['oblast', 'Облыс'], ['district', 'Аудан / қала'],
-    ['place', 'Орналасқан жері'], ['desc', 'Сипаттамасы'], ['type', 'Ескерткіш түрі (7-тармақ)'], ['height', 'Биіктігі, м']] },
-  z1: { label: 'Қорғау аймағы (дайын полигон)', geom: ['Polygon'], fields: [], zone: 0 },
-  z2: { label: 'Құрылыс салуды реттеу аймағы (дайын полигон)', geom: ['Polygon'], fields: [], zone: 1 },
-  z3: { label: 'Қорғалатын табиғи ландшафт аймағы (дайын полигон)', geom: ['Polygon'], fields: [], zone: 2 },
-  routes: { label: 'Маршруттар', geom: ['LineString'], fields: [
-    ['name', 'Атауы'], ['a_name', 'Басы (А)'], ['b_name', 'Соңы (Б)'], ['vehicle', 'Көлік'], ['season', 'Маусым'], ['checked', 'Тексерілген күні'], ['note', 'Ескертпе']] },
-  imports: { label: 'Импортталған нүктелер (кейін сәйкестендіріледі)', geom: ['Point'], fields: [['name', 'Атауы'], ['desc', 'Сипаттамасы']] },
-  skip: { label: 'Импорттамау', geom: ['Point', 'LineString', 'Polygon'], fields: [] },
+  // Мәтіндік өрістер екі тілде: name (қазақша) және name_ru (орысша) т.б.; міндетті — атаудың біреуі (қазақша не орысша)
+  marks: { label: tx('Ескерткіштер (белгі)', 'Памятники (метки)'), geom: ['Point', 'Polygon'], fields: [
+    ['name', tx('Атауы (қазақша)', 'Наименование (по-казахски)'), true], ['name_ru', tx('Атауы (орысша)', 'Наименование (по-русски)')],
+    ['period', tx('Мерзімі (қазақша)', 'Датировка (по-казахски)')], ['period_ru', tx('Мерзімі (орысша)', 'Датировка (по-русски)')],
+    ['oblast', tx('Облыс', 'Область')], ['district', tx('Аудан / қала', 'Район / город')],
+    ['place', tx('Орналасқан жері (қазақша)', 'Местонахождение (по-казахски)')], ['place_ru', tx('Орналасқан жері (орысша)', 'Местонахождение (по-русски)')],
+    ['type', tx('Түрі (Заңның 5-бабы)', 'Вид (статья 5 Закона)')], ['category', tx('Санаты', 'Категория')], ['status', tx('Мәртебесі', 'Статус')],
+    ['note', tx('Ескертпе (қазақша)', 'Примечание (по-казахски)')], ['note_ru', tx('Ескертпе (орысша)', 'Примечание (по-русски)')]] },
+  zones: { label: tx('Ескерткіш аумағы → қорғау аймағы жазбасы', 'Территория памятника → запись охранной зоны'), geom: ['Polygon'], fields: [
+    ['name', tx('Атауы (қазақша)', 'Наименование (по-казахски)'), true], ['name_ru', tx('Атауы (орысша)', 'Наименование (по-русски)')],
+    ['gen', tx('Атауы (ілік септік)', 'Наименование (каз., ілік септік)')], ['gen_ru', tx('Атауы (орысша, родительный падеж)', 'Наименование (родительный падеж)')],
+    ['period', tx('Мерзімі (қазақша)', 'Датировка (по-казахски)')], ['period_ru', tx('Мерзімі (орысша)', 'Датировка (по-русски)')],
+    ['oblast', tx('Облыс', 'Область')], ['district', tx('Аудан / қала', 'Район / город')],
+    ['place', tx('Орналасқан жері (қазақша)', 'Местонахождение (по-казахски)')], ['place_ru', tx('Орналасқан жері (орысша)', 'Местонахождение (по-русски)')],
+    ['desc', tx('Сипаттамасы (қазақша)', 'Описание (по-казахски)')], ['desc_ru', tx('Сипаттамасы (орысша)', 'Описание (по-русски)')],
+    ['type', tx('Ескерткіш түрі (7-тармақ)', 'Вид памятника (пункт 7)')], ['height', tx('Биіктігі, м', 'Высота, м')]] },
+  z1: { label: tx('Қорғау аймағы (дайын полигон)', 'Охранная зона (готовый полигон)'), geom: ['Polygon'], fields: [], zone: 0 },
+  z2: { label: tx('Құрылыс салуды реттеу аймағы (дайын полигон)', 'Зона регулирования застройки (готовый полигон)'), geom: ['Polygon'], fields: [], zone: 1 },
+  z3: { label: tx('Қорғалатын табиғи ландшафт аймағы (дайын полигон)', 'Зона охраняемого природного ландшафта (готовый полигон)'), geom: ['Polygon'], fields: [], zone: 2 },
+  routes: { label: tx('Маршруттар', 'Маршруты'), geom: ['LineString'], fields: [
+    ['name', tx('Атауы', 'Название')], ['a_name', tx('Басы (А)', 'Начало (А)')], ['b_name', tx('Соңы (Б)', 'Конец (Б)')], ['vehicle', tx('Көлік', 'Транспорт')], ['season', tx('Маусым', 'Сезон')], ['checked', tx('Тексерілген күні', 'Дата проверки')], ['note', tx('Ескертпе', 'Примечание')]] },
+  imports: { label: tx('Импортталған нүктелер (кейін сәйкестендіріледі)', 'Импортированные точки (сопоставляются позже)'), geom: ['Point'], fields: [['name', tx('Атауы', 'Наименование')], ['desc', tx('Сипаттамасы', 'Описание')]] },
+  skip: { label: tx('Импорттамау', 'Не импортировать'), geom: ['Point', 'LineString', 'Polygon'], fields: [] },
 };
 // Бағандардың атаулары бойынша автоматты сәйкестендіру (кіші әріппен, бос орын / _ / - алынып тасталады)
 const SYN = {
-  name: ['name', 'атауы', 'атау', 'аты', 'название', 'наименование', 'наимен', 'naim', 'nazv', 'nazvanie', 'title', 'label', 'объект', 'objname', 'monument', 'ескерткіш', 'памятник', 'nameobj'],
-  gen: ['gen', 'genitive', 'іліксепті', 'родпадеж'],
-  period: ['period', 'мерзімі', 'мерзім', 'кезеңі', 'дәуірі', 'датировка', 'период', 'эпоха', 'epoch', 'date', 'dating', 'age', 'время'],
+  name: ['name', 'атауы', 'атау', 'аты', 'namekk', 'namekz', 'title', 'label', 'objname', 'monument', 'ескерткіш', 'nameobj'],
+  name_ru: ['nameru', 'название', 'наименование', 'наимен', 'naim', 'nazv', 'nazvanie', 'объект', 'памятник', 'атауыорысша'],
+  gen: ['gen', 'genitive', 'іліксепті'],
+  gen_ru: ['genru', 'родпадеж', 'родительный'],
+  period: ['period', 'мерзімі', 'мерзім', 'кезеңі', 'дәуірі', 'epoch', 'date', 'dating', 'age'],
+  period_ru: ['periodru', 'датировка', 'период', 'эпоха', 'время'],
   oblast: ['oblast', 'облыс', 'облысы', 'область', 'обл', 'region', 'regionname'],
   district: ['district', 'аудан', 'ауданы', 'район', 'raion', 'rayon', 'audan', 'город', 'қала'],
-  place: ['place', 'орналасқанжері', 'орналасуы', 'орны', 'местоположение', 'местонахождение', 'адрес', 'address', 'location', 'место', 'locality'],
-  desc: ['desc', 'description', 'сипаттамасы', 'сипаттама', 'описание', 'descr', 'opisanie'],
-  note: ['note', 'notes', 'ескертпе', 'примечание', 'comment', 'comments', 'remark', 'прим'],
+  place: ['place', 'орналасқанжері', 'орналасуы', 'орны', 'address', 'location', 'locality'],
+  place_ru: ['placeru', 'местоположение', 'местонахождение', 'адрес', 'место'],
+  desc: ['desc', 'description', 'сипаттамасы', 'сипаттама', 'descr'],
+  desc_ru: ['descru', 'descriptionru', 'описание', 'opisanie'],
+  note: ['note', 'notes', 'ескертпе', 'comment', 'comments', 'remark'],
+  note_ru: ['noteru', 'примечание', 'прим'],
   type: ['type', 'түрі', 'тип', 'вид', 'kind', 'типпамятника', 'видпамятника', 'монтип'],
   category: ['category', 'санаты', 'категория', 'значение', 'маңызы', 'cat'],
   status: ['status', 'мәртебесі', 'статус'],
@@ -52,7 +69,9 @@ const SYN = {
   checked: ['checked', 'тексерілген', 'проверено', 'датапроверки'],
 };
 const norm = s => String(s || '').toLocaleLowerCase('ru').replace(/[\s_\-.:]+/g, '');
-const MURA_COL = { desc: { zones: 'description', imports: 'description' } };
+const MURA_COL = { desc: { zones: 'description', imports: 'description' }, desc_ru: { zones: 'description_ru' } };
+/** Міндетті өріс толтырылған ба: атау — қазақша не орысша. */
+const hasReq = (m, k) => !!(m[k] || (k === 'name' && m.name_ru));
 
 /** Қабат бағандарын мақсат өрістеріне автоматты сәйкестендіру. */
 function autoMap(layer, target, isMura) {
@@ -71,7 +90,7 @@ function autoMap(layer, target, isMura) {
 function mapState(L) {
   const t = TARGETS[L.target];
   if (!t.fields.length || L.target === 'skip') return 'none';
-  if (t.fields.some(([k, , req]) => req && !L.map[k])) return 'need';
+  if (t.fields.some(([k, , req]) => req && !hasReq(L.map, k))) return 'need';
   const mapped = new Set(Object.values(L.map));
   return L.columns.every(c => mapped.has(c) || /^(fid|id|uid|ogc_fid|objectid|created_|updated_|imported_at|file|folder|props)/i.test(c)) ? 'ok' : 'partial';
 }
@@ -193,7 +212,7 @@ function frame(title, body, foot) {
     dlg.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); if (dlg.querySelector('.gi-map')) closeMap(); else close(); } });
   }
   dlg.innerHTML = '<div class="mura-dlg gi-dlg" role="dialog" aria-modal="true" aria-labelledby="giT">' +
-    '<div class="gi-head"><h3 id="giT">' + title + '</h3><button type="button" class="mura-start-x" data-gi-x aria-label="Жабу" title="Жабу (Esc)"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
+    '<div class="gi-head"><h3 id="giT">' + title + '</h3><button type="button" class="mura-start-x" data-gi-x aria-label="' + tx('Жабу', 'Закрыть') + '" title="' + tx('Жабу (Esc)', 'Закрыть (Esc)') + '"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
     '<div class="gi-body">' + body + '</div><div class="gi-foot">' + foot + '</div></div>';
   dlg.querySelector('[data-gi-x]').addEventListener('click', close);
 }
@@ -207,11 +226,11 @@ const toast = (t, err) => {
 /** Импортты бастау: file берілмесе — файл таңдау терезесі. */
 async function start(file) {
   if (!M.gpkgInspect) return;
-  if (!(M.project && M.project.current)) { toast('Алдымен жобаны ашыңыз не жаңа жоба құрыңыз.', true); return; }
-  frame('GeoPackage импорты', '<p class="gi-busy">Файл оқылуда…</p>', '');
+  if (!(M.project && M.project.current)) { toast(tx('Алдымен жобаны ашыңыз не жаңа жоба құрыңыз.', 'Сначала откройте проект или создайте новый.'), true); return; }
+  frame(tx('GeoPackage импорты', 'Импорт GeoPackage'), '<p class="gi-busy">' + tx('Файл оқылуда…', 'Чтение файла…') + '</p>', '');
   let r;
   try { r = await M.gpkgInspect(file || ''); } catch (e) { r = { ok: false, error: e.message }; }
-  if (!r.ok || r.canceled) { close(); if (!r.ok) toast('Файл оқылмады: ' + r.error, true); return; }
+  if (!r.ok || r.canceled) { close(); if (!r.ok) toast(tx('Файл оқылмады: ', 'Не удалось прочитать файл: ') + r.error, true); return; }
   src = r.data;
   src.layers.forEach(L => {
     L.target = L.error || !L.geom ? 'skip' : guessTarget(L, src.isMura);
@@ -223,35 +242,36 @@ async function start(file) {
 /* ---------- 1-қадам: қабаттар ---------- */
 function targetOptions(L) {
   return Object.entries(TARGETS).filter(([, t]) => t.geom.includes(L.geom)).map(([k, t]) =>
-    '<option value="' + k + '"' + (k === L.target ? ' selected' : '') + '>' + esc(t.label + (k === 'marks' && L.geom === 'Polygon' ? ' — полигонның ортасы' : '')) + '</option>').join('');
+    '<option value="' + k + '"' + (k === L.target ? ' selected' : '') + '>' + esc(t.label + (k === 'marks' && L.geom === 'Polygon' ? tx(' — полигонның ортасы', ' — центр полигона') : '')) + '</option>').join('');
 }
-const GEOM_KK = { Point: 'нүкте', LineString: 'сызық', Polygon: 'полигон' };
+const GEOM_KK = { Point: tx('нүкте', 'точка'), LineString: tx('сызық', 'линия'), Polygon: tx('полигон', 'полигон') };
 function renderLayers() {
   const rows = src.layers.map((L, i) => {
     const st = L.error ? 'err' : mapState(L);
     const chip = L.error ? '<span class="gi-chip is-err">' + esc(L.error) + '</span>'
-      : st === 'need' ? '<span class="gi-chip is-warn">Атрибуттар сәйкес келмейді</span>'
-      : st === 'partial' ? '<span class="gi-chip is-part">Ішінара сәйкес</span>'
-      : st === 'ok' ? '<span class="gi-chip is-ok">Атрибуттар сәйкес</span>'
-      : L.target === 'skip' ? '' : '<span class="gi-chip">Ескерткіш аумағымен кеңістікте байланыстырылады</span>';
-    const btn = L.error || st === 'none' ? '' : '<button type="button" class="btn btn--sm ' + (st === 'need' ? 'btn--primary' : 'btn--ghost') + '" data-map="' + i + '">Сәйкестендіру</button>';
-    const notes = [L.truncated ? 'алғашқы ' + nf(L.features.length) + ' нысаны ғана' : '', L.multi ? L.multi + ' көп бөлікті нысанның ең үлкен бөлігі алынады' : '', L.holes ? L.holes + ' полигонның ішкі тесіктері ескерілмейді' : ''].filter(Boolean).join(' · ');
+      : st === 'need' ? '<span class="gi-chip is-warn">' + tx('Атрибуттар сәйкес келмейді', 'Атрибуты не сопоставлены') + '</span>'
+      : st === 'partial' ? '<span class="gi-chip is-part">' + tx('Ішінара сәйкес', 'Сопоставлены частично') + '</span>'
+      : st === 'ok' ? '<span class="gi-chip is-ok">' + tx('Атрибуттар сәйкес', 'Атрибуты сопоставлены') + '</span>'
+      : L.target === 'skip' ? '' : '<span class="gi-chip">' + tx('Ескерткіш аумағымен кеңістікте байланыстырылады', 'Связывается с территорией памятника по положению') + '</span>';
+    const btn = L.error || st === 'none' ? '' : '<button type="button" class="btn btn--sm ' + (st === 'need' ? 'btn--primary' : 'btn--ghost') + '" data-map="' + i + '">' + tx('Сәйкестендіру', 'Сопоставить') + '</button>';
+    const notes = [L.truncated ? tx('алғашқы ' + nf(L.features.length) + ' нысаны ғана', 'только первые ' + nf(L.features.length) + ' объектов') : '', L.multi ? tx(L.multi + ' көп бөлікті нысанның ең үлкен бөлігі алынады', 'у ' + L.multi + ' составных объектов берётся наибольшая часть') : '', L.holes ? tx(L.holes + ' полигонның ішкі тесіктері ескерілмейді', 'внутренние отверстия ' + L.holes + ' полигонов не учитываются') : ''].filter(Boolean).join(' · ');
     return '<tr' + (L.error ? ' class="is-dis"' : '') + '>' +
       '<td><b>' + esc(L.title) + '</b>' + (L.title !== L.table ? ' <small>(' + esc(L.table) + ')</small>' : '') +
-        '<div class="gi-sub">' + esc((GEOM_KK[L.geom] || L.declared || '—') + ' · ' + nf(L.features.length) + ' нысан' + (L.srs ? ' · ' + L.srs : '')) + '</div>' +
+        '<div class="gi-sub">' + esc((GEOM_KK[L.geom] || L.declared || '—') + ' · ' + nf(L.features.length) + tx(' нысан', ' объектов') + (L.srs ? ' · ' + L.srs : '')) + '</div>' +
         (notes ? '<div class="gi-sub gi-note">' + esc(notes) + '</div>' : '') + '</td>' +
-      '<td>' + (L.error ? '' : '<select data-tgt="' + i + '" aria-label="' + esc(L.title) + ': не ретінде импорттау">' + targetOptions(L) + '</select>') + '</td>' +
+      '<td>' + (L.error ? '' : '<select data-tgt="' + i + '" aria-label="' + esc(L.title) + tx(': не ретінде импорттау', ': импортировать как') + '">' + targetOptions(L) + '</select>') + '</td>' +
       '<td class="gi-st">' + chip + btn + '</td></tr>';
   }).join('');
   const blocked = src.layers.filter(L => !L.error && L.target !== 'skip' && mapState(L) === 'need');
   const any = src.layers.some(L => !L.error && L.target !== 'skip');
-  frame('GeoPackage импорты: ' + esc(src.name),
-    (src.isMura ? '<p class="mura-hint">Бұл — басқа Mura GIS жобасы: қабаттары өздігінен сәйкестендірілді.</p>' :
-      '<p class="mura-hint">Әр қабат не ретінде импортталатынын таңдаңыз. Атрибуттар кестесі жобаның өрістеріне сәйкес келмесе, «Сәйкестендіру» арқылы әр өріске бағанды көрсетіңіз. Дайын қорғау аймақтарының полигондары ескерткіш аумағымен байланыстырылып, заңнамаға сәйкестігі тексеріледі.</p>') +
-    '<table class="gi-tbl"><thead><tr><th>Қабат</th><th>Импорттау</th><th>Атрибуттар</th></tr></thead><tbody>' + rows + '</tbody></table>' +
-    (blocked.length ? '<p class="mura-err">' + esc(blocked.map(L => L.title).join(', ')) + ': міндетті өріс (атауы) таңдалмаған — «Сәйкестендіру» басыңыз.</p>' : ''),
-    '<span class="gi-sp"></span><button type="button" class="btn btn--ghost btn--sm" data-gi-x2>Бас тарту</button>' +
-    '<button type="button" class="btn btn--primary btn--sm" id="giNext"' + (blocked.length || !any ? ' disabled' : '') + '>Жалғастыру</button>');
+  frame(tx('GeoPackage импорты: ', 'Импорт GeoPackage: ') + esc(src.name),
+    (src.isMura ? '<p class="mura-hint">' + tx('Бұл — басқа Mura GIS жобасы: қабаттары өздігінен сәйкестендірілді.', 'Это другой проект Mura GIS: слои сопоставлены автоматически.') + '</p>' :
+      '<p class="mura-hint">' + tx('Әр қабат не ретінде импортталатынын таңдаңыз. Атрибуттар кестесі жобаның өрістеріне сәйкес келмесе, «Сәйкестендіру» арқылы әр өріске бағанды көрсетіңіз. Дайын қорғау аймақтарының полигондары ескерткіш аумағымен байланыстырылып, заңнамаға сәйкестігі тексеріледі.',
+        'Выберите, как импортировать каждый слой. Если таблица атрибутов не совпадает с полями проекта, укажите столбец для каждого поля через «Сопоставить». Готовые полигоны охранных зон связываются с территорией памятника и проверяются на соответствие законодательству.') + '</p>') +
+    '<table class="gi-tbl"><thead><tr><th>' + tx('Қабат', 'Слой') + '</th><th>' + tx('Импорттау', 'Импорт') + '</th><th>' + tx('Атрибуттар', 'Атрибуты') + '</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+    (blocked.length ? '<p class="mura-err">' + esc(blocked.map(L => L.title).join(', ')) + tx(': міндетті өріс (атауы) таңдалмаған — «Сәйкестендіру» басыңыз.', ': не выбрано обязательное поле (наименование) — нажмите «Сопоставить».') + '</p>' : ''),
+    '<span class="gi-sp"></span><button type="button" class="btn btn--ghost btn--sm" data-gi-x2>' + tx('Бас тарту', 'Отмена') + '</button>' +
+    '<button type="button" class="btn btn--primary btn--sm" id="giNext"' + (blocked.length || !any ? ' disabled' : '') + '>' + tx('Жалғастыру', 'Продолжить') + '</button>');
   dlg.querySelector('[data-gi-x2]').addEventListener('click', close);
   dlg.querySelectorAll('[data-tgt]').forEach(s => s.addEventListener('change', () => {
     const L = src.layers[+s.dataset.tgt];
@@ -266,19 +286,20 @@ function renderLayers() {
 function openMap(i) {
   const L = src.layers[i], t = TARGETS[L.target];
   const sample = c => { const v = L.features.slice(0, 40).map(f => f.p[c]).filter(x => x != null && String(x).trim() !== ''); return v.length ? String(v[0]).slice(0, 60) : ''; };
-  const opts = sel => '<option value="">— жоқ —</option>' + L.columns.map(c => '<option value="' + esc(c) + '"' + (c === sel ? ' selected' : '') + '>' + esc(c) + (sample(c) ? '  («' + esc(sample(c)) + '»)' : '') + '</option>').join('');
+  const opts = sel => '<option value="">' + tx('— жоқ —', '— нет —') + '</option>' + L.columns.map(c => '<option value="' + esc(c) + '"' + (c === sel ? ' selected' : '') + '>' + esc(c) + (sample(c) ? '  («' + esc(sample(c)) + '»)' : '') + '</option>').join('');
   const used = new Set(Object.values(L.map));
   const free = L.columns.filter(c => !used.has(c));
   const box = document.createElement('div');
   box.className = 'gi-map';
-  box.innerHTML = '<form class="gi-map-in" novalidate><h4>Сәйкестендіру: ' + esc(L.title) + ' → ' + esc(t.label) + '</h4>' +
-    '<p class="mura-hint">Әр өріске файлдағы бағанды таңдаңыз (жақшада — бірінші мәні). Облыс пен аудан бос болса — жобаның облысы мен ауданы қойылады; түрі, санаты, мәртебесі мәтіннен танылады (мыс. «Археология» → археологиялық ескерткіш).</p>' +
+  box.innerHTML = '<form class="gi-map-in" novalidate><h4>' + tx('Сәйкестендіру: ', 'Сопоставление: ') + esc(L.title) + ' → ' + esc(t.label) + '</h4>' +
+    '<p class="mura-hint">' + tx('Әр өріске файлдағы бағанды таңдаңыз (жақшада — бірінші мәні). Облыс пен аудан бос болса — жобаның облысы мен ауданы қойылады; түрі, санаты, мәртебесі мәтіннен танылады (мыс. «Археология» → археологиялық ескерткіш). Атауы, мерзімі, жері, сипаттамасы — қазақша және орысша бөлек бағандардан.',
+      'Выберите столбец файла для каждого поля (в скобках — первое значение). Если область и район пусты — подставляются область и район проекта; вид, категория, статус распознаются по тексту (напр. «Археология» → памятник археологии). Наименование, датировка, местонахождение, описание — из отдельных казахских и русских столбцов.') + '</p>' +
     '<table class="gi-mtbl"><tbody>' + t.fields.map(([k, lbl, req]) =>
       '<tr><th><label for="giF_' + k + '">' + esc(lbl) + (req ? ' <span class="mk-req">*</span>' : '') + '</label></th><td><select id="giF_' + k + '" name="' + k + '">' + opts(L.map[k]) + '</select></td></tr>').join('') +
     '</tbody></table>' +
-    (free.length ? '<p class="mura-hint">Пайдаланылмайтын бағандар: ' + esc(free.join(', ')) + '</p>' : '') +
+    (free.length ? '<p class="mura-hint">' + tx('Пайдаланылмайтын бағандар: ', 'Неиспользуемые столбцы: ') + esc(free.join(', ')) + '</p>' : '') +
     '<p class="mura-err" id="giMapErr" hidden></p>' +
-    '<div class="mura-dlg-btns"><button type="button" class="btn btn--ghost btn--sm" data-cancel>Бас тарту</button><button type="submit" class="btn btn--primary btn--sm">Қолдану</button></div></form>';
+    '<div class="mura-dlg-btns"><button type="button" class="btn btn--ghost btn--sm" data-cancel>' + tx('Бас тарту', 'Отмена') + '</button><button type="submit" class="btn btn--primary btn--sm">' + tx('Қолдану', 'Применить') + '</button></div></form>';
   dlg.querySelector('.gi-dlg').appendChild(box);
   const f = box.querySelector('form');
   box.querySelector('[data-cancel]').addEventListener('click', closeMap);
@@ -286,8 +307,8 @@ function openMap(i) {
     e.preventDefault();
     const m = {};
     for (const [k] of t.fields) if (f.elements[k].value) m[k] = f.elements[k].value;
-    const miss = t.fields.filter(([k, , req]) => req && !m[k]);
-    if (miss.length) { const er = $('giMapErr'); er.textContent = miss.map(x => x[1]).join(', ') + ' — міндетті өріс.'; er.hidden = false; return; }
+    const miss = t.fields.filter(([k, , req]) => req && !hasReq(m, k));
+    if (miss.length) { const er = $('giMapErr'); er.textContent = tx('Атауы (қазақша не орысша) — міндетті өріс.', 'Наименование (по-казахски или по-русски) — обязательное поле.'); er.hidden = false; return; }
     L.map = m;
     closeMap();
     renderLayers();
@@ -307,22 +328,22 @@ async function buildPlan() {
     for (const f of L.features) {
       if (L.target === 'marks') {
         const c = L.geom === 'Polygon' ? centroid(ringOf(f.g)) : { lat: f.g[1], lon: f.g[0] };
-        const name = val(L, f, 'name');
-        if (!name) continue;
-        plan.marks.push({ name, period: val(L, f, 'period'), oblast: val(L, f, 'oblast') || defOb, district: val(L, f, 'district') || (val(L, f, 'oblast') ? '' : defDi),
+        const name = val(L, f, 'name'), name_ru = val(L, f, 'name_ru');
+        if (!name && !name_ru) continue;
+        plan.marks.push({ name, name_ru, period_ru: val(L, f, 'period_ru'), place_ru: val(L, f, 'place_ru'), note_ru: val(L, f, 'note_ru'), period: val(L, f, 'period'), oblast: val(L, f, 'oblast') || defOb, district: val(L, f, 'district') || (val(L, f, 'oblast') ? '' : defDi),
           place: val(L, f, 'place'), type: normType(val(L, f, 'type')) || 'archeo', category: normCat(val(L, f, 'category')), status: normStatus(val(L, f, 'status')),
           note: val(L, f, 'note'), lat: c.lat, lon: c.lon });
       } else if (L.target === 'imports') {
-        plan.imports.push({ name: val(L, f, 'name') || 'Нүкте', desc: val(L, f, 'desc'), lat: f.g[1], lon: f.g[0], file: src.name, folder: L.title });
+        plan.imports.push({ name: val(L, f, 'name') || tx('Нүкте', 'Точка'), desc: val(L, f, 'desc'), lat: f.g[1], lon: f.g[0], file: src.name, folder: L.title });
       } else if (L.target === 'routes') {
         plan.routes.push({ name: val(L, f, 'name'), a_name: val(L, f, 'a_name'), b_name: val(L, f, 'b_name'), vehicle: normVehicle(val(L, f, 'vehicle')),
           season: normSeason(val(L, f, 'season')), checked: normDate(val(L, f, 'checked')), note: val(L, f, 'note'), pts: f.g.map(p => [p[1], p[0]]) });
       } else if (L.target === 'zones') {
-        const name = val(L, f, 'name');
-        if (!name) continue;
+        const name = val(L, f, 'name'), name_ru = val(L, f, 'name_ru');
+        if (!name && !name_ru) continue;
         const rawType = val(L, f, 'type'), type = normType(rawType, true);
         if (!type) plan.noType++;
-        const fields = { name, gen: val(L, f, 'gen'), period: val(L, f, 'period'), oblast: val(L, f, 'oblast') || defOb,
+        const fields = { name, name_ru, gen: val(L, f, 'gen'), gen_ru: val(L, f, 'gen_ru'), period_ru: val(L, f, 'period_ru'), place_ru: val(L, f, 'place_ru'), desc_ru: val(L, f, 'desc_ru'), period: val(L, f, 'period'), oblast: val(L, f, 'oblast') || defOb,
           district: val(L, f, 'district') || (val(L, f, 'oblast') ? '' : defDi), place: val(L, f, 'place'), desc: val(L, f, 'desc'),
           type: type || 'archeo', height: val(L, f, 'height').replace(',', '.') };
         const pts = monumentPts(f.g);
@@ -342,7 +363,7 @@ async function buildPlan() {
       const j = await (await fetch(globalThis.QA_API + '&op=list', { method: 'POST', body: fd })).json();
       for (const rec of j.items || []) {
         plan.monuments.push({ id: rec.id, rec, fields: { ...(rec.fields || {}) }, pts: rec.pts || [], rings: rec.custom && rec.custom.rings ? rec.custom.rings.slice() : [null, null, null],
-          source: 'жобада бар', isNew: false, choice: 'keep', existing: true });
+          source: tx('жобада бар', 'уже в проекте'), isNew: false, choice: 'keep', existing: true });
       }
     } catch (e) { /* бар жазбаларсыз да болады */ }
   }
@@ -372,31 +393,32 @@ function renderCheck() {
   const withZones = plan.monuments.filter(m => m.legal);
   const bad = withZones.filter(m => !m.legal.ok);
   const newZones = plan.monuments.filter(m => m.isNew).length, upd = plan.monuments.filter(m => !m.isNew).length;
-  const sum = [plan.marks.length ? nf(plan.marks.length) + ' ескерткіш белгісі' : '', newZones ? nf(newZones) + ' жаңа қорғау аймағы жазбасы' : '',
-    upd ? nf(upd) + ' бар жазбаға аймақ полигоны' : '', plan.routes.length ? nf(plan.routes.length) + ' маршрут' : '', plan.imports.length ? nf(plan.imports.length) + ' импортталған нүкте' : ''].filter(Boolean);
+  const sum = [plan.marks.length ? nf(plan.marks.length) + tx(' ескерткіш белгісі', ' меток памятников') : '', newZones ? nf(newZones) + tx(' жаңа қорғау аймағы жазбасы', ' новых записей охранных зон') : '',
+    upd ? nf(upd) + tx(' бар жазбаға аймақ полигоны', ' полигонов зон к имеющимся записям') : '', plan.routes.length ? nf(plan.routes.length) + tx(' маршрут', ' маршрутов') : '', plan.imports.length ? nf(plan.imports.length) + tx(' импортталған нүкте', ' импортированных точек') : ''].filter(Boolean);
   const rows = withZones.map((m) => {
     const i = plan.monuments.indexOf(m), ok = m.legal.ok;
-    return '<li class="gi-mon' + (ok ? '' : ' is-bad') + '"><div class="gi-mon-h"><b>' + esc(m.fields.name) + '</b>' +
-      '<span class="gi-chip ' + (ok ? 'is-ok">Заңнамаға сәйкес' : 'is-warn">⚠ Заңнамаға сәйкес емес') + '</span>' +
-      (m.existing ? '<span class="gi-chip">жобада бар</span>' : '') + '</div>' +
-      '<div class="gi-sub">' + esc((m.legal.d ? 'Талап: ' + (m.fields.type === 'archeo' ? 'археологиялық ескерткіш — ' : '') + m.legal.d + ' м (7-тармақ)' : 'Бұл түрге қашықтық ережесі жоқ') + (m.zsrc ? ' · ' + m.zsrc : '')) + '</div>' +
+    const mnm = m.fields.name || m.fields.name_ru || '';
+    return '<li class="gi-mon' + (ok ? '' : ' is-bad') + '"><div class="gi-mon-h"><b>' + esc(mnm) + '</b>' +
+      '<span class="gi-chip ' + (ok ? 'is-ok">' + tx('Заңнамаға сәйкес', 'Соответствует законодательству') : 'is-warn">' + tx('⚠ Заңнамаға сәйкес емес', '⚠ Не соответствует законодательству')) + '</span>' +
+      (m.existing ? '<span class="gi-chip">' + tx('жобада бар', 'уже в проекте') + '</span>' : '') + '</div>' +
+      '<div class="gi-sub">' + esc((m.legal.d ? tx('Талап: ', 'Требование: ') + (m.fields.type === 'archeo' ? tx('археологиялық ескерткіш — ', 'памятник археологии — ') : '') + m.legal.d + tx(' м (7-тармақ)', ' м (пункт 7)') : tx('Бұл түрге қашықтық ережесі жоқ', 'Для этого вида нет правила расстояния')) + (m.zsrc ? ' · ' + m.zsrc : '')) + '</div>' +
       '<ul class="gi-lines">' + QA.legalLines(m.legal).map((t, k) => '<li class="' + (m.legal.items[k].status === 'ok' ? '' : 'is-bad') + '">' + esc(t) + '</li>').join('') + '</ul>' +
-      (ok ? '' : '<div class="gi-choice" role="radiogroup" aria-label="' + esc(m.fields.name) + '">' +
-        '<label class="mura-cb"><input type="radio" name="gc' + i + '" value="keep" data-ch="' + i + '"' + (m.choice === 'keep' ? ' checked' : '') + '><span>Қалдыру — полигондар файлдағыдай сақталады (ескерту жазбада көрсетіледі)</span></label>' +
-        '<label class="mura-cb"><input type="radio" name="gc' + i + '" value="recalc" data-ch="' + i + '"' + (m.choice === 'recalc' ? ' checked' : '') + '><span>Қайта есептеу — аймақтар ескерткіш аумағынан заң бойынша (' + (m.legal.d || '—') + ' м) есептеледі</span></label></div>') +
+      (ok ? '' : '<div class="gi-choice" role="radiogroup" aria-label="' + esc(mnm) + '">' +
+        '<label class="mura-cb"><input type="radio" name="gc' + i + '" value="keep" data-ch="' + i + '"' + (m.choice === 'keep' ? ' checked' : '') + '><span>' + tx('Қалдыру — полигондар файлдағыдай сақталады (ескерту жазбада көрсетіледі)', 'Оставить — полигоны сохраняются как в файле (предупреждение будет показано в записи)') + '</span></label>' +
+        '<label class="mura-cb"><input type="radio" name="gc' + i + '" value="recalc" data-ch="' + i + '"' + (m.choice === 'recalc' ? ' checked' : '') + '><span>' + tx('Қайта есептеу — аймақтар ескерткіш аумағынан заң бойынша (', 'Пересчитать — зоны рассчитываются от территории памятника по закону (') + (m.legal.d || '—') + tx(' м) есептеледі', ' м)') + '</span></label></div>') +
       '</li>';
   }).join('');
-  frame('GeoPackage импорты: тексеру',
-    '<p>Импортталады: ' + (sum.length ? esc(sum.join(', ')) : 'ештеңе') + '.</p>' +
-    (plan.noType ? '<p class="mura-hint">' + nf(plan.noType) + ' ескерткіш аумағының түрі көрсетілмеген не танылмаған — археологиялық ескерткіш (40 м) деп алынды.</p>' : '') +
-    (plan.unlinked ? '<p class="mura-err">' + nf(plan.unlinked) + ' аймақ полигонының ішінде ескерткіш аумағы табылмады — олар импортталмайды. Ескерткіш аумақтарының қабатын да импорттаңыз.</p>' : '') +
-    (withZones.length ? '<h4 class="gi-h4">Аймақтардың заңнамаға сәйкестігі <small>(ҚР МСМ 14.04.2020 № 86 бұйрығы, 7–9-тармақтар)</small></h4>' +
-      (bad.length ? '<div class="gi-warn">⚠ ' + nf(bad.length) + ' ескерткіштің аймақтары қолданыстағы заңнамаға сәйкес емес. Әрқайсысы үшін таңдаңыз: қалдыру не ескерткіш аумағынан қайта есептеу.' +
-        '<span><button type="button" class="lnk" data-all="keep">Барлығын қалдыру</button><button type="button" class="lnk" data-all="recalc">Барлығын қайта есептеу</button></span></div>' : '') +
+  frame(tx('GeoPackage импорты: тексеру', 'Импорт GeoPackage: проверка'),
+    '<p>' + tx('Импортталады: ', 'Будет импортировано: ') + (sum.length ? esc(sum.join(', ')) : tx('ештеңе', 'ничего')) + '.</p>' +
+    (plan.noType ? '<p class="mura-hint">' + tx(nf(plan.noType) + ' ескерткіш аумағының түрі көрсетілмеген не танылмаған — археологиялық ескерткіш (40 м) деп алынды.', 'У ' + nf(plan.noType) + ' территорий памятников вид не указан или не распознан — приняты как памятник археологии (40 м).') + '</p>' : '') +
+    (plan.unlinked ? '<p class="mura-err">' + tx(nf(plan.unlinked) + ' аймақ полигонының ішінде ескерткіш аумағы табылмады — олар импортталмайды. Ескерткіш аумақтарының қабатын да импорттаңыз.', 'Внутри ' + nf(plan.unlinked) + ' полигонов зон не найдена территория памятника — они не импортируются. Импортируйте также слой территорий памятников.') + '</p>' : '') +
+    (withZones.length ? '<h4 class="gi-h4">' + tx('Аймақтардың заңнамаға сәйкестігі <small>(ҚР МСМ 14.04.2020 № 86 бұйрығы, 7–9-тармақтар)</small>', 'Соответствие зон законодательству <small>(приказ МКС РК от 14.04.2020 № 86, пункты 7–9)</small>') + '</h4>' +
+      (bad.length ? '<div class="gi-warn">⚠ ' + tx(nf(bad.length) + ' ескерткіштің аймақтары қолданыстағы заңнамаға сәйкес емес. Әрқайсысы үшін таңдаңыз: қалдыру не ескерткіш аумағынан қайта есептеу.', 'Зоны ' + nf(bad.length) + ' памятников не соответствуют действующему законодательству. Для каждого выберите: оставить или пересчитать от территории памятника.') +
+        '<span><button type="button" class="lnk" data-all="keep">' + tx('Барлығын қалдыру', 'Оставить все') + '</button><button type="button" class="lnk" data-all="recalc">' + tx('Барлығын қайта есептеу', 'Пересчитать все') + '</button></span></div>' : '') +
       '<ul class="gi-mons">' + rows + '</ul>' : ''),
-    '<button type="button" class="btn btn--ghost btn--sm" id="giBack">← Қабаттар</button><span class="gi-sp"></span>' +
-    '<button type="button" class="btn btn--ghost btn--sm" data-gi-x2>Бас тарту</button>' +
-    '<button type="button" class="btn btn--primary btn--sm" id="giGo"' + (sum.length ? '' : ' disabled') + '>Импорттау</button>');
+    '<button type="button" class="btn btn--ghost btn--sm" id="giBack">' + tx('← Қабаттар', '← Слои') + '</button><span class="gi-sp"></span>' +
+    '<button type="button" class="btn btn--ghost btn--sm" data-gi-x2>' + tx('Бас тарту', 'Отмена') + '</button>' +
+    '<button type="button" class="btn btn--primary btn--sm" id="giGo"' + (sum.length ? '' : ' disabled') + '>' + tx('Импорттау', 'Импортировать') + '</button>');
   dlg.querySelector('[data-gi-x2]').addEventListener('click', close);
   $('giBack').addEventListener('click', renderLayers);
   dlg.querySelectorAll('[data-ch]').forEach(r => r.addEventListener('change', () => { plan.monuments[+r.dataset.ch].choice = r.value; }));
@@ -409,7 +431,7 @@ async function post(url, data) {
   const fd = new FormData();
   for (const [k, v] of Object.entries(data)) fd.append(k, v);
   const j = await (await fetch(url, { method: 'POST', body: fd })).json();
-  if (!j.ok) throw new Error(j.error || 'Сақталмады');
+  if (!j.ok) throw new Error(j.error || tx('Сақталмады', 'Не сохранено'));
   return j;
 }
 function zoneRecord(m) {
@@ -423,30 +445,30 @@ function zoneRecord(m) {
 }
 async function run() {
   const go = $('giGo');
-  go.disabled = true; go.textContent = 'Импортталуда…';
+  go.disabled = true; go.textContent = tx('Импортталуда…', 'Импорт…');
   const out = [], errs = [];
   const step = async (label, fn) => { try { const r = await fn(); if (r) out.push(r); } catch (e) { errs.push(label + ': ' + e.message); } };
-  if (plan.marks.length) await step('Ескерткіштер', async () => { const j = await globalThis.__marks.api('import', { data: JSON.stringify(plan.marks) }); return nf(j.added) + ' ескерткіш' + (j.skipped ? ' (' + j.skipped + ' өткізілді)' : ''); });
-  if (plan.imports.length) await step('Нүктелер', async () => { const j = await globalThis.__marks.api('iadd', { data: JSON.stringify(plan.imports) }); return nf(j.added) + ' импортталған нүкте'; });
-  if (plan.routes.length) await step('Маршруттар', async () => { const j = await globalThis.MuraRoutes.api('import', { data: JSON.stringify(plan.routes) }); return nf(j.added) + ' маршрут'; });
+  if (plan.marks.length) await step(tx('Ескерткіштер', 'Памятники'), async () => { const j = await globalThis.__marks.api('import', { data: JSON.stringify(plan.marks) }); return nf(j.added) + tx(' ескерткіш', ' памятников') + (j.skipped ? tx(' (' + j.skipped + ' өткізілді)', ' (пропущено: ' + j.skipped + ')') : ''); });
+  if (plan.imports.length) await step(tx('Нүктелер', 'Точки'), async () => { const j = await globalThis.__marks.api('iadd', { data: JSON.stringify(plan.imports) }); return nf(j.added) + tx(' импортталған нүкте', ' импортированных точек'); });
+  if (plan.routes.length) await step(tx('Маршруттар', 'Маршруты'), async () => { const j = await globalThis.MuraRoutes.api('import', { data: JSON.stringify(plan.routes) }); return nf(j.added) + tx(' маршрут', ' маршрутов'); });
   const news = plan.monuments.filter(m => m.isNew).map(zoneRecord);
-  if (news.length) await step('Қорғау аймақтары', async () => {
+  if (news.length) await step(tx('Қорғау аймақтары', 'Охранные зоны'), async () => {
     const j = await post(globalThis.QA_API + '&op=add', { data: JSON.stringify(news) });
     if (j.errors && j.errors.length) errs.push(...j.errors.slice(0, 5));
-    return nf(j.added) + ' қорғау аймағы жазбасы';
+    return nf(j.added) + tx(' қорғау аймағы жазбасы', ' записей охранных зон');
   });
   let upd = 0;
-  for (const m of plan.monuments.filter(x => !x.isNew)) await step(m.fields.name, async () => { await post(globalThis.QA_API + '&op=save', { data: JSON.stringify(zoneRecord(m)) }); upd++; });
-  if (upd) out.push(nf(upd) + ' бар жазбаның аймақтары');
+  for (const m of plan.monuments.filter(x => !x.isNew)) await step(m.fields.name || m.fields.name_ru, async () => { await post(globalThis.QA_API + '&op=save', { data: JSON.stringify(zoneRecord(m)) }); upd++; });
+  if (upd) out.push(nf(upd) + tx(' бар жазбаның аймақтары', ' имеющихся записей (зоны)'));
   if (QA && QA.refreshSaved) await QA.refreshSaved();
   const kept = plan.monuments.filter(m => m.legal && !m.legal.ok && m.choice === 'keep').length;
-  frame('GeoPackage импорты: дайын',
-    '<p>' + (out.length ? 'Импортталды: ' + esc(out.join(', ')) + '.' : 'Ештеңе импортталмады.') + '</p>' +
-    (kept ? '<p class="mura-hint">' + nf(kept) + ' ескерткіштің заңнамаға сәйкес емес аймақтары қалдырылды: «Қорғау аймақтары» тізімінде белгіленген, кейін сол жерден қайта есептеуге болады.</p>' : '') +
+  frame(tx('GeoPackage импорты: дайын', 'Импорт GeoPackage: готово'),
+    '<p>' + (out.length ? tx('Импортталды: ', 'Импортировано: ') + esc(out.join(', ')) + '.' : tx('Ештеңе импортталмады.', 'Ничего не импортировано.')) + '</p>' +
+    (kept ? '<p class="mura-hint">' + tx(nf(kept) + ' ескерткіштің заңнамаға сәйкес емес аймақтары қалдырылды: «Қорғау аймақтары» тізімінде белгіленген, кейін сол жерден қайта есептеуге болады.', 'Несоответствующие законодательству зоны ' + nf(kept) + ' памятников оставлены: они отмечены в списке «Охранные зоны», позже их можно пересчитать оттуда.') + '</p>' : '') +
     (errs.length ? '<p class="mura-err">' + errs.map(esc).join('<br>') + '</p>' : ''),
-    '<span class="gi-sp"></span><button type="button" class="btn btn--primary btn--sm" data-gi-x2>Жабу</button>');
+    '<span class="gi-sp"></span><button type="button" class="btn btn--primary btn--sm" data-gi-x2>' + tx('Жабу', 'Закрыть') + '</button>');
   dlg.querySelector('[data-gi-x2]').addEventListener('click', close);
-  toast(out.length ? 'GeoPackage импортталды: ' + out.join(', ') : 'Импорт сәтсіз аяқталды', !out.length);
+  toast(out.length ? tx('GeoPackage импортталды: ', 'GeoPackage импортирован: ') + out.join(', ') : tx('Импорт сәтсіз аяқталды', 'Импорт не удался'), !out.length);
 }
 
 if (M.onUi) M.onUi(cmd => {

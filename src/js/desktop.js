@@ -102,7 +102,8 @@
     var name = strong ? strong.textContent.trim() : '';
     if (loaded) {
       if (loaded.hidden !== !strong) loaded.hidden = !strong;      // тек өзгергенде — әйтпесе MutationObserver тұйықталады
-      if (strong && loaded.firstChild && loaded.firstChild.nodeType === 3 && loaded.firstChild.textContent !== 'Қорғау аймағы: ') loaded.firstChild.textContent = 'Қорғау аймағы: ';
+      var lbl = window.tr ? window.tr('Қорғау аймағы: ') : 'Қорғау аймағы: ';   // орысша режимде — аударылған мәтін (әйтпесе аударма қабатымен тұйықталады)
+      if (strong && loaded.firstChild && loaded.firstChild.nodeType === 3 && loaded.firstChild.textContent !== lbl) loaded.firstChild.textContent = lbl;
     }
     var proj = window.mura && window.mura.project && window.mura.project.current;
     document.title = (proj ? proj.name + ' — ' : '') + 'Mura GIS' + (name ? ' — ' + name : '') + (name && dirty && !dirty.hidden ? ' ●' : '');

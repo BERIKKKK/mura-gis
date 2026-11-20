@@ -3,6 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('mura', {
   version: ipcRenderer.sendSync('mura:version'),
   platform: process.platform,
+  /** Интерфейс тілі: 'kk' не 'ru' («Баптаулар» → «Тіл / Язык»); setLang — сақтайды, бетті шақырушы қайта жүктейді. */
+  lang: ipcRenderer.sendSync('mura:lang'),
+  setLang: v => ipcRenderer.invoke('mura:set-lang', v),
   /** Бет жүктелгендегі күй: ашық жоба ({ path, name, oblast, district, key, counts… } не null), соңғы жобалар, ескі деректер.
       Жоба ауысқанда бет қайта жүктеледі — сондықтан бұл сурет әрдайым өзекті. */
   project: ipcRenderer.sendSync('mura:project-info'),

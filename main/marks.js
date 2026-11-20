@@ -10,8 +10,11 @@
    Жауап: { ok, items, imports, id, added, updated, error }. */
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { tx } = require('./lang');
 
-const LIMITS = { name: 200, period: 120, oblast: 80, district: 80, place: 1500, type: 20, category: 20, status: 20, note: 3000 };
+// *_ru — орысша нұсқасы (деректер екі тілде толтырылады)
+const LIMITS = { name: 200, period: 120, oblast: 80, district: 80, place: 1500, type: 20, category: 20, status: 20, note: 3000,
+  name_ru: 200, period_ru: 120, place_ru: 1500, note_ru: 3000 };
 const TYPES = ['archeo', 'arch', 'ensemble', 'sacred', 'art'];
 const CATEGORIES = ['', 'intl', 'rep', 'local'];
 const STATUSES = ['state', 'prelim', 'archreg', 'excluded'];
@@ -45,8 +48,8 @@ class MarksStore {
   addImports(raw) {
     let list;
     try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
-    if (!Array.isArray(list)) throw new Error('Нүктелер тізімі оқылмады.');
-    if (list.length > 20000) throw new Error('Бір файлда нүкте тым көп (20 000-нан аспауы керек).');
+    if (!Array.isArray(list)) throw new Error(tx('Нүктелер тізімі оқылмады.', 'Не удалось прочитать список точек.'));
+    if (list.length > 20000) throw new Error(tx('Бір файлда нүкте тым көп (20 000-нан аспауы керек).', 'Слишком много точек в одном файле (не более 20 000).'));
     const items = this.loadImports();
     const now = new Date().toISOString();
     const cut = (v, n) => [...String(v ?? '').trim()].slice(0, n).join('');
@@ -71,12 +74,12 @@ class MarksStore {
 
   /** Бір белгіні тексеріп, қалыпқа келтіру (қате болса — Error). */
   static clean(d) {
-    if (!d || typeof d !== 'object') throw new Error('Дерек оқылмады.');
+    if (!d || typeof d !== 'object') throw new Error(tx('Дерек оқылмады.', 'Не удалось прочитать данные.'));
     const lat = Number(d.lat), lon = Number(d.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error('Белгінің координатасы дұрыс емес.');
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error(tx('Белгінің координатасы дұрыс емес.', 'Неверная координата метки.'));
     const f = {};
     for (const [k, max] of Object.entries(LIMITS)) f[k] = [...String(d[k] ?? '').trim()].slice(0, max).join('');
-    if (!f.name) throw new Error('Ескерткіш атауын енгізіңіз.');
+    if (!f.name && !f.name_ru) throw new Error(tx('Ескерткіш атауын енгізіңіз.', 'Введите наименование памятника.'));
     if (!TYPES.includes(f.type)) f.type = 'archeo';
     if (!CATEGORIES.includes(f.category)) f.category = '';
     if (!STATUSES.includes(f.status)) f.status = 'state';
@@ -105,7 +108,7 @@ class MarksStore {
     const ids = new Set(String(id || '').split(',').map(s => s.trim()).filter(Boolean));
     const items = this.load();
     const left = items.filter(x => !ids.has(x.id));
-    if (left.length === items.length) throw new Error('Белгі табылмады.');
+    if (left.length === items.length) throw new Error(tx('Белгі табылмады.', 'Метка не найдена.'));
     this.write(left);
     return items.length - left.length;
   }
@@ -114,7 +117,7 @@ class MarksStore {
   importMany(raw) {
     let list;
     try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
-    if (!Array.isArray(list)) throw new Error('Белгілер тізімі оқылмады.');
+    if (!Array.isArray(list)) throw new Error(tx('Белгілер тізімі оқылмады.', 'Не удалось прочитать список меток.'));
     const items = this.load();
     const now = new Date().toISOString();
     let added = 0, updated = 0, skipped = 0;
@@ -137,7 +140,7 @@ class MarksStore {
     const op = url.searchParams.get('op') || '';
     const out = o => new Response(JSON.stringify(o), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
     try {
-      if (request.method !== 'POST') return out({ ok: false, error: 'POST керек.' });
+      if (request.method !== 'POST') return out({ ok: false, error: tx('POST керек.', 'Нужен POST.') });
       const fd = await request.formData();
       if (op === 'list') return out({ ok: true, items: this.list(), imports: this.loadImports() });
       if (op === 'ilist') return out({ ok: true, imports: this.loadImports() });
@@ -146,7 +149,7 @@ class MarksStore {
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
       if (op === 'delete') { const removed = this.remove(fd.get('id')); return out({ ok: true, removed, items: this.list() }); }
       if (op === 'import') { const r = this.importMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
-      return out({ ok: false, error: 'Белгісіз әрекет.' });
+      return out({ ok: false, error: tx('Белгісіз әрекет.', 'Неизвестное действие.') });
     } catch (e) {
       return out({ ok: false, error: e.message || String(e) });
     }

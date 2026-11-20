@@ -32,13 +32,30 @@
     var p = function (n) { return (n < 10 ? '0' : '') + n; };
     return p(d.getDate()) + '.' + p(d.getMonth() + 1) + '.' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   };
-  var where = function (o) { return [o.oblast || 'Бүкіл Қазақстан', o.district].filter(Boolean).join(' · '); };
+  var I18N = window.MuraI18n || { ru: false, tx: function (a) { return a; } };
+  var tx = I18N.tx;
+  var LANG = I18N.ru ? 'ru' : 'kk';
+  var show = function (n, r) { return REG && REG.show ? REG.show(n, r) : n; };
+  var where = function (o) { return [o.oblast ? show(o.oblast) : tx('Бүкіл Қазақстан', 'Весь Казахстан'), o.district ? show(o.district, o.oblast) : ''].filter(Boolean).join(' · '); };
+  /** Интерфейс тілін ауыстыру: сақталады (main/lang.js), бет қайта жүктеледі. */
+  function switchLang(v) {
+    if (v === LANG || !M.setLang) return;
+    M.setLang(v).then(function (r) { if (r && r.ok) location.reload(); });
+  }
+  /** Тіл таңдау батырмалары (бастапқы терезе мен баптаулар үшін) — тіл атаулары өз тілінде. */
+  function langButtons(cls) {
+    return '<div class="mura-langsw ' + (cls || '') + '" role="group" aria-label="Тіл / Язык">' +
+      [['kk', 'Қазақша'], ['ru', 'Русский']].map(function (x) {
+        return '<button type="button" class="mura-langb" data-lang="' + x[0] + '" aria-pressed="' + (x[0] === LANG) + '">' + x[1] + '</button>';
+      }).join('') + '</div>';
+  }
+  document.addEventListener('click', function (e) { var b = e.target.closest && e.target.closest('[data-lang]'); if (b && b.classList.contains('mura-langb')) switchLang(b.dataset.lang); });
 
   /* ======================= Облыс / аудан тізімдері (жоба баптаулары үшін — шектеусіз) ======================= */
   function oblastOptions(sel) {
     var o = '<option value="">— Бүкіл Қазақстан (облыс таңдалмайды) —</option>', a = '<optgroup label="Облыстар">', c = '<optgroup label="Республикалық маңызы бар қалалар">';
     (REG ? REG.list : []).forEach(function (r) {
-      var h = '<option' + (r.name === sel ? ' selected' : '') + '>' + esc(r.name) + '</option>';
+      var h = '<option value="' + esc(r.name) + '"' + (r.name === sel ? ' selected' : '') + '>' + esc(show(r.name)) + '</option>';
       if (r.city) c += h; else a += h;
     });
     return o + a + '</optgroup>' + c + '</optgroup>';
@@ -47,7 +64,7 @@
     var r = REG && REG.find(oblast);
     if (!r) return '<option value="">— облысты алдымен таңдаңыз —</option>';
     return '<option value="">— Барлық аудандар (аудан таңдалмайды) —</option>' + r.units.map(function (u) {
-      return '<option value="' + esc(u.v) + '"' + (u.v === sel ? ' selected' : '') + '>' + esc(u.v + (u.note ? ' (' + u.note + ')' : '')) + '</option>';
+      return '<option value="' + esc(u.v) + '"' + (u.v === sel ? ' selected' : '') + '>' + esc(show(u.v, oblast) + (u.note ? ' (' + (I18N.ru && REG && REG.ru ? REG.ru(u.note.replace(/ қ\.$/, ' қаласы')) : u.note) + ')' : '')) + '</option>';
     }).join('');
   }
   /** Жоба формасының ортақ өрістері: атауы, облыс, аудан. */
@@ -72,8 +89,8 @@
     if (start) { if (focusNew) start.querySelector('[name="name"]').focus(); return; }
     var legacy = info.legacy;
     var recent = (info.recent || []).filter(function (r) { return !cur || r.path !== cur.path; });
-    var legacyTxt = legacy ? [legacy.marks ? legacy.marks + ' ескерткіш' : '', legacy.zones ? legacy.zones + ' қорғау аймағы' : '',
-      legacy.routes ? legacy.routes + ' маршрут' : '', legacy.imports ? legacy.imports + ' импортталған нүкте' : ''].filter(Boolean).join(', ') : '';
+    var legacyTxt = legacy ? [legacy.marks ? legacy.marks + tx(' ескерткіш', ' памятн.') : '', legacy.zones ? legacy.zones + tx(' қорғау аймағы', ' охр. зон') : '',
+      legacy.routes ? legacy.routes + tx(' маршрут', ' маршр.') : '', legacy.imports ? legacy.imports + tx(' импортталған нүкте', ' импорт. точек') : ''].filter(Boolean).join(', ') : '';
     var firstRun = !(info.recent || []).length;
 
     start = document.createElement('div');
@@ -84,7 +101,8 @@
       '<div class="mura-start-card">' +
         '<header class="mura-start-head">' +
           '<img src="img/icon.svg" alt="" width="44" height="44">' +
-          '<div><h1 id="muraStartT">Mura GIS</h1><p>Тарихи-мәдени мұра объектілеріне арналған ГАЖ' + (M.version ? ' · нұсқа ' + esc(M.version) : '') + '</p></div>' +
+          '<div><h1 id="muraStartT">Mura GIS</h1><p>' + tx('Тарихи-мәдени мұра объектілеріне арналған ГАЖ', 'ГИС для объектов историко-культурного наследия') + (M.version ? tx(' · нұсқа ', ' · версия ') + esc(M.version) : '') + '</p></div>' +
+          langButtons('mura-start-lang') +
           (cur ? '<button type="button" class="mura-start-x" id="muraStartX" aria-label="Жабу" title="Жабу (Esc)">' + svg(IC.close) + '</button>' : '') +
         '</header>' +
         '<div class="mura-start-body">' +
@@ -117,9 +135,9 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var m = readMeta(form);
-      if (!m.name) { err('muraNewErr', 'Жоба атауын енгізіңіз.'); form.elements.name.focus(); return; }
+      if (!m.name) { err('muraNewErr', tx('Жоба атауын енгізіңіз.', 'Введите название проекта.')); form.elements.name.focus(); return; }
       err('muraNewErr', '');
-      if (!M.projectNew) { err('muraNewErr', 'Жоба тек Mura GIS бағдарламасында құрылады.'); return; }
+      if (!M.projectNew) { err('muraNewErr', tx('Жоба тек Mura GIS бағдарламасында құрылады.', 'Проект создаётся только в программе Mura GIS.')); return; }
       busy(true);
       M.projectNew(m, { importLegacy: !!(form.elements.legacy && form.elements.legacy.checked) }).then(function (r) {
         busy(false);
@@ -157,7 +175,7 @@
       var title = esc(r.name || r.path.split(/[\\/]/).pop());
       return '<li class="mura-rc' + (r.exists ? '' : ' is-missing') + '">' +
         (r.exists
-          ? '<button type="button" class="mura-rc-main" data-open="' + esc(r.path) + '" title="Ашу: ' + esc(r.path) + '"><b>' + title + '</b><span>' + esc(where(r)) + (r.opened_at ? ' · ' + esc(fmtDate(r.opened_at)) : '') + '</span><small><bdi dir="ltr">' + esc(r.path) + '</bdi></small></button>'
+          ? '<button type="button" class="mura-rc-main" data-open="' + esc(r.path) + '" title="' + tx('Ашу: ', 'Открыть: ') + esc(r.path) + '"><b>' + title + '</b><span>' + esc(where(r)) + (r.opened_at ? ' · ' + esc(fmtDate(r.opened_at)) : '') + '</span><small><bdi dir="ltr">' + esc(r.path) + '</bdi></small></button>'
           : '<div class="mura-rc-main"><b>' + title + '</b><span>Файл табылмады (жылжытылған не өшірілген)</span><small><bdi dir="ltr">' + esc(r.path) + '</bdi></small></div>') +
         '<button type="button" class="mura-rc-x" data-forget="' + esc(r.path) + '" aria-label="Тізімнен алып тастау" title="Тізімнен алып тастау (файл өшірілмейді)">' + svg(IC.close, 14) + '</button>' +
       '</li>';
@@ -223,7 +241,7 @@
     if (start && !cur) return;
     if (start) closeStart();
     closeSettings();
-    if (!cur) tab = 'toolbar';
+    if (!cur && tab !== 'lang') tab = 'toolbar';
     setTab = tab || setTab || 'project';
     if (globalThis.QAUI && globalThis.QAUI.closePop) globalThis.QAUI.closePop();
     setDlg = document.createElement('div');
@@ -234,13 +252,25 @@
         '<div class="mura-tabs" role="tablist">' +
           (cur ? '<button type="button" role="tab" data-tab="project">Жоба</button>' : '') +
           '<button type="button" role="tab" data-tab="toolbar">Құралдар панелі</button>' +
+          '<button type="button" role="tab" data-tab="lang">Тіл / Язык</button>' +
+        '</div>' +
+        '<div class="mura-pane" data-pane="lang">' +
+          '<h4 class="mura-set-h">' + tx('Интерфейс тілі', 'Язык интерфейса') + '</h4>' +
+          langButtons() +
+          '<p class="mura-hint">' + tx('Мәзірлер, батырмалар мен хабарламалар тілі. Таңдағанда бағдарлама беті қайта жүктеледі. Алғашқы тіл орнатқышта таңдалады.',
+            'Язык меню, кнопок и сообщений. При выборе страница программы перезагружается. Первоначальный язык выбирается в установщике.') + '</p>' +
+          '<h4 class="mura-set-h">' + tx('Құжаттардың тілі', 'Язык документов') + '</h4>' +
+          (I18N.docLangSelect ? I18N.docLangSelect('muraSetDocLang') : '') +
+          '<p class="mura-hint">' + tx('Ескерткіштер тізімі (DOCX, PDF) мен қорғау аймағының құжаттары (DOCX, GeoJSON) интерфейс тілінен тәуелсіз қазақша не орысша шығады. Ескерткіш атауы, мерзімі, орналасқан жері, сипаттамасы екі тілде енгізіледі (ҚАЗ / РУС); құжат тілінде бос өріс болса, екінші тілдегісі алынады.',
+            'Список памятников (DOCX, PDF) и документы охранной зоны (DOCX, GeoJSON) выводятся на казахском или русском независимо от языка интерфейса. Наименование, датировка, местонахождение и описание памятника вводятся на двух языках (ҚАЗ / РУС); если поле на языке документа пусто, берётся значение на другом языке.') + '</p>' +
+          '<div class="mura-dlg-btns"><span class="mura-sp"></span><button type="button" class="btn btn--primary btn--sm" data-x>' + tx('Дайын', 'Готово') + '</button></div>' +
         '</div>' +
         (cur ? '<form class="mura-pane" data-pane="project" id="muraSetForm" novalidate>' +
           metaFields('muraSet', cur) +
           '<div class="mura-set-file"><span>Жоба файлы:</span> <code>' + esc(cur.path) + '</code> <button type="button" class="lnk" id="muraReveal">Қалтасын ашу</button></div>' +
           '<div class="mura-set-file"><span>Бөтен GeoPackage деректері:</span> <button type="button" class="lnk" id="muraImpGpkg">GeoPackage-тен импорттау… (Ctrl+I)</button></div>' +
-          '<p class="mura-hint">Деректер: ' + esc(cur.counts ? [cur.counts.marks + ' ескерткіш', cur.counts.zones + ' қорғау аймағы', cur.counts.routes + ' маршрут'].join(', ') : '') + '. ' +
-            'Облыс не аудан өзгерсе, бұрын сақталған жазбалар өзгермейді — тек жаңа жазбалардың әдепкі мәні.</p>' +
+          '<p class="mura-hint">' + tx('Деректер: ', 'Данные: ') + esc(cur.counts ? [cur.counts.marks + tx(' ескерткіш', ' памятн.'), cur.counts.zones + tx(' қорғау аймағы', ' охр. зон'), cur.counts.routes + tx(' маршрут', ' маршр.')].join(', ') : '') + '. ' +
+            tx('Облыс не аудан өзгерсе, бұрын сақталған жазбалар өзгермейді — тек жаңа жазбалардың әдепкі мәні.', 'Изменение области или района не меняет уже сохранённые записи — только значение по умолчанию для новых.') + '</p>' +
           '<p class="mura-err" id="muraSetErr" role="alert" hidden></p>' +
           '<div class="mura-dlg-btns"><button type="button" class="btn btn--ghost btn--sm" data-x>Бас тарту</button><button type="submit" class="btn btn--primary btn--sm">Сақтау</button></div>' +
         '</form>' : '') +
@@ -265,7 +295,7 @@
       f.addEventListener('submit', function (e) {
         e.preventDefault();
         var m = readMeta(f), er = $('muraSetErr');
-        if (!m.name) { er.textContent = 'Жоба атауын енгізіңіз.'; er.hidden = false; return; }
+        if (!m.name) { er.textContent = tx('Жоба атауын енгізіңіз.', 'Введите название проекта.'); er.hidden = false; return; }
         if (m.name === cur.name && m.oblast === cur.oblast && m.district === cur.district) { closeSettings(); return; }
         M.projectSettings(m).then(function (r) { if (!r.ok) { er.textContent = r.error; er.hidden = false; } });   // сәтті болса — бет қайта жүктеледі
       });
@@ -294,7 +324,7 @@
   }
   function paintTab(tab) {
     if (!setDlg) return;
-    if (!cur) tab = 'toolbar';
+    if (!cur && tab !== 'lang') tab = 'toolbar';
     setTab = tab;
     [].forEach.call(setDlg.querySelectorAll('[data-tab]'), function (b) { b.setAttribute('aria-selected', b.dataset.tab === tab ? 'true' : 'false'); });
     [].forEach.call(setDlg.querySelectorAll('[data-pane]'), function (p) { p.hidden = p.dataset.pane !== tab; });
@@ -315,8 +345,8 @@
           var ic = b.querySelector('svg');
           h += '<li><label class="mura-cb"><input type="checkbox" data-show="' + esc(b.id) + '"' + (hid[b.id] ? '' : ' checked') + '>' +
             '<span class="mura-tb-ic">' + (ic ? ic.outerHTML : '') + '</span><span>' + esc(labelOf(b)) + '</span></label>' +
-            '<button type="button" class="mura-mv" data-g="' + g.key + '" data-id="' + esc(b.id) + '" data-mv="-1"' + (i ? '' : ' disabled') + ' aria-label="Жоғары: ' + esc(labelOf(b)) + '" title="Жоғары (солға)">' + svg(IC.up, 14) + '</button>' +
-            '<button type="button" class="mura-mv" data-g="' + g.key + '" data-id="' + esc(b.id) + '" data-mv="1"' + (i < g.btns.length - 1 ? '' : ' disabled') + ' aria-label="Төмен: ' + esc(labelOf(b)) + '" title="Төмен (оңға)">' + svg(IC.down, 14) + '</button></li>';
+            '<button type="button" class="mura-mv" data-g="' + g.key + '" data-id="' + esc(b.id) + '" data-mv="-1"' + (i ? '' : ' disabled') + ' aria-label="' + tx('Жоғары: ', 'Выше: ') + esc(labelOf(b)) + '" title="' + tx('Жоғары (солға)', 'Выше (левее)') + '">' + svg(IC.up, 14) + '</button>' +
+            '<button type="button" class="mura-mv" data-g="' + g.key + '" data-id="' + esc(b.id) + '" data-mv="1"' + (i < g.btns.length - 1 ? '' : ' disabled') + ' aria-label="' + tx('Төмен: ', 'Ниже: ') + esc(labelOf(b)) + '" title="' + tx('Төмен (оңға)', 'Ниже (правее)') + '">' + svg(IC.down, 14) + '</button></li>';
         });
         h += '</ul>';
       });
@@ -341,7 +371,7 @@
   if (ver && cur) {
     var pc = document.createElement('button');
     pc.type = 'button'; pc.className = 'mura-st-cell mura-st-proj'; pc.id = 'muraProj';
-    pc.title = 'Жоба: ' + cur.path + '\nБасыңыз — жоба баптаулары';
+    pc.title = tx('Жоба: ', 'Проект: ') + cur.path + tx('\nБасыңыз — жоба баптаулары', '\nЩёлкните — настройки проекта');
     pc.innerHTML = svg(IC.file, 13) + '<b>' + esc(cur.name) + '</b>' + (cur.oblast ? '<span>' + esc(where(cur)) + '</span>' : '');
     pc.addEventListener('click', function () { openSettings('project'); });
     ver.parentNode.insertBefore(pc, ver);

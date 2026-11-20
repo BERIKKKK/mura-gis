@@ -138,7 +138,7 @@
       notice.innerHTML = '<span class="bm-notice-text"></span>' +
         (d.overlay || d.id === 'osm' ? '' : '<button type="button" class="bm-notice-back">OpenStreetMap-қа оралу</button>') +
         '<button type="button" class="bm-notice-close" aria-label="Жабу">×</button>';
-      notice.querySelector('.bm-notice-text').textContent = '«' + d.label + '» картасы жүктелмеді. Интернет байланысын не сервис мекенжайын тексеріңіз.';
+      notice.querySelector('.bm-notice-text').textContent = window.tx ? window.tx('«' + d.label + '» картасы жүктелмеді. Интернет байланысын не сервис мекенжайын тексеріңіз.', 'Карта «' + window.tr(d.label) + '» не загрузилась. Проверьте подключение к интернету или адрес сервиса.') : '«' + d.label + '» картасы жүктелмеді. Интернет байланысын не сервис мекенжайын тексеріңіз.';
       L.DomEvent.disableClickPropagation(notice);
       var back = notice.querySelector('.bm-notice-back');
       if (back) back.addEventListener('click', function () { setBase('osm'); });
@@ -180,7 +180,7 @@
     function removeCustom(id) {
       var d = bases[id] || overlays[id];
       if (!d || !d.custom) return;
-      if (!confirm('«' + d.label + '» картасын тізімнен өшіру керек пе?')) return;
+      if (!confirm(window.tx ? window.tx('«' + d.label + '» картасын тізімнен өшіру керек пе?', 'Удалить карту «' + d.label + '» из списка?') : '«' + d.label + '» картасын тізімнен өшіру керек пе?')) return;
       if (layers[id]) { map.removeLayer(layers[id]); delete layers[id]; }
       store.set(KEY_CUSTOM, customs().filter(function (x) { return x.id !== id; }));
       onOvl = onOvl.filter(function (x) { return x !== id; }); store.set(KEY_OVL, onOvl);
@@ -274,8 +274,9 @@
         '<h3 id="muraAddT">Сыртқы карта қосу</h3>' +
         '<label>Атауы<input name="label" maxlength="60" placeholder="Мысалы: Генштаб 1:100 000"></label>' +
         '<label>Тайлдар мекенжайы (XYZ үлгісі)<input name="url" spellcheck="false" placeholder="https://{s}.example.com/{z}/{x}/{y}.png"></label>' +
-        '<p class="mura-hint">Мекенжайда <code>{z}</code>, <code>{x}</code>, <code>{y}</code> болуы керек. Қосымша: <code>{s}</code> (субдомен a, b, c), <code>{-y}</code> (TMS нөмірлеуі). ' +
-        'Пішімі QGIS-тегі «XYZ Tiles» сілтемелерімен бірдей.</p>' +
+        '<p class="mura-hint">' + (window.MuraI18n && window.MuraI18n.ru
+          ? 'В адресе должны быть <code>{z}</code>, <code>{x}</code>, <code>{y}</code>. Дополнительно: <code>{s}</code> (поддомен a, b, c), <code>{-y}</code> (нумерация TMS). Формат совпадает со ссылками «XYZ Tiles» в QGIS.'
+          : 'Мекенжайда <code>{z}</code>, <code>{x}</code>, <code>{y}</code> болуы керек. Қосымша: <code>{s}</code> (субдомен a, b, c), <code>{-y}</code> (TMS нөмірлеуі). Пішімі QGIS-тегі «XYZ Tiles» сілтемелерімен бірдей.') + '</p>' +
         '<div class="mura-dlg-row">' +
         '<label>Түрі<select name="overlay"><option value="0">Негізгі карта</option><option value="1">Үстіңгі қабат</option></select></label>' +
         '<label>Ең үлкен масштаб (z)<input name="max" type="number" min="1" max="22" value="18"></label>' +

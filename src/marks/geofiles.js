@@ -15,7 +15,7 @@ const stripHtml = s => {
 };
 function parseXml(str, kind) {
   const doc = new DOMParser().parseFromString(String(str || '').replace(/^﻿/, ''), 'application/xml');
-  if (doc.getElementsByTagName('parsererror').length) throw new Error(kind + ' файлы оқылмады (XML қатесі).');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error(kind + tx(' файлы оқылмады (XML қатесі).', ': не удалось прочитать файл (ошибка XML).'));
   return doc;
 }
 /** «lon,lat[,alt] lon,lat …» → [{lat, lon}] */
@@ -47,8 +47,8 @@ export function parseKml(str, file = '') {
     const shape = [...pm.getElementsByTagNameNS('*', 'coordinates')].map(c => coords(c.textContent)).find(a => a.length);
     if (shape) {
       const c = centroid(shape);
-      const kind = pm.getElementsByTagNameNS('*', 'Polygon').length ? 'полигонның' : 'сызықтың';
-      out.push({ name, desc: (desc ? desc + '\n' : '') + '(' + kind + ' орта нүктесі)', lat: c.lat, lon: c.lon, folder, file });
+      const kind = pm.getElementsByTagNameNS('*', 'Polygon').length ? tx('полигонның', 'полигона') : tx('сызықтың', 'линии');
+      out.push({ name, desc: (desc ? desc + '\n' : '') + tx('(' + kind + ' орта нүктесі)', '(центр ' + kind + ')'), lat: c.lat, lon: c.lon, folder, file });
     }
   }
   return out;
@@ -57,9 +57,9 @@ export function parseKml(str, file = '') {
 export function parseKmz(bytes, fflate, file = '') {
   let files;
   try { files = fflate.unzipSync(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes)); }
-  catch (e) { throw new Error('KMZ файлы ашылмады (ZIP емес).'); }
+  catch (e) { throw new Error(tx('KMZ файлы ашылмады (ZIP емес).', 'Не удалось открыть файл KMZ (не ZIP).')); }
   const names = Object.keys(files).filter(n => /\.kml$/i.test(n)).sort((a, b) => (/(^|\/)doc\.kml$/i.test(b) ? 1 : 0) - (/(^|\/)doc\.kml$/i.test(a) ? 1 : 0));
-  if (!names.length) throw new Error('KMZ ішінде KML файлы жоқ.');
+  if (!names.length) throw new Error(tx('KMZ ішінде KML файлы жоқ.', 'Внутри KMZ нет файла KML.'));
   return names.flatMap(n => parseKml(fflate.strFromU8(files[n]), file));
 }
 
@@ -72,7 +72,7 @@ export function parseGpx(str, file = '') {
   return pts.map((p, i) => {
     const lat = parseFloat(p.getAttribute('lat')), lon = parseFloat(p.getAttribute('lon'));
     const desc = [text(child(p, 'desc')), text(child(p, 'cmt'))].filter((v, k, a) => v && a.indexOf(v) === k).map(stripHtml).join('\n');
-    return { name: text(child(p, 'name')) || 'Нүкте ' + (i + 1), desc, lat, lon, folder, file };
+    return { name: text(child(p, 'name')) || tx('Нүкте ', 'Точка ') + (i + 1), desc, lat, lon, folder, file };
   }).filter(p => isFinite(p.lat) && isFinite(p.lon));
 }
 
@@ -112,5 +112,5 @@ export async function parseGeoFile(f, fflate) {
   if (ext === 'kml') return parseKml(await f.text(), f.name);
   if (ext === 'gpx') return parseGpx(await f.text(), f.name);
   if (ext === 'kmz') return parseKmz(new Uint8Array(await f.arrayBuffer()), fflate, f.name);
-  throw new Error('Белгісіз файл түрі: ' + f.name);
+  throw new Error(tx('Белгісіз файл түрі: ', 'Неизвестный тип файла: ') + f.name);
 }

@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' data: blob: https:; font-src 'self' data:; worker-src 'self' blob:">
 <title>Mura GIS</title>
+<script src="js/i18n.js"></script>
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/desktop.css">
 <link rel="stylesheet" href="css/marks.css">
@@ -317,9 +318,9 @@ document.documentElement.classList.add('qa-full');
       <div class="qa-db">
         <section class="qa-sec" aria-labelledby="qaInfoTitle">
           <h3 id="qaInfoTitle">Ескерткіш</h3>
-          <div class="qa-f"><label for="qaName">Атауы</label><input type="text" id="qaName" maxlength="200" placeholder="Мысалы: Домбар-ІІ бейіті"></div>
-          <div class="qa-f"><label for="qaNameGen">Атауы ілік септігінде</label><input type="text" id="qaNameGen" maxlength="220" placeholder="Домбар-ІІ бейітінің" title="Автоматты жасалады; қажет болса түзетіңіз"></div>
-          <div class="qa-f"><label for="qaPeriod">Мерзімі (дәуірі)</label><input type="text" id="qaPeriod" maxlength="120" placeholder="қола дәуірі"></div>
+          <div class="qa-f"><label for="qaName">Атауы</label><input type="text" id="qaName" lang="kk" maxlength="200" placeholder="Мысалы: Домбар-ІІ бейіті"></div>
+          <div class="qa-f"><label for="qaNameGen">Атауы ілік септігінде</label><input type="text" id="qaNameGen" lang="kk" maxlength="220" placeholder="Домбар-ІІ бейітінің" title="Автоматты жасалады; қажет болса түзетіңіз"></div>
+          <div class="qa-f"><label for="qaPeriod">Мерзімі (дәуірі)</label><input type="text" id="qaPeriod" lang="kk" maxlength="120" placeholder="қола дәуірі"></div>
           <div class="qa-row2">
             <div class="qa-f"><label for="qaOblast">Облыс</label><input type="text" id="qaOblast" value="Ақтөбе облысы" maxlength="80"></div>
             <div class="qa-f"><label for="qaDistrict">Аудан / қала</label>
@@ -328,9 +329,9 @@ document.documentElement.classList.add('qa-full');
               </select></div>
           </div>
           <div class="qa-f"><label for="qaPlace">Орналасқан жері</label>
-            <textarea id="qaPlace" maxlength="1500" placeholder="Егінді жылғасының жоғарғы оң жақ жағалауында, Қос Естек ауылынан 15,8 шақырым батыста" title="Облыс пен аудан сөйлемнің басына өзі қосылады"></textarea></div>
+            <textarea id="qaPlace" lang="kk" maxlength="1500" placeholder="Егінді жылғасының жоғарғы оң жақ жағалауында, Қос Естек ауылынан 15,8 шақырым батыста" title="Облыс пен аудан сөйлемнің басына өзі қосылады"></textarea></div>
           <div class="qa-f"><label for="qaDesc">Сипаттамасы</label>
-            <textarea id="qaDesc" maxlength="6000" placeholder="Бейіт бес қорғаннан және жиырма жеті тас қоршаудан тұрады…" style="min-height:100px"></textarea></div>
+            <textarea id="qaDesc" lang="kk" maxlength="6000" placeholder="Бейіт бес қорғаннан және жиырма жеті тас қоршаудан тұрады…" style="min-height:100px"></textarea></div>
         </section>
 
         <section class="qa-sec" aria-labelledby="qaRuleTitle">
@@ -363,6 +364,7 @@ document.documentElement.classList.add('qa-full');
             </table>
           </div>
           <div class="qa-opts">
+            <label class="qa-check mura-doclang">Құжат тілі <select id="qaDocLang" data-doclang title="Құжаттың тілі интерфейс тілінен тәуелсіз"><option value="kk">Қазақша</option><option value="ru">Русский</option></select></label>
             <label class="qa-check">GeoJSON аймақтары:
               <select id="qaGeoMode"><option value="ring">сақина (ішкі аймақсыз)</option><option value="full">толық полигон</option></select></label>
             <label class="qa-check"><input type="checkbox" id="qaCoordTable"> DOCX-ке бұрылыс нүктелерінің координаттар кестесін қосу</label>
@@ -421,6 +423,7 @@ document.documentElement.classList.add('qa-full');
             <div class="qa-f"><label for="qaDecree">Қаулы деректемесі (беттің оң жақ шетінде)</label>
               <textarea id="qaDecree" rows="3"></textarea>
               <p class="qa-hint">Соңына «N-қосымша» өзі қосылады. Қосымшалар аудан мен атау ретімен нөмірленеді: тақ — мәтін беті, жұп — сызба беті. <button type="button" class="lnk" id="qaDecreeReset" style="font-size:12px">Бастапқы мәтінді қайтару</button></p></div>
+            <label class="qa-check mura-doclang">Құжат тілі <select id="qaCombLang" data-doclang title="Құжаттың тілі интерфейс тілінен тәуелсіз"><option value="kk">Қазақша</option><option value="ru">Русский</option></select></label>
             <label class="qa-check"><input type="checkbox" id="qaCombCoords"> Әр ескерткішке координаттар кестесін қосу</label>
           </div>
         </details>

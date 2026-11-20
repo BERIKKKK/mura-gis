@@ -21,8 +21,9 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* жеке режим */ } },
 };
 const marks = () => (globalThis.__marks && globalThis.__marks.items) || [];
+const tx = (kk, ru) => (globalThis.MuraI18n && globalThis.MuraI18n.ru ? ru : kk);
 const km = m => (m / 1000).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' км';
-const fmtTime = s => { const m = Math.max(1, Math.round(s / 60)); return m < 60 ? m + ' мин' : Math.floor(m / 60) + ' сағ' + (m % 60 ? ' ' + (m % 60) + ' мин' : ''); };
+const fmtTime = s => { const m = Math.max(1, Math.round(s / 60)); return m < 60 ? m + ' мин' : Math.floor(m / 60) + tx(' сағ', ' ч') + (m % 60 ? ' ' + (m % 60) + ' мин' : ''); };
 const today = () => new Date().toISOString().slice(0, 10);
 const cmpKk = (a, b) => String(a).localeCompare(String(b), 'kk');
 
@@ -48,7 +49,7 @@ async function api(op, data) {
   for (const [k, v] of Object.entries(data || {})) fd.append(k, v);
   const r = await fetch(API + '&op=' + op, { method: 'POST', body: fd });
   const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Сақтау қатесі');
+  if (!j.ok) throw new Error(j.error || tx('Сақтау қатесі', 'Ошибка сохранения'));
   if (Array.isArray(j.items)) { items = j.items; net = null; render(); }
   return j;
 }
@@ -67,7 +68,7 @@ function drawLines() {
   layer.clearLayers(); lines.clear();
   for (const r of items) {
     const pl = L.polyline(r.pts, lineStyle(r));
-    pl.bindTooltip('<b>' + esc(r.name) + '</b><small>' + km(lineLength(r.pts)) + ' · ' + esc(vehicleOf(r.vehicle).short) + (r.season === 'dry' ? ' · тек құрғақта' : '') + '</small>',
+    pl.bindTooltip('<b>' + esc(r.name) + '</b><small>' + km(lineLength(r.pts)) + ' · ' + esc(vehicleOf(r.vehicle).short) + (r.season === 'dry' ? tx(' · тек құрғақта', ' · только в сухую погоду') : '') + '</small>',
       { sticky: true, className: 'mk-tip rt-tip', direction: 'top', offset: [0, -6] });
     pl.on('mouseover', () => pl.setStyle({ weight: 6 }));
     pl.on('mouseout', () => pl.setStyle({ weight: 4 }));
@@ -98,7 +99,7 @@ function drawNodes() {
   if (!$('rtNodes').checked) return;
   for (const n of network().nodes) {
     const c = L.circleMarker([n.lat, n.lon], { radius: n.markId ? 7 : 5, color: '#221d16', weight: 2, fillColor: n.markId ? '#ffd36b' : '#fff', fillOpacity: 1, interactive: true, className: 'rt-node' });
-    c.bindTooltip(esc(n.name || 'Торап') + '<small>' + network().adj[n.id].length + ' жол</small>', { direction: 'top', className: 'mk-tip rt-tip' });
+    c.bindTooltip(esc(n.name || tx('Торап', 'Узел')) + '<small>' + network().adj[n.id].length + tx(' жол', ' дорог') + '</small>', { direction: 'top', className: 'mk-tip rt-tip' });
     c.addTo(nodesLayer);
   }
 }
@@ -178,7 +179,7 @@ function paintDraft() {
   if (drawing) {
     const len = n > 1 ? lineLength(draft.pts) : 0;
     hud.innerHTML = '<div><b>' + (n ? km(len) : 'Маршрут сызу') + '</b><small>' +
-      (n ? n + ' нүкте · Enter — аяқтау · Backspace — болдырмау · Esc — бас тарту' : 'Картаны басып бастапқы нүктені қойыңыз. Ескерткішке не басқа маршрутқа жақын басса — соған жабысады.') + '</small></div>';
+      (n ? n + tx(' нүкте · Enter — аяқтау · Backspace — болдырмау · Esc — бас тарту', ' точек · Enter — завершить · Backspace — отменить · Esc — прервать') : tx('Картаны басып бастапқы нүктені қойыңыз. Ескерткішке не басқа маршрутқа жақын басса — соған жабысады.', 'Щёлкните по карте, чтобы поставить начальную точку. Щелчок рядом с памятником или другим маршрутом привязывается к нему.')) + '</small></div>';
   }
 }
 function clearDraft() { draft.pts = []; draft.snaps = []; paintDraft(); }
@@ -238,7 +239,7 @@ function openDialog(r, o = {}) {
   back.className = 'qa-dlg-back mk-dlg-back';
   back.innerHTML =
     '<form class="qa-dlg qa-glass mk-dlg rt-dlg" role="dialog" aria-modal="true" aria-labelledby="rtDlgT" novalidate>' +
-      '<h3 id="rtDlgT">' + (isNew ? 'Жаңа маршрут' : 'Маршрут') + '<span class="rt-len">' + km(lineLength(v.pts)) + ' · ' + v.pts.length + ' нүкте</span></h3>' +
+      '<h3 id="rtDlgT">' + (isNew ? 'Жаңа маршрут' : 'Маршрут') + '<span class="rt-len">' + km(lineLength(v.pts)) + ' · ' + v.pts.length + tx(' нүкте', ' точек') + '</span></h3>' +
       '<div class="qa-row2">' +
         '<div class="qa-f"><label for="rtA">Бастапқы нүкте (А)</label><input type="text" id="rtA" name="a" maxlength="120" placeholder="Мысалы: Ақтөбе қаласы" value="' + esc(v.a_name) + '"></div>' +
         '<div class="qa-f"><label for="rtB">Соңғы нүкте (Б)</label><input type="text" id="rtB" name="b" maxlength="120" placeholder="Мысалы: Қабантау-V қорғаны" value="' + esc(v.b_name) + '"></div>' +
@@ -280,7 +281,7 @@ function openDialog(r, o = {}) {
       await api('save', { data: JSON.stringify(rec) });
       store.set(lastKey, JSON.stringify({ vehicle: rec.vehicle }));
       closeDialog();
-      toast((isNew ? 'Маршрут сақталды: «' : 'Маршрут жаңартылды: «') + (rec.name || 'Атаусыз маршрут') + '» · ' + km(lineLength(pts)) + '.');
+      toast((isNew ? tx('Маршрут сақталды: «', 'Маршрут сохранён: «') : tx('Маршрут жаңартылды: «', 'Маршрут обновлён: «')) + (rec.name || tx('Атаусыз маршрут', 'Маршрут без названия')) + '» · ' + km(lineLength(pts)) + '.');
       if (o.onSaved) o.onSaved();
     } catch (ex) { err.textContent = ex.message; err.hidden = false; btn.disabled = false; }
   });
@@ -291,7 +292,7 @@ function openDialog(r, o = {}) {
     pts = pts.slice().reverse();
     const a = F.a.value; F.a.value = F.b.value; F.b.value = a; paintName();
     hi.setLatLngs(pts);
-    toast('Бағыты ауыстырылды — «Сақтау» басыңыз.');
+    toast(tx('Бағыты ауыстырылды — «Сақтау» басыңыз.', 'Направление изменено — нажмите «Сохранить».'));
   });
   back.addEventListener('mousedown', e => { if (e.target === back) back.dataset.down = '1'; });
   back.addEventListener('click', e => { if (e.target === back && back.dataset.down) closeDialog(); delete back.dataset.down; });
@@ -302,8 +303,8 @@ function openDialog(r, o = {}) {
   (isNew ? (F.a.value ? F.b.value ? F.veh : F.b : F.a) : form.querySelector('[type=submit]')).focus();
 }
 async function removeRoute(r) {
-  if (!(await ask('«' + r.name + '» маршрутын өшіру керек пе? Бұл әрекетті қайтару мүмкін емес.', { ok: 'Өшіру', danger: true }))) return;
-  try { await api('delete', { id: r.id }); closeDialog(); toast('Маршрут өшірілді: «' + r.name + '».'); }
+  if (!(await ask(tx('«' + r.name + '» маршрутын өшіру керек пе? Бұл әрекетті қайтару мүмкін емес.', 'Удалить маршрут «' + r.name + '»? Это действие нельзя отменить.'), { ok: tx('Өшіру', 'Удалить'), danger: true }))) return;
+  try { await api('delete', { id: r.id }); closeDialog(); toast(tx('Маршрут өшірілді: «', 'Маршрут удалён: «') + r.name + '».'); }
   catch (e) { toast(e.message, true); }
 }
 function flyTo(r) {
@@ -383,7 +384,7 @@ document.addEventListener('keydown', e => {
 
 /* ---------- Тізім ---------- */
 $('rtFVeh').insertAdjacentHTML('beforeend', VEHICLES.map(x => '<option value="' + x.v + '">' + esc(x.label) + '</option>').join(''));
-$('rtLegend').innerHTML = VEHICLES.map(x => '<span><i style="background:' + x.color + '"></i>' + esc(x.label) + '</span>').join('') + '<span><i class="rt-dash"></i>Тек құрғақ маусымда</span>';
+$('rtLegend').innerHTML = VEHICLES.map(x => '<span><i style="background:' + x.color + '"></i>' + esc(x.label) + '</span>').join('') + '<span><i class="rt-dash"></i>' + tx('Тек құрғақ маусымда', 'Только в сухой сезон') + '</span>';
 for (const id of ['rtQ', 'rtFVeh']) $(id).addEventListener(id === 'rtQ' ? 'input' : 'change', () => renderList());
 function filtered() {
   const q = $('rtQ').value.trim().toLocaleLowerCase('kk'), fv = $('rtFVeh').value;
@@ -391,9 +392,10 @@ function filtered() {
     .sort((a, b) => cmpKk(a.name, b.name));
 }
 function checkedNote(r) {
-  if (!r.checked) return '<span class="rt-warn">тексерілмеген</span>';
+  if (!r.checked) return '<span class="rt-warn">' + tx('тексерілмеген', 'не проверен') + '</span>';
   const years = (Date.now() - new Date(r.checked).getTime()) / (365.25 * 864e5);
-  return years > 3 ? '<span class="rt-warn">тексерілген: ' + esc(r.checked) + '</span>' : 'тексерілген: ' + esc(r.checked);
+  const lbl = tx('тексерілген: ', 'проверен: ');
+  return years > 3 ? '<span class="rt-warn">' + lbl + esc(r.checked) + '</span>' : lbl + esc(r.checked);
 }
 function render() {
   $('rtCount').textContent = items.length;
@@ -406,7 +408,7 @@ function render() {
 function renderList() {
   if (!open || tab !== 'list') return;
   const list = filtered();
-  $('rtInfo').textContent = list.length === items.length ? items.length + ' маршрут' : list.length + ' / ' + items.length + ' маршрут';
+  $('rtInfo').textContent = (list.length === items.length ? items.length : list.length + ' / ' + items.length) + tx(' маршрут', ' маршр.');
   const box = $('rtList');
   if (!items.length) { box.innerHTML = '<div class="qa-empty">Әзірге маршрут жоқ. «Маршрут сызу» батырмасын басып, картадан жолды сызыңыз не GPX/KML тректерін импорттаңыз.</div>'; paintFooter(); return; }
   if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай маршрут табылмады.</div>'; paintFooter(); return; }
@@ -415,7 +417,7 @@ function renderList() {
     return '<div class="qa-sc rt-card" data-id="' + esc(r.id) + '"><span class="rt-sw' + (r.season === 'dry' ? ' is-dry' : '') + '" style="--c:' + v.color + '"></span>' +
       '<div class="qa-sc-main"><button type="button" class="qa-sc-title" data-act="go" title="Картадан көрсету">' + esc(r.name) + '</button>' +
       (r.a_name || r.b_name ? '<div class="qa-sc-meta">' + esc(r.a_name || '?') + ' → ' + esc(r.b_name || '?') + '</div>' : '') +
-      '<div class="qa-sc-meta"><b>' + km(lineLength(r.pts)) + '</b> · ' + esc(v.short) + (r.season === 'dry' ? ' · тек құрғақта' : '') + ' · ' + checkedNote(r) + '</div>' +
+      '<div class="qa-sc-meta"><b>' + km(lineLength(r.pts)) + '</b> · ' + esc(v.short) + (r.season === 'dry' ? tx(' · тек құрғақта', ' · только в сухую погоду') : '') + ' · ' + checkedNote(r) + '</div>' +
       (r.note ? '<p class="qa-sc-desc">' + esc(r.note) + '</p>' : '') +
       '<div class="qa-sc-act"><button type="button" class="lnk" data-act="edit">Өңдеу</button><button type="button" class="lnk" data-act="go">Картадан көрсету</button>' +
       '<button type="button" class="lnk" data-act="gpx">GPX</button><button type="button" class="lnk lnk--danger" data-act="del">Өшіру</button></div></div></div>';
@@ -452,17 +454,17 @@ $('rtGpx').addEventListener('click', () => {
     if (!result) return;
     const title = result.title;
     const pts = [...(result.offStart ? [result.offStart.from] : []), ...result.coords, ...(result.offEnd ? [result.offEnd.to] : [])];
-    download(toGpx([{ name: title, desc: km(result.len) + ', ' + result.legs.length + ' бөлік', pts }], title), 'application/gpx+xml', fileSafe(title) + '.gpx');
+    download(toGpx([{ name: title, desc: km(result.len) + ', ' + result.legs.length + tx(' бөлік', ' участков'), pts }], title), 'application/gpx+xml', fileSafe(title) + '.gpx');
     return;
   }
   const list = filtered();
-  exportGpx(list, 'Mura GIS маршруттары');
-  toast('GPX: ' + list.length + ' маршрут.');
+  exportGpx(list, tx('Mura GIS маршруттары', 'Маршруты Mura GIS'));
+  toast('GPX: ' + list.length + tx(' маршрут.', ' маршр.'));
 });
 $('rtGeo').addEventListener('click', () => {
   const list = filtered();
   download(JSON.stringify(toGeojson(list), null, 1), 'application/geo+json', 'marshruttar_' + today() + '.geojson');
-  toast('GeoJSON: ' + list.length + ' маршрут.');
+  toast('GeoJSON: ' + list.length + tx(' маршрут.', ' маршр.'));
 });
 
 /* ---------- Импорт ---------- */
@@ -481,16 +483,17 @@ $('rtFile').addEventListener('change', async e => {
   const files = [...(e.target.files || [])];
   e.target.value = '';
   for (const f of files) {
-    $('rtBusy').textContent = 'Импортталуда: ' + f.name + '…';
+    $('rtBusy').textContent = tx('Импортталуда: ', 'Импорт: ') + f.name + '…';
     try {
       const list = await parseTrackFile(f, /\.kmz$/i.test(f.name) ? await loadFflate() : null);
-      if (!list.length) throw new Error(f.name + ': сызық (трек, маршрут) табылмады.');
+      if (!list.length) throw new Error(f.name + tx(': сызық (трек, маршрут) табылмады.', ': линии (треки, маршруты) не найдены.'));
       const recs = list.map(t => ({
         ...t, vehicle: t.vehicle || '4x4', season: t.season || 'all',
         note: t.id ? t.note : [t.note, 'Импорт: ' + f.name].filter(Boolean).join('\n'),
       }));
       const r = await api('import', { data: JSON.stringify(recs) });
-      toast(f.name + ': жаңа — ' + r.added + (r.updated ? ', жаңартылған — ' + r.updated : '') + (r.skipped ? ', алынбағаны — ' + r.skipped : '') + '. Көлік түрі белгісіз тректер «жол талғамайтын» деп алынды — қажет болса өңдеңіз.');
+      toast(tx(f.name + ': жаңа — ' + r.added + (r.updated ? ', жаңартылған — ' + r.updated : '') + (r.skipped ? ', алынбағаны — ' + r.skipped : '') + '. Көлік түрі белгісіз тректер «жол талғамайтын» деп алынды — қажет болса өңдеңіз.',
+        f.name + ': новых — ' + r.added + (r.updated ? ', обновлённых — ' + r.updated : '') + (r.skipped ? ', не взято — ' + r.skipped : '') + '. Треки с неизвестным типом транспорта приняты как «внедорожник» — при необходимости измените.'));
       map.fitBounds(L.latLngBounds(list.flatMap(t => t.pts)).pad(0.1), { maxZoom: 15 });
       if (!open) openPanel('list'); else setTab('list');
     } catch (ex) { toast(ex.message || String(ex), true); }
@@ -513,16 +516,16 @@ function fillEnds() {
     const sel = $(k === 'from' ? 'rtFrom' : 'rtTo'), cur = sel.value;
     const p = picked[k];
     sel.innerHTML = '<option value="">— таңдаңыз —</option>' +
-      (p ? '<option value="p">📍 Картадағы нүкте: ' + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + '</option>' : '') +
+      (p ? '<option value="p">📍 ' + tx('Картадағы нүкте: ', 'Точка на карте: ') + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + '</option>' : '') +
       (named.length ? '<optgroup label="Желідегі пункттер">' + named.map(n => '<option value="n:' + esc(n.name) + '">' + esc(n.name) + '</option>').join('') + '</optgroup>' : '') +
-      (ms.length ? '<optgroup label="Ескерткіштер">' + ms.map(m => '<option value="m:' + esc(m.id) + '">' + esc(m.name) + (onNet.has(m.id) ? '' : ' (желіден тыс)') + '</option>').join('') + '</optgroup>' : '');
+      (ms.length ? '<optgroup label="Ескерткіштер">' + ms.map(m => '<option value="m:' + esc(m.id) + '">' + esc(m.name) + (onNet.has(m.id) ? '' : tx(' (желіден тыс)', ' (вне сети)')) + '</option>').join('') + '</optgroup>' : '');
     sel.value = [...sel.options].some(o => o.value === cur) ? cur : '';
   }
 }
 function endOf(k) {
   const v = $(k === 'from' ? 'rtFrom' : 'rtTo').value;
   if (!v) return null;
-  if (v === 'p') return picked[k] ? { lat: picked[k].lat, lon: picked[k].lon, label: 'Картадағы нүкте' } : null;
+  if (v === 'p') return picked[k] ? { lat: picked[k].lat, lon: picked[k].lon, label: tx('Картадағы нүкте', 'Точка на карте') } : null;
   if (v.startsWith('m:')) { const m = marks().find(x => x.id === v.slice(2)); return m ? { markId: m.id, lat: m.lat, lon: m.lon, label: m.name } : null; }
   if (v.startsWith('n:')) { const n = network().nodes.find(x => x.name === v.slice(2) && !x.markId); return n ? { node: n.id, lat: n.lat, lon: n.lon, label: n.name } : null; }
   return null;
@@ -532,7 +535,7 @@ function setPicking(k) {
   $('rtFromPick').setAttribute('aria-pressed', k === 'from' ? 'true' : 'false');
   $('rtToPick').setAttribute('aria-pressed', k === 'to' ? 'true' : 'false');
   mapEl.classList.toggle('is-picking', !!k);
-  if (k) toast(k === 'from' ? 'Картадан бастапқы нүктені басыңыз (Esc — бас тарту).' : 'Картадан баратын нүктені басыңыз (Esc — бас тарту).');
+  if (k) toast(k === 'from' ? tx('Картадан бастапқы нүктені басыңыз (Esc — бас тарту).', 'Щёлкните по карте в начальной точке (Esc — отмена).') : tx('Картадан баратын нүктені басыңыз (Esc — бас тарту).', 'Щёлкните по карте в конечной точке (Esc — отмена).'));
 }
 function pickAt(latlng) {
   const k = picking;
@@ -576,36 +579,38 @@ function runFind() {
   resultLayer.clearLayers();
   if (!r.ok) {
     result = null;
-    $('rtResult').innerHTML = '<p class="rt-err">' + esc(r.error) + '</p><p class="qa-hint">Маршруттар бір-біріне жалғанбаған болуы мүмкін: «Тораптар» белгісін қосып, желіні тексеріңіз. ' +
-      'Маршрут ұштары бір-біріне ' + 150 + ' м-ден жақын болса ғана жалғанады; ескерткішке ' + 300 + ' м-ден жақын өтсе — ескерткіш желіге қосылады.</p>';
+    $('rtResult').innerHTML = '<p class="rt-err">' + esc(r.error) + '</p><p class="qa-hint">' + tx('Маршруттар бір-біріне жалғанбаған болуы мүмкін: «Тораптар» белгісін қосып, желіні тексеріңіз. ' +
+      'Маршрут ұштары бір-біріне ' + 150 + ' м-ден жақын болса ғана жалғанады; ескерткішке ' + 300 + ' м-ден жақын өтсе — ескерткіш желіге қосылады.',
+      'Возможно, маршруты не соединены между собой: включите «Узлы» и проверьте сеть. ' +
+      'Концы маршрутов соединяются, только если они ближе ' + 150 + ' м друг к другу; если маршрут проходит ближе ' + 300 + ' м от памятника, памятник включается в сеть.') + '</p>';
     $('rtClear').hidden = false;
     paintFooter();
     return;
   }
   const N = network().nodes.length;
-  const nodeName = id => { if (id === N) return a.label; if (id === N + 1) return b.label; const n = network().nodes[id]; return n ? n.name || 'торап' : ''; };
+  const nodeName = id => { if (id === N) return a.label; if (id === N + 1) return b.label; const n = network().nodes[id]; return n ? n.name || tx('торап', 'узел') : ''; };
   result = { ...r, title: a.label + ' — ' + b.label };
   // Картада: ақ жиекті жуан сызық, желіден тыс бөліктер — үзік сызық
   L.polyline(r.coords, { color: '#fff', weight: 11, opacity: 0.9, interactive: false }).addTo(resultLayer);
   L.polyline(r.coords, { color: '#e8178a', weight: 6, opacity: 1, interactive: false }).addTo(resultLayer);
   for (const o of [r.offStart, r.offEnd]) if (o) L.polyline([o.from, o.to], { color: '#6b6354', weight: 3, dashArray: '4 7', interactive: false }).addTo(resultLayer);
   L.marker([a.lat, a.lon], { icon: endIcon('А'), interactive: false, keyboard: false }).addTo(resultLayer);
-  L.marker([b.lat, b.lon], { icon: endIcon('Б'), interactive: false, keyboard: false }).addTo(resultLayer);
+  L.marker([b.lat, b.lon], { icon: endIcon(tx('Б', 'Б')), interactive: false, keyboard: false }).addTo(resultLayer);
   const p = globalThis.QAUI?.pad?.();
   map.fitBounds(resultLayer.getBounds().pad(0.08), { maxZoom: 15, paddingTopLeft: p?.tl, paddingBottomRight: p?.br });
   const off = (r.offStart?.len || 0) + (r.offEnd?.len || 0);
   const warn = [];
-  if (r.offStart && r.offStart.len > 200) warn.push('Бастапқы нүктеден желіге дейін — ' + km(r.offStart.len) + ' (түзу сызықпен, жол белгісіз).');
-  if (r.offEnd && r.offEnd.len > 200) warn.push('Желіден баратын нүктеге дейін — ' + km(r.offEnd.len) + ' (түзу сызықпен, жол белгісіз).');
+  if (r.offStart && r.offStart.len > 200) warn.push(tx('Бастапқы нүктеден желіге дейін — ', 'От начальной точки до сети — ') + km(r.offStart.len) + tx(' (түзу сызықпен, жол белгісіз).', ' (по прямой, дорога неизвестна).'));
+  if (r.offEnd && r.offEnd.len > 200) warn.push(tx('Желіден баратын нүктеге дейін — ', 'От сети до конечной точки — ') + km(r.offEnd.len) + tx(' (түзу сызықпен, жол белгісіз).', ' (по прямой, дорога неизвестна).'));
   $('rtResult').innerHTML =
-    '<div class="rt-sum"><b>' + km(r.len) + '</b>' + (off > 200 ? ' + ' + km(off) + ' желіден тыс' : '') + ' · шамамен ' + fmtTime(r.time) + '<small>' + esc(result.title) + ' · ' + r.legs.length + ' бөлік</small></div>' +
+    '<div class="rt-sum"><b>' + km(r.len) + '</b>' + (off > 200 ? ' + ' + km(off) + tx(' желіден тыс', ' вне сети') : '') + tx(' · шамамен ', ' · примерно ') + fmtTime(r.time) + '<small>' + esc(result.title) + ' · ' + r.legs.length + tx(' бөлік', ' участков') + '</small></div>' +
     warn.map(w => '<p class="rt-warnp">' + esc(w) + '</p>').join('') +
     '<ol class="rt-legs">' + r.legs.map(l => {
       const rt = l.route, v = vehicleOf(rt.vehicle);
       const from = nodeName(l.from), to = nodeName(l.to);
       return '<li><span class="rt-sw' + (rt.season === 'dry' ? ' is-dry' : '') + '" style="--c:' + v.color + '"></span><div><button type="button" class="qa-sc-title" data-rid="' + esc(rt.id) + '">' + esc(rt.name) + '</button>' +
         '<div class="qa-sc-meta">' + esc(from || '…') + ' → ' + esc(to || '…') + '</div>' +
-        '<div class="qa-sc-meta"><b>' + km(l.len) + '</b> · ' + esc(v.short) + (rt.season === 'dry' ? ' · тек құрғақта' : '') + ' · ' + checkedNote(rt) + '</div></div></li>';
+        '<div class="qa-sc-meta"><b>' + km(l.len) + '</b> · ' + esc(v.short) + (rt.season === 'dry' ? tx(' · тек құрғақта', ' · только в сухую погоду') : '') + ' · ' + checkedNote(rt) + '</div></div></li>';
     }).join('') + '</ol>';
   $('rtClear').hidden = false;
   paintFooter();
@@ -624,12 +629,12 @@ function findWith(k, end) {
   if (end.markId) { fillEnds(); $(k === 'from' ? 'rtFrom' : 'rtTo').value = 'm:' + end.markId; }
   else { picked[k] = { lat: end.lat, lon: end.lon }; fillEnds(); $(k === 'from' ? 'rtFrom' : 'rtTo').value = 'p'; }
   if (endOf('from') && endOf('to')) runFind();
-  else toast(k === 'from' ? 'Енді «Қайда» нүктесін таңдаңыз.' : 'Енді «Қайдан» нүктесін таңдаңыз.');
+  else toast(k === 'from' ? tx('Енді «Қайда» нүктесін таңдаңыз.', 'Теперь выберите пункт «Куда».') : tx('Енді «Қайдан» нүктесін таңдаңыз.', 'Теперь выберите пункт «Откуда».'));
 }
 
 /* ======================= Іске қосу ======================= */
 paintVisibility();
-api('list').catch(e => { toast('Маршруттар жүктелмеді: ' + e.message, true); render(); });
+api('list').catch(e => { toast(tx('Маршруттар жүктелмеді: ', 'Маршруты не загружены: ') + e.message, true); render(); });
 
 globalThis.MuraRoutes = {
   openPanel, closePanel, setDrawing, findPath: findWith,

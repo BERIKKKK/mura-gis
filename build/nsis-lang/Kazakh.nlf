@@ -1,0 +1,190 @@
+﻿# Header, don't edit
+NLF v6
+# Language ID
+1087
+# Font and size - dash (-) means default
+-
+-
+# Codepage - dash (-) means ASCII code page
+1251
+# RTL - anything else than RTL means LTR
+-
+# Mura GIS: қазақша аударма (NSIS-тің ресми таратылымында қазақ тілі жоқ; Russian.nlf негізінде аударылды)
+# ^Branding
+Nullsoft Install System %s
+# ^SetupCaption
+$(^Name) орнату
+# ^UninstallCaption
+$(^Name) жою
+# ^LicenseSubCaption
+: Лицензиялық келісім
+# ^ComponentsSubCaption
+: Орнату параметрлері
+# ^DirSubCaption
+: Орнату қалтасы
+# ^InstallingSubCaption
+: Файлдарды көшіру
+# ^CompletedSubCaption
+: Әрекет аяқталды
+# ^UnComponentsSubCaption
+: Жою параметрлері
+# ^UnDirSubCaption
+: Жойылатын қалта
+# ^ConfirmSubCaption
+: Растау
+# ^UninstallingSubCaption
+: Файлдарды жою
+# ^UnCompletedSubCaption
+: Әрекет аяқталды
+# ^BackBtn
+< &Артқа
+# ^NextBtn
+&Келесі >
+# ^AgreeBtn
+&Қабылдаймын
+# ^AcceptBtn
+Келісім шарттарын &қабылдаймын
+# ^DontAcceptBtn
+Келісім шарттарын қа&былдамаймын
+# ^InstallBtn
+&Орнату
+# ^UninstallBtn
+&Жою
+# ^CancelBtn
+Бас тарту
+# ^CloseBtn
+&Жабу
+# ^BrowseBtn
+&Шолу...
+# ^ShowDetailsBtn
+&Толығырақ...
+# ^ClickNext
+Жалғастыру үшін «Келесі» батырмасын басыңыз.
+# ^ClickInstall
+Бағдарламаны орнату үшін «Орнату» батырмасын басыңыз.
+# ^ClickUninstall
+Бағдарламаны жою үшін «Жою» батырмасын басыңыз.
+# ^Name
+Атауы
+# ^Completed
+Дайын
+# ^LicenseText
+$(^NameDA) орнатпас бұрын лицензиялық келісіммен танысыңыз. Келісім шарттарын қабылдасаңыз, «Қабылдаймын» батырмасын басыңыз.
+# ^LicenseTextCB
+$(^NameDA) орнатпас бұрын лицензиялық келісіммен танысыңыз. Келісім шарттарын қабылдасаңыз, төмендегі құсбелгіні қойыңыз. $_CLICK
+# ^LicenseTextRB
+$(^NameDA) орнатпас бұрын лицензиялық келісіммен танысыңыз. Келісім шарттарын қабылдасаңыз, төмендегі бірінші нұсқаны таңдаңыз. $_CLICK
+# ^UnLicenseText
+$(^NameDA) жоймас бұрын лицензиялық келісіммен танысыңыз. Келісім шарттарын қабылдасаңыз, «Қабылдаймын» батырмасын басыңыз.
+# ^UnLicenseTextCB
+$(^NameDA) жоймас бұрын лицензиялық келісіммен танысыңыз. Келісім шарттарын қабылдасаңыз, төмендегі құсбелгіні қойыңыз. $_CLICK
+# ^UnLicenseTextRB
+$(^NameDA) жоймас бұрын лицензиялық келісіммен танысыңыз. Келісім шарттарын қабылдасаңыз, төмендегі бірінші нұсқаны таңдаңыз. $_CLICK
+# ^Custom
+Таңдау бойынша
+# ^ComponentsText
+Бағдарламаның орнатқыңыз келетін құрамдас бөліктерін таңдаңыз. $_CLICK
+# ^ComponentsSubText1
+Орнату түрін таңдаңыз:
+# ^ComponentsSubText2_NoInstTypes
+Орнатылатын құрамдас бөліктерді таңдаңыз:
+# ^ComponentsSubText2
+не орнатылатын қосымша бөліктерді таңдаңыз:
+# ^UnComponentsText
+Жойғыңыз келетін құрамдас бөліктерді таңдаңыз. $_CLICK
+# ^UnComponentsSubText1
+Жою түрін таңдаңыз:
+# ^UnComponentsSubText2_NoInstTypes
+Жойылатын құрамдас бөліктерді таңдаңыз:
+# ^UnComponentsSubText2
+не жойылатын қосымша бөліктерді таңдаңыз:
+# ^DirText
+Бағдарлама $(^NameDA) көрсетілген қалтаға орнатады. Басқа қалтаға орнату үшін «Шолу» батырмасын басып, оны көрсетіңіз. $_CLICK
+# ^DirSubText
+Орнату қалтасы
+# ^DirBrowseText
+$(^NameDA) орнатылатын қалтаны көрсетіңіз:
+# ^UnDirText
+Бағдарлама $(^NameDA) көрсетілген қалтадан жояды. Басқа қалтадан жою үшін «Шолу» батырмасын басып, оны көрсетіңіз. $_CLICK
+# ^UnDirSubText
+""
+# ^UnDirBrowseText
+$(^NameDA) жойылатын қалтаны көрсетіңіз:
+# ^SpaceAvailable
+"Дискіде бос орын: "
+# ^SpaceRequired
+"Дискіде қажет орын: "
+# ^UninstallingText
+$(^NameDA) бағдарламасы компьютеріңізден жойылады. $_CLICK
+# ^UninstallingSubText
+Жойылатын жері:
+# ^FileError
+Файлды жазу үшін ашу мүмкін емес: \r\n\t"$0"\r\n«Тоқтату» — орнатуды тоқтату;\r\n«Қайталау» — қайта көру;\r\n«Өткізу» — осы әрекетті өткізіп жіберу.
+# ^FileError_NoIgnore
+Файлды жазу үшін ашу мүмкін емес: \r\n\t"$0"\r\n«Қайталау» — қайта көру;\r\n«Бас тарту» — орнатуды тоқтату.
+# ^CantWrite
+"Жазу мүмкін емес: "
+# ^CopyFailed
+Көшіру кезінде қате
+# ^CopyTo
+"Көшіру: "
+# ^Registering
+"Тіркеу: "
+# ^Unregistering
+"Тіркеуден шығару: "
+# ^SymbolNotFound
+"Символ табылмады: "
+# ^CouldNotLoad
+"Жүктеу мүмкін емес: "
+# ^CreateFolder
+"Қалта құру: "
+# ^CreateShortcut
+"Белгіше құру: "
+# ^CreatedUninstaller
+"Жою бағдарламасын құру: "
+# ^Delete
+"Файлды жою: "
+# ^DeleteOnReboot
+"Компьютер қайта қосылғанда жою: "
+# ^ErrorCreatingShortcut
+"Белгіше құру қатесі: "
+# ^ErrorCreating
+"Құру қатесі: "
+# ^ErrorDecompressing
+Деректерді шығару қатесі! Орнатқыш файлы бүлінген болуы мүмкін.
+# ^ErrorRegistering
+Кітапхананы (DLL) тіркеу мүмкін емес
+# ^ExecShell
+"Қабықша пәрменін орындау: "
+# ^Exec
+"Орындау: "
+# ^Extract
+"Шығару: "
+# ^ErrorWriting
+"Шығару: файлды жазу қатесі "
+# ^InvalidOpcode
+Орнатқыш бүлінген: жарамсыз код
+# ^NoOLE
+"OLE жоқ: "
+# ^OutputFolder
+"Орнату қалтасы: "
+# ^RemoveFolder
+"Қалтаны жою: "
+# ^RenameOnReboot
+"Компьютер қайта қосылғанда атауын өзгерту: "
+# ^Rename
+"Атауын өзгерту: "
+# ^Skipped
+"Өткізілді: "
+# ^CopyDetails
+Мәліметтерді алмасу буферіне көшіру
+# ^LogInstall
+Орнату есебін жүргізу
+# byte
+байт
+# kilo
+ К
+# mega
+ М
+# giga
+ Г

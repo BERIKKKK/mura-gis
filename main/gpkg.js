@@ -87,23 +87,25 @@ const str = v => (v == null ? '' : String(v));
 /** Әр қабат: геометрия түрі, атрибут бағандары (жазбадағы өрістің аты), жазба ↔ жол. */
 const LAYERS = {
   marks: {
-    title: 'Ескерткіштер', desc: 'Ескерткіш белгілері (Mura GIS)', geom: 'POINT',
-    cols: ['name', 'period', 'oblast', 'district', 'place', 'type', 'category', 'status', 'note', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    title: 'Ескерткіштер / Памятники', desc: 'Ескерткіш белгілері / Метки памятников (Mura GIS)', geom: 'POINT',
+    // *_ru — орысша нұсқасы (QGIS-те бөлек бағандар)
+    cols: ['name', 'name_ru', 'period', 'period_ru', 'oblast', 'district', 'place', 'place_ru', 'type', 'category', 'status', 'note', 'note_ru', 'created_at', 'created_by', 'updated_at', 'updated_by'],
     get: (r, c) => r[c],
     set: (r, c, v) => { r[c] = v; },
     toGeom: r => encodeGeom('Point', [+r.lon, +r.lat]),
     fromGeom: (r, g) => { if (g && g.type === 'Point') { r.lon = r8(g.coords[0]); r.lat = r8(g.coords[1]); } },
   },
   zones: {
-    title: 'Қорғау аймақтары', desc: 'Ескерткіштердің қорғау аймақтарының шекаралары (Mura GIS)', geom: 'POLYGON',
+    title: 'Қорғау аймақтары / Охранные зоны', desc: 'Ескерткіштердің қорғау аймақтарының шекаралары / Границы охранных зон памятников (Mura GIS)', geom: 'POLYGON',
     // fields.* — «Мәліметтер» панелінің өрістері; desc бағаны SQL кілт сөзімен шатаспас үшін description
-    cols: ['name', 'gen', 'period', 'oblast', 'district', 'place', 'description', 'type', 'height', 'd1', 'd2', 'd3', 'created_at', 'created_by', 'updated_at', 'updated_by'],
-    get: (r, c) => (c === 'name' || /_(at|by)$/.test(c) ? r[c] : (r.fields || {})[c === 'description' ? 'desc' : c]),
+    cols: ['name', 'name_ru', 'gen', 'gen_ru', 'period', 'period_ru', 'oblast', 'district', 'place', 'place_ru', 'description', 'description_ru', 'type', 'height', 'd1', 'd2', 'd3', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    get: (r, c) => (/_(at|by)$/.test(c) ? r[c] : (r.fields || {})[c.replace(/^description/, 'desc')] ?? (c === 'name' ? r.name : undefined)),
     set: (r, c, v) => {
       if (/_(at|by)$/.test(c)) { r[c] = v; return; }
       r.fields = r.fields || {};
-      r.fields[c === 'description' ? 'desc' : c] = v;
-      if (c === 'name') r.name = v;
+      r.fields[c.replace(/^description/, 'desc')] = v;
+      if (c === 'name' && v) r.name = v;
+      if (c === 'name_ru') { r.name_ru = v; if (!r.name) r.name = v; }
       if (c === 'district') r.district = v;
     },
     toGeom: r => {
@@ -120,7 +122,7 @@ const LAYERS = {
     },
   },
   routes: {
-    title: 'Маршруттар', desc: 'Далаға шығу маршруттары (Mura GIS)', geom: 'LINESTRING',
+    title: 'Маршруттар / Маршруты', desc: 'Далаға шығу маршруттары / Полевые маршруты (Mura GIS)', geom: 'LINESTRING',
     cols: ['name', 'a_name', 'b_name', 'vehicle', 'season', 'checked', 'note', 'created_at', 'created_by', 'updated_at', 'updated_by'],
     get: (r, c) => r[c],
     set: (r, c, v) => { r[c] = v; },
@@ -128,7 +130,7 @@ const LAYERS = {
     fromGeom: (r, g) => { if (g && g.type === 'LineString') r.pts = g.coords.map(p => [Math.round(p[1] * 1e7) / 1e7, Math.round(p[0] * 1e7) / 1e7]); },
   },
   imports: {
-    title: 'Импортталған нүктелер', desc: 'KML, KMZ, GPX файлдарынан импортталған нүктелер (Mura GIS)', geom: 'POINT',
+    title: 'Импортталған нүктелер / Импортированные точки', desc: 'KML, KMZ, GPX файлдарынан импортталған нүктелер / Точки из KML, KMZ, GPX (Mura GIS)', geom: 'POINT',
     cols: ['name', 'description', 'file', 'folder', 'imported_at'],
     get: (r, c) => r[c === 'description' ? 'desc' : c],
     set: (r, c, v) => { r[c === 'description' ? 'desc' : c] = v; },

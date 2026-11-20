@@ -13,14 +13,16 @@
 
 export const SNAP_M = 150;          // маршрут ұштары мен тораптардың бірігу қашықтығы
 export const MARK_M = 300;          // маршрут ескерткішке осыдан жақын өтсе — ескерткіш желіге қосылады
+const RU = !!(globalThis.MuraI18n && globalThis.MuraI18n.ru);
+const tx = (kk, ru) => (RU ? ru : kk);
 export const VEHICLES = [
-  { v: 'car', label: 'Жеңіл көлік', short: 'жеңіл көлік', speed: 50, color: '#2563a8' },
-  { v: '4x4', label: 'Жол талғамайтын көлік', short: 'жол талғамайтын', speed: 30, color: '#b4471f' },
-  { v: 'foot', label: 'Жаяу', short: 'жаяу', speed: 4.5, color: '#2f7d45' },
+  { v: 'car', label: tx('Жеңіл көлік', 'Легковой автомобиль'), short: tx('жеңіл көлік', 'легковой'), speed: 50, color: '#2563a8' },
+  { v: '4x4', label: tx('Жол талғамайтын көлік', 'Внедорожник'), short: tx('жол талғамайтын', 'внедорожник'), speed: 30, color: '#b4471f' },
+  { v: 'foot', label: tx('Жаяу', 'Пешком'), short: tx('жаяу', 'пешком'), speed: 4.5, color: '#2f7d45' },
 ];
 export const SEASONS = [
-  { v: 'all', label: 'Жыл бойы' },
-  { v: 'dry', label: 'Тек құрғақ маусымда' },
+  { v: 'all', label: tx('Жыл бойы', 'Круглый год') },
+  { v: 'dry', label: tx('Тек құрғақ маусымда', 'Только в сухой сезон') },
 ];
 export const vehicleOf = v => VEHICLES.find(x => x.v === v) || VEHICLES[1];
 export const seasonOf = v => SEASONS.find(x => x.v === v) || SEASONS[0];
@@ -274,7 +276,7 @@ class Heap {
  */
 export function findPath(net, from, to, opt = {}) {
   const A = locate(net, from, opt), B = locate(net, to, opt);
-  if (!A || !B) return { ok: false, error: 'Желіде маршрут жоқ (не таңдалған көлікке сай маршрут жоқ).' };
+  if (!A || !B) return { ok: false, error: tx('Желіде маршрут жоқ (не таңдалған көлікке сай маршрут жоқ).', 'В сети нет маршрутов (или нет маршрутов для выбранного транспорта).') };
   const N = net.nodes.length, S = N, T = N + 1;     // уақытша басы мен соңы
   const extra = new Map();                           // уақытша қабырғалар: түйін → [{ to, len, coords, route }]
   const addX = (u, v, len, coords, route) => {
@@ -308,7 +310,7 @@ export function findPath(net, from, to, opt = {}) {
       if (nd < (best.get(o.to) ?? Infinity)) { best.set(o.to, nd); prev.set(o.to, { from: u, ...o }); h.push(nd, o.to); }
     }
   }
-  if (src !== dst && !prev.has(dst)) return { ok: false, error: 'Бұл екі нүктені жалғайтын маршрут желіде жоқ (таңдалған көлік пен маусымға сай).', A, B };
+  if (src !== dst && !prev.has(dst)) return { ok: false, error: tx('Бұл екі нүктені жалғайтын маршрут желіде жоқ (таңдалған көлік пен маусымға сай).', 'В сети нет маршрута, соединяющего эти две точки (для выбранного транспорта и сезона).'), A, B };
   // Жолды қалпына келтіру: маршрут бойынша бөліктерге біріктіреміз
   const steps = [];
   for (let v = dst; v !== src;) { const p = prev.get(v); steps.unshift(p); v = p.from; }

@@ -10,6 +10,9 @@
    Бұл модуль qorgau/app.js-тен кейін жүктеледі (globalThis.__qa). */
 const $ = id => document.getElementById(id);
 const QA = globalThis.__qa;
+const tx = (kk, ru) => (globalThis.MuraI18n && globalThis.MuraI18n.ru ? ru : kk);
+const REG = globalThis.MuraRegions;
+const nmOf = m => (globalThis.MuraI18n && globalThis.MuraI18n.field ? globalThis.MuraI18n.field(m, 'name') : m.name);
 const app = $('qaApp'), fin = $('qaFinish'), saveBtn = $('qaSave');
 
 const ready = () => !!(QA && QA.R && !QA.R.error);
@@ -83,13 +86,17 @@ const fmtD = d => (!isFinite(d) ? '' : d < 1000 ? Math.round(d) + ' м' : (d / 1
 /** Қорғау аймағының мәліметтерін белгіден толтыру (app.js өрістері — оқиғалары арқылы, есептеу өзі жаңарады). */
 function fillFromMark(m) {
   const set = (id, v, ev = 'input') => { const el = $(id); if (!el) return; el.value = v ?? ''; el.dispatchEvent(new Event(ev, { bubbles: true })); };
-  set('qaNameGen', '');                          // ілік септігі атаудан қайта құрастырылады
-  set('qaName', m.name);
+  set('qaNameGen', ''); set('qaNameGenRu', '');   // ілік септігі (родительный падеж) атаудан қайта құрастырылады
+  set('qaName', m.name || '');
+  set('qaNameRu', m.name_ru || '');
   set('qaPeriod', m.period || '');
+  set('qaPeriodRu', m.period_ru || '');
   if (m.oblast) set('qaOblast', m.oblast);       // аудандар тізімі облысқа сай қайта құрылады (js/regions.js)
   set('qaDistrict', m.district || '', 'change');
   set('qaPlace', m.place || '');
+  set('qaPlaceRu', m.place_ru || '');
   if (m.note && !$('qaDesc').value.trim()) set('qaDesc', m.note);
+  if (m.note_ru && $('qaDescRu') && !$('qaDescRu').value.trim()) set('qaDescRu', m.note_ru);
   const type = $('qaType');
   if (type && [...type.options].some(o => o.value === m.type)) set('qaType', m.type, 'change');   // аймақ өлшемдері түріне сай
 }
@@ -122,7 +129,7 @@ function openDialog() {
   back.className = 'qa-dlg-back mk-dlg-back';
   back.innerHTML =
     '<form class="qa-dlg qa-glass mk-dlg zd-dlg" role="dialog" aria-modal="true" aria-labelledby="zdT" novalidate>' +
-      '<h3 id="zdT">' + fin.querySelector('svg').outerHTML + (loaded ? 'Қорғау аймағы: «' + escapeHtml(QA.state.loadedName || '') + '»' : 'Жаңа қорғау аймағы') + '</h3>' +
+      '<h3 id="zdT">' + fin.querySelector('svg').outerHTML + (loaded ? tx('Қорғау аймағы: «', 'Охранная зона: «') + escapeHtml(QA.state.loadedName || '') + '»' : tx('Жаңа қорғау аймағы', 'Новая охранная зона')) + '</h3>' +
       '<div class="zd-body"></div>' +
       '<p class="mk-err" id="zdErr" role="alert" hidden></p>' +
       '<div class="qa-dlg-btns">' +
@@ -136,27 +143,27 @@ function openDialog() {
   // Белгіленген ескерткішті таңдау: мәліметтер белгіден толтырылады
   const near = marksNear();
   let pre = pendingMark && near.find(x => x.m.id === pendingMark);
-  const curName = $('qaName').value.trim();
+  const curName = $('qaName').value.trim() || ($('qaNameRu') ? $('qaNameRu').value.trim() : '');
   let auto = false;
-  if (!pre && curName) pre = near.find(x => x.m.name === curName);                    // атауы сәйкес белгі — тек таңдалады
+  if (!pre && curName) pre = near.find(x => x.m.name === curName || x.m.name_ru === curName);                    // атауы сәйкес белгі — тек таңдалады
   if (!pre && !curName && near[0] && near[0].in) { pre = near[0]; auto = true; }       // шекара ішіндегі белгі — өзі толтырылады
   if (near.length) {
     const box = document.createElement('section');
     box.className = 'qa-sec zd-mark';
     box.innerHTML = '<div class="qa-f"><label for="zdMark">Белгіленген ескерткіш <small class="mk-law">(мәліметтер белгіден алынады)</small></label><select id="zdMark"><option value="">— таңдалмаған —</option>' +
-      near.map(x => '<option value="' + escapeHtml(x.m.id) + '"' + (pre && pre.m.id === x.m.id ? ' selected' : '') + '>' + escapeHtml(x.m.name) +
-        (x.m.district ? ' — ' + escapeHtml(x.m.district) : '') + (x.in ? ' · шекара ішінде' : x.d < Infinity ? ' · ' + fmtD(x.d) : '') + '</option>').join('') +
+      near.map(x => '<option value="' + escapeHtml(x.m.id) + '"' + (pre && pre.m.id === x.m.id ? ' selected' : '') + '>' + escapeHtml(nmOf(x.m)) +
+        (x.m.district ? ' — ' + escapeHtml(REG ? REG.show(x.m.district, x.m.oblast) : x.m.district) : '') + (x.in ? tx(' · шекара ішінде', ' · внутри границы') : x.d < Infinity ? ' · ' + fmtD(x.d) : '') + '</option>').join('') +
       '</select><p class="qa-hint" id="zdMarkHint" hidden></p></div>';
     body.appendChild(box);
     box.querySelector('select').addEventListener('change', e => {
       const m = marks().find(x => x.id === e.target.value);
       const h = box.querySelector('#zdMarkHint');
-      if (m) { fillFromMark(m); h.textContent = 'Мәліметтер «' + m.name + '» белгісінен толтырылды — қажет болса түзетіңіз.'; h.hidden = false; }
+      if (m) { fillFromMark(m); h.textContent = tx('Мәліметтер «' + nmOf(m) + '» белгісінен толтырылды — қажет болса түзетіңіз.', 'Сведения заполнены из метки «' + nmOf(m) + '» — при необходимости исправьте.'); h.hidden = false; }
     });
     if (pre && (auto || pendingMark === pre.m.id)) {
       fillFromMark(pre.m);
       const h = box.querySelector('#zdMarkHint');
-      h.textContent = (auto ? 'Шекара ішіндегі белгі таңдалды: ' : 'Мәліметтер белгіден толтырылды: ') + '«' + pre.m.name + '». Қажет болса түзетіңіз.'; h.hidden = false;
+      h.textContent = (auto ? tx('Шекара ішіндегі белгі таңдалды: ', 'Выбрана метка внутри границы: ') : tx('Мәліметтер белгіден толтырылды: ', 'Сведения заполнены из метки: ')) + '«' + nmOf(pre.m) + tx('». Қажет болса түзетіңіз.', '». При необходимости исправьте.'); h.hidden = false;
     }
   }
   pendingMark = null;
@@ -167,7 +174,7 @@ function openDialog() {
   const res = moved.find(m => m.node.classList.contains('qa-tablewrap'));
   if (res) {                                       // нәтиже кестесіне тақырып (тек терезеде)
     const h = document.createElement('h3');
-    h.className = 'zd-h'; h.textContent = 'Нәтиже';
+    h.className = 'zd-h'; h.textContent = tx('Нәтиже', 'Результат');
     body.insertBefore(h, res.node);
   }
 
@@ -175,9 +182,9 @@ function openDialog() {
   const showErr = t => { err.textContent = t || ''; err.hidden = !t; };
   async function doSave(asNew) {
     showErr('');
-    const name = $('qaName');
-    if (!name.value.trim()) { showErr('Ескерткіш атауын енгізіңіз.'); name.focus(); return; }
-    if (!ready()) { showErr('Шекара дұрыс емес — кемінде 4 нүкте керек.'); return; }
+    const name = $('qaName'), nameRu = $('qaNameRu');
+    if (!name.value.trim() && !(nameRu && nameRu.value.trim())) { showErr(tx('Ескерткіш атауын енгізіңіз (қазақша не орысша).', 'Введите наименование памятника (по-казахски или по-русски).')); (globalThis.MuraI18n?.ru && nameRu ? nameRu : name).focus(); return; }
+    if (!ready()) { showErr(tx('Шекара дұрыс емес — кемінде 4 нүкте керек.', 'Граница неверна — нужно не менее 4 точек.')); return; }
     const btn = asNew ? $('qaSaveNew') : saveBtn;
     const own = back.querySelectorAll('button');
     own.forEach(b => { b.disabled = true; });
@@ -199,7 +206,7 @@ function openDialog() {
   document.addEventListener('keydown', onKey, true);
   dlg = { back, moved, onKey, prev: document.activeElement };
   app.appendChild(back);
-  const nm = $('qaName');
+  const nm = globalThis.MuraI18n?.ru && $('qaNameRu') ? $('qaNameRu') : $('qaName');
   (nm && !nm.value.trim() ? nm : back.querySelector('#zdSave')).focus({ preventScroll: true });
   back.querySelector('form').scrollTop = 0;              // терезе басынан көрінеді
 }
@@ -225,7 +232,7 @@ async function startFromMark(m) {
   if (add && add.getAttribute('aria-pressed') !== 'true') add.click();
   const map = globalThis.MuraMarks && globalThis.MuraMarks.map;
   if (map) map.flyTo([m.lat, m.lon], Math.max(map.getZoom(), 17), { duration: 0.6 });
-  toast('«' + m.name + '»: шекара нүктелерін қойып, «Аяқтау» басыңыз.');
+  toast('«' + nmOf(m) + tx('»: шекара нүктелерін қойып, «Аяқтау» басыңыз.', '»: поставьте точки границы и нажмите «Завершить».'));
 }
 
 function escapeHtml(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -237,7 +244,8 @@ globalThis.MuraZone = { openDialog, closeDialog, ready, fillFromMark, startFromM
 const savedBox = $('qaSaved');
 if (savedBox) new MutationObserver(() => {
   const e = savedBox.querySelector('.qa-empty');
-  if (e && e.textContent.includes('«Сақтау»')) e.textContent = e.textContent.replace('«Сақтау»', '«Аяқтау»');
+  if (!e) return;
+  for (const [a, b] of [['«Сақтау»', '«Аяқтау»'], ['«Сохранить»', '«Завершить»']]) if (e.textContent.includes(a)) e.textContent = e.textContent.replace(a, b);
 }).observe(savedBox, { childList: true, subtree: true });
 
 /* «Қорғау аймақтары» тізімі: әр жазбада «Өңдеу» — жазбаны ашып, мәліметтер терезесін бірден көрсетеді

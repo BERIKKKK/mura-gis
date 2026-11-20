@@ -18,6 +18,12 @@ const API = 'mura://app/marks?v=1';
 const app = $('qaApp'), mapEl = $('qaMap'), panelEl = $('mkPanel'), modeBtn = $('mkMode'), listBtn = $('mkListBtn');
 const ic = MM.icon || (() => '');
 const REG = globalThis.MuraRegions;
+const I18N = globalThis.MuraI18n || { ru: false, local: o => o, field: (o, k) => o[k] || '', docLang: () => 'kk', biField: null, missing: () => [] };
+const tx = (kk, ru) => (I18N.ru ? ru : kk);
+const UI = I18N.ru ? 'ru' : 'kk';
+/** Белгі интерфейс тілінде: атауы, мерзімі, жері — сол тілдегі мәні (бос болса — екінші тілдегісі). */
+const view = m => I18N.local(m, UI);
+const docLang = () => I18N.docLang();
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -44,7 +50,7 @@ async function api(op, data) {
   for (const [k, v] of Object.entries(data || {})) fd.append(k, v);
   const r = await fetch(API + '&op=' + op, { method: 'POST', body: fd });
   const j = await r.json();
-  if (!j.ok) throw new Error(j.error || 'Сақтау қатесі');
+  if (!j.ok) throw new Error(j.error || tx('Сақтау қатесі', 'Ошибка сохранения'));
   if (Array.isArray(j.items)) { items = j.items; render(); }
   if (Array.isArray(j.imports)) { imports = j.imports; renderImports(); }
   return j;
@@ -89,14 +95,14 @@ function drawMarkers() {
   const labels = $('mkLabels').checked;
   for (const m of items) {
     const mk = L.marker([m.lat, m.lon], { icon: pinIcon(m), draggable: marking, keyboard: true, title: '', riseOnHover: true, autoPan: true });
-    mk.bindTooltip(esc(m.name), { direction: 'top', permanent: labels, className: 'mk-tip' + (labels ? ' is-perm' : '') });
+    mk.bindTooltip(esc(view(m).name), { direction: 'top', permanent: labels, className: 'mk-tip' + (labels ? ' is-perm' : '') });
     mk.on('click', () => { if (!dragging) openDialog(m); });
     mk.on('contextmenu', ev => { L.DomEvent.preventDefault(ev.originalEvent); globalThis.MuraCtx?.forMark(m, ev); });
     mk.on('dragstart', () => { dragging = true; });
     mk.on('dragend', async () => {
       setTimeout(() => { dragging = false; }, 50);
       const p = mk.getLatLng();
-      try { await saveMark({ ...m, lat: p.lat, lon: p.lng }); toast('«' + m.name + '» жылжытылды: ' + coordLines({ lat: p.lat, lon: p.lng }).join(', ')); }
+      try { await saveMark({ ...m, lat: p.lat, lon: p.lng }); toast(tx('«' + view(m).name + '» жылжытылды: ', 'Метка «' + view(m).name + '» перемещена: ') + coordLines({ lat: p.lat, lon: p.lng }).join(', ')); }
       catch (e) { toast(e.message, true); drawMarkers(); }
     });
     mk.addTo(layer);
@@ -158,10 +164,10 @@ function parseLatLon(latS, lonS) {
     if (parts.length === 2) { latS = parts[0]; lonS = parts[1]; }
   }
   const a = parseOne(latS), b = parseOne(lonS);
-  if (a.err) return { err: 'Ендік: ' + a.err };
-  if (b.err) return { err: 'Бойлық: ' + b.err };
-  if (Math.abs(a.v) > 90) return { err: 'Ендік ±90° аралығында болуы керек' };
-  if (Math.abs(b.v) > 180) return { err: 'Бойлық ±180° аралығында болуы керек' };
+  if (a.err) return { err: tx('Ендік: ', 'Широта: ') + a.err };
+  if (b.err) return { err: tx('Бойлық: ', 'Долгота: ') + b.err };
+  if (Math.abs(a.v) > 90) return { err: tx('Ендік ±90° аралығында болуы керек', 'Широта должна быть в пределах ±90°') };
+  if (Math.abs(b.v) > 180) return { err: tx('Бойлық ±180° аралығында болуы керек', 'Долгота должна быть в пределах ±180°') };
   return { lat: a.v, lon: b.v };
 }
 
@@ -171,7 +177,7 @@ function openDialog(m, o = {}) {
   const isNew = !m.id;
   const def = lastDefaults();
   const v = {
-    name: '', period: '', place: '', note: '',
+    name: '', period: '', place: '', note: '', name_ru: '', period_ru: '', place_ru: '', note_ru: '',
     oblast: REG ? REG.remembered() : (def.oblast || 'Ақтөбе облысы'),
     type: def.type || 'archeo', category: def.category ?? 'local', status: def.status || 'state',
     ...m,
@@ -186,9 +192,11 @@ function openDialog(m, o = {}) {
   back.innerHTML =
     '<form class="qa-dlg qa-glass mk-dlg" role="dialog" aria-modal="true" aria-labelledby="mkDlgT" novalidate>' +
       '<h3 id="mkDlgT"><span class="mk-sym" id="mkSym"></span>' + esc(o.title || (isNew ? 'Жаңа ескерткіш белгісі' : 'Ескерткіш белгісі')) + '</h3>' +
-      '<div class="qa-f"><label for="mkName">Атауы <span class="mk-req">*</span></label><input type="text" id="mkName" name="name" maxlength="200" required placeholder="Мысалы: Қабантау-V қорғаны" value="' + esc(v.name) + '">' +
-        '<p class="qa-hint mk-key" id="mkKey" hidden></p></div>' +
-      '<div class="qa-f"><label for="mkPeriod">Мерзімі (дәуірі)</label><input type="text" id="mkPeriod" name="period" maxlength="120" placeholder="б.з.б. VII–IV ғасырлар" value="' + esc(v.period) + '"></div>' +
+      // Мәтіндік өрістер екі тілде: ҚАЗ / РУС (құжат қай тілде шықса, сол тілдегісі алынады)
+      I18N.biField({ id: 'mkName', name: 'name', label: tx('Атауы', 'Наименование'), req: true, kk: v.name, ru: v.name_ru, max: 200,
+        ph: 'Мысалы: Қабантау-V қорғаны', phRu: 'Например: Курган Кабантау-V', hint: '<p class="qa-hint mk-key" id="mkKey" hidden></p>' }) +
+      I18N.biField({ id: 'mkPeriod', name: 'period', label: tx('Мерзімі (дәуірі)', 'Датировка (эпоха)'), kk: v.period, ru: v.period_ru, max: 120,
+        ph: 'б.з.б. VII–IV ғасырлар', phRu: 'VII–IV века до н. э.' }) +
       '<div class="qa-row2">' +
         '<div class="qa-f"><label for="mkOblast">Облыс / республикалық қала</label>' + (REG
           ? '<select id="mkOblast" name="oblast">' + REG.regionOptions(v.oblast) + '</select>'
@@ -196,7 +204,8 @@ function openDialog(m, o = {}) {
         '<div class="qa-f"><label for="mkDistrict">Аудан / қала</label><select id="mkDistrict" name="district">' + (REG ? REG.unitOptions(v.oblast, v.district) : '<option value="">—</option>' +
           dists.map(d => '<option' + (d === v.district ? ' selected' : '') + '>' + esc(d) + '</option>').join('')) + '</select></div>' +
       '</div>' +
-      '<div class="qa-f"><label for="mkPlace">Орналасқан жері</label><textarea id="mkPlace" name="place" maxlength="1500" rows="2" placeholder="Қос Естек ауылынан 15,8 шақырым батыста, Егінді жылғасының оң жағалауында">' + esc(v.place) + '</textarea></div>' +
+      I18N.biField({ id: 'mkPlace', name: 'place', label: tx('Орналасқан жері', 'Местонахождение'), kk: v.place, ru: v.place_ru, max: 1500, rows: 2,
+        ph: 'Қос Естек ауылынан 15,8 шақырым батыста, Егінді жылғасының оң жағалауында', phRu: 'в 15,8 километрах к западу от села Кос Естек, на правом берегу ручья Егинды' }) +
       '<div class="qa-f"><label for="mkType">Түрі <small class="mk-law">(Заңның 5-бабы)</small></label><select id="mkType" name="type">' + optionsHtml(TYPES, v.type) + '</select></div>' +
       '<div class="qa-row2">' +
         '<div class="qa-f"><label for="mkCat">Санаты <small class="mk-law">(6-бап)</small></label><select id="mkCat" name="category">' + optionsHtml(CATEGORIES, v.category) + '</select></div>' +
@@ -207,7 +216,7 @@ function openDialog(m, o = {}) {
         '<div class="qa-f"><label for="mkLon">Бойлық (E)</label><input type="text" id="mkLon" name="lon" autocomplete="off" spellcheck="false" value="' + esc(o.lonText ?? (v.lon != null ? (+v.lon).toFixed(7) : '')) + '"></div>' +
       '</div>' +
       '<p class="qa-hint mk-coordok" id="mkCoordOk"></p>' +
-      '<div class="qa-f"><label for="mkNote">Ескертпе</label><textarea id="mkNote" name="note" maxlength="3000" rows="2">' + esc(v.note) + '</textarea></div>' +
+      I18N.biField({ id: 'mkNote', name: 'note', label: tx('Ескертпе', 'Примечание'), kk: v.note, ru: v.note_ru, max: 3000, rows: 2 }) +
       '<p class="mk-err" id="mkErr" role="alert" hidden></p>' +
       '<div class="qa-dlg-btns">' +
         (isNew ? '' : '<button type="button" class="lnk lnk--danger mk-del" id="mkDel">Өшіру</button><button type="button" class="lnk" id="mkGo">Картадан көрсету</button><button type="button" class="lnk" id="mkZone" title="Осы ескерткіштің қорғау аймағын белгілеу">Қорғау аймағы</button>') +
@@ -225,21 +234,23 @@ function openDialog(m, o = {}) {
   const temp = isNew && v.lat != null ? L.marker([v.lat, v.lon], { icon: pinIcon(v), interactive: false, opacity: 0.75 }).addTo(map) : null;
 
   function paintKey() {
-    const k = arabizeRoman(F.name.value.trim());
+    const nm = (UI === 'ru' ? F.name_ru.value.trim() || F.name.value.trim() : F.name.value.trim() || F.name_ru.value.trim());
+    const k = arabizeRoman(nm);
     const el = back.querySelector('#mkKey');
-    el.hidden = !F.name.value.trim() || k === F.name.value.trim();
-    el.textContent = 'Сұрыптауда: «' + k + '»';
+    el.hidden = !nm || k === nm;
+    el.textContent = tx('Сұрыптауда: «', 'При сортировке: «') + k + '»';
   }
   function paintCoord() {
     const r = parseLatLon(F.lat.value, F.lon.value);
     const el = back.querySelector('#mkCoordOk');
-    if (r.err) { el.textContent = F.lat.value.trim() || F.lon.value.trim() ? r.err : 'Координатаны енгізіңіз (кез келген пішімде: 50.412345, 50°24′44,4″, 50 24 44.4)'; el.classList.toggle('qa-bad', !!(F.lat.value.trim() || F.lon.value.trim())); return r; }
+    if (r.err) { el.textContent = F.lat.value.trim() || F.lon.value.trim() ? r.err : tx('Координатаны енгізіңіз (кез келген пішімде: 50.412345, 50°24′44,4″, 50 24 44.4)', 'Введите координаты (в любом формате: 50.412345, 50°24′44,4″, 50 24 44.4)'); el.classList.toggle('qa-bad', !!(F.lat.value.trim() || F.lon.value.trim())); return r; }
     el.classList.remove('qa-bad');
     el.textContent = '= ' + coordLines(r).join(', ') + ' (WGS 84)';
     if (temp) { temp.setLatLng([r.lat, r.lon]); temp.setIcon(pinIcon({ type: F.type.value, category: F.category.value, status: F.status.value })); }
     return r;
   }
   F.name.addEventListener('input', paintKey);
+  F.name_ru.addEventListener('input', paintKey);
   if (REG) {
     F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); REG.lock(F.district); });
     REG.lock(F.oblast); REG.lock(F.district);       // жобаның облысы / ауданы — бекітілген
@@ -255,13 +266,14 @@ function openDialog(m, o = {}) {
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    const name = F.name.value.trim();
-    if (!name) { showErr('Ескерткіш атауын енгізіңіз.'); F.name.focus(); return; }
+    const name = F.name.value.trim(), nameRu = F.name_ru.value.trim();
+    if (!name && !nameRu) { showErr(tx('Ескерткіш атауын енгізіңіз (қазақша не орысша).', 'Введите наименование памятника (по-казахски или по-русски).')); (UI === 'ru' ? F.name_ru : F.name).focus(); return; }
     const c = paintCoord();
     if (c.err) { showErr(c.err); F.lat.focus(); return; }
     const rec = {
       id: m.id || '', name, period: F.period.value.trim(), oblast: F.oblast.value.trim(), district: F.district.value,
       place: F.place.value.trim(), type: F.type.value, category: F.category.value, status: F.status.value, note: F.note.value.trim(),
+      name_ru: nameRu, period_ru: F.period_ru.value.trim(), place_ru: F.place_ru.value.trim(), note_ru: F.note_ru.value.trim(),
       lat: c.lat, lon: c.lon,
     };
     const btn = form.querySelector('[type=submit]');
@@ -271,7 +283,7 @@ function openDialog(m, o = {}) {
       store.set(lastKey, JSON.stringify({ oblast: rec.oblast, district: rec.district, type: rec.type, category: rec.category, status: rec.status }));
       if (REG) REG.remember(rec.oblast);          // соңғы облыс — келесі белгіге де, жаңа қорғау аймағына да әдепкі
       closeDialog();
-      toast(isNew ? 'Белгі сақталды: «' + name + '».' : 'Белгі жаңартылды: «' + name + '».');
+      toast((isNew ? tx('Белгі сақталды: «', 'Метка сохранена: «') : tx('Белгі жаңартылды: «', 'Метка обновлена: «')) + view(rec).name + '».');
       if (o.onSaved) o.onSaved(saved);
       if (saved && !map.getBounds().contains([saved.lat, saved.lon])) map.panTo([saved.lat, saved.lon]);
     } catch (ex) { showErr(ex.message); btn.disabled = false; }
@@ -286,12 +298,12 @@ function openDialog(m, o = {}) {
   document.addEventListener('keydown', onKey, true);
   dlg = { back, onKey, temp, prev: document.activeElement };
   app.appendChild(back);
-  (isNew ? F.name : form.querySelector('[type=submit]')).focus();
+  (isNew ? (UI === 'ru' ? F.name_ru : F.name) : form.querySelector('[type=submit]')).focus();
 }
 
 async function removeMark(m) {
-  if (!(await ask('«' + m.name + '» белгісін өшіру керек пе? Бұл әрекетті қайтару мүмкін емес.', { ok: 'Өшіру', danger: true }))) return;
-  try { await api('delete', { id: m.id }); closeDialog(); toast('Белгі өшірілді: «' + m.name + '».'); }
+  if (!(await ask(tx('«' + view(m).name + '» белгісін өшіру керек пе? Бұл әрекетті қайтару мүмкін емес.', 'Удалить метку «' + view(m).name + '»? Это действие нельзя отменить.'), { ok: tx('Өшіру', 'Удалить'), danger: true }))) return;
+  try { await api('delete', { id: m.id }); closeDialog(); toast(tx('Белгі өшірілді: «', 'Метка удалена: «') + view(m).name + '».'); }
   catch (e) { toast(e.message, true); }
 }
 function flyTo(m) {
@@ -359,30 +371,32 @@ $('mkLabels').checked = store.get('mk-labels') === '1';
 function filtered() {
   const fo = $('mkFOblast').value, fc = $('mkFCat').value;
   const q = $('mkQ').value.trim().toLocaleLowerCase('kk'), fd = $('mkFDistrict').value, ft = $('mkFType').value, fs = $('mkFStatus').value;
-  return sortMarks(items.filter(m => {
+  return sortMarks(items.map(view).filter(m => {
     if (fc && (m.category || '—') !== fc) return false;
     if (fo && (m.oblast || '') !== fo) return false;
     if (fd && (fd === '—' ? m.district : m.district !== fd)) return false;
     if (ft && m.type !== ft) return false;
     if (fs && m.status !== fs) return false;
-    if (q && !(m.name + ' ' + (m.period || '') + ' ' + (m.place || '') + ' ' + (m.district || '') + ' ' + arabizeRoman(m.name)).toLocaleLowerCase('kk').includes(q)) return false;
+    if (q && !([m.name, m.name_ru, m.period, m.period_ru, m.place, m.place_ru, m.district, arabizeRoman(m.name), arabizeRoman(m.name_ru)].join(' ')).toLocaleLowerCase('kk').includes(q)) return false;
     return true;
   }));
 }
 
 let titleAuto = true;
 function paintTitle(list) {
-  const secs = sections(list.length ? list : items, '', genitive);
+  const secs = sections(list.length ? list : items, '', genitive, docLang());
   const multi = secs.length > 1;
   $('mkTitle').disabled = multi;
   $('mkTitleMulti').hidden = !multi;
-  $('mkTitleMulti').textContent = multi ? 'Санаттар бойынша ' + secs.length + ' бөлек кесте, әрқайсысы жаңа беттен: ' + secs.map(x => '«' + x.title + '» (' + x.marks.length + ')').join('; ') + '.' : '';
-  if (multi) { $('mkTitle').value = ''; $('mkTitle').placeholder = 'Атаулары санат бойынша өзі құрастырылады'; return; }
+  $('mkTitleMulti').textContent = multi ? tx('Санаттар бойынша ' + secs.length + ' бөлек кесте, әрқайсысы жаңа беттен: ', 'По категориям — отдельных таблиц: ' + secs.length + ', каждая с новой страницы: ') + secs.map(x => '«' + x.title + '» (' + x.marks.length + ')').join('; ') + '.' : '';
+  if (multi) { $('mkTitle').value = ''; $('mkTitle').placeholder = tx('Атаулары санат бойынша өзі құрастырылады', 'Названия составляются автоматически по категориям'); return; }
   $('mkTitle').placeholder = '';
   if (titleAuto || !$('mkTitle').value) $('mkTitle').value = (secs[0] ? secs[0].title : '').replace(/^./, c => c.toUpperCase());
 }
 $('mkTitle').addEventListener('input', () => { titleAuto = false; });
 $('mkTitleAuto').addEventListener('click', () => { titleAuto = true; paintTitle(filtered()); });
+// Құжат тілі ауысса — тізім атауы сол тілде қайта құрастырылады
+document.addEventListener('mura:doclang', () => { titleAuto = true; paintTitle(filtered()); });
 
 function render() {
   $('mkCount').textContent = items.length;
@@ -391,21 +405,21 @@ function render() {
   // Облыс сүзгісі (бірден көп облыс болса ғана көрінеді) және аудан сүзгісі — бар белгілердің мәндері
   const os = $('mkFOblast'), oc = os.value;
   const obs = [...new Set(items.map(m => m.oblast).filter(Boolean))].sort(compareText);
-  os.innerHTML = '<option value="">Барлық облыс</option>' + obs.map(o => '<option' + (o === oc ? ' selected' : '') + '>' + esc(o) + '</option>').join('');
+  os.innerHTML = '<option value="">Барлық облыс</option>' + obs.map(o => '<option value="' + esc(o) + '"' + (o === oc ? ' selected' : '') + '>' + esc(REG ? REG.show(o) : o) + '</option>').join('');
   if (![...os.options].some(o => o.value === oc)) os.value = '';
   os.hidden = obs.length < 2 && !os.value;
   $('mkFilters').classList.toggle('has-ob', !os.hidden);
   const sel = $('mkFDistrict'), cur = sel.value, inOb = items.filter(m => !os.value || m.oblast === os.value);
   const ds = [...new Set(inOb.map(m => m.district).filter(Boolean))].sort(compareText);
   const hasNone = inOb.some(m => !m.district);
-  sel.innerHTML = '<option value="">Барлық аудан</option>' + ds.map(d => '<option' + (d === cur ? ' selected' : '') + '>' + esc(d) + '</option>').join('') +
+  sel.innerHTML = '<option value="">Барлық аудан</option>' + ds.map(d => '<option value="' + esc(d) + '"' + (d === cur ? ' selected' : '') + '>' + esc(REG ? REG.show(d, os.value) : d) + '</option>').join('') +
     (hasNone ? '<option value="—"' + (cur === '—' ? ' selected' : '') + '>Ауданы көрсетілмеген</option>' : '');
   if (![...sel.options].some(o => o.value === cur)) sel.value = '';
   if (!open) return;
   const list = filtered();
   for (const id of [...selected]) if (!items.some(m => m.id === id)) selected.delete(id);
   paintSel(list);
-  $('mkInfo').textContent = list.length === items.length ? items.length + ' белгі' : list.length + ' / ' + items.length + ' белгі';
+  $('mkInfo').textContent = (list.length === items.length ? items.length : list.length + ' / ' + items.length) + tx(' белгі', ' меток');
   for (const id of ['mkGeo', 'mkDocx', 'mkPdf']) $(id).disabled = !list.length;
   paintTitle(list);
   const box = $('mkList');
@@ -418,10 +432,11 @@ function render() {
   for (const m of list) {
     const c = categoryOf(m.category);
     if (multiC && c.v !== lastC) { html += '<div class="mk-chead"><i style="background:' + c.fill + ';border-color:' + c.outline + '"></i>' + esc(c.label) + '</div>'; lastC = c.v; lastD = null; }
-    const d = (multiOb && m.oblast ? m.oblast + ' · ' : '') + (m.district || (multiOb ? 'ауданы көрсетілмеген' : 'Ауданы көрсетілмеген'));
+    const sh = (n, r) => (REG ? REG.show(n, r) : n);
+    const d = (multiOb && m.oblast ? sh(m.oblast) + ' · ' : '') + (m.district ? sh(m.district, m.oblast) : (multiOb ? tx('ауданы көрсетілмеген', 'район не указан') : tx('Ауданы көрсетілмеген', 'Район не указан')));
     if (d !== lastD) { html += '<div class="mk-dhead">' + esc(d) + '</div>'; lastD = d; }
     html += '<div class="qa-sc mk-card' + (selected.has(m.id) ? ' is-sel' : '') + '" data-id="' + esc(m.id) + '">' +
-      '<input type="checkbox" data-sel' + (selected.has(m.id) ? ' checked' : '') + ' aria-label="' + esc(m.name) + ' — таңдау">' +
+      '<input type="checkbox" data-sel' + (selected.has(m.id) ? ' checked' : '') + ' aria-label="' + esc(m.name) + tx(' — таңдау', ' — выбрать') + '">' +
       '<span class="mk-sym' + (m.status === 'excluded' ? ' is-excl' : '') + '" title="' + esc(categoryOf(m.category).label) + '">' + symbolSvg(m.type, m.category, 22) + '</span>' +
       '<div class="qa-sc-main"><button type="button" class="qa-sc-title" data-act="go" title="Картадан көрсету">' + esc(nameCell(m)) + '</button>' +
       '<div class="qa-sc-meta">' + esc(typeOf(m.type).label) + (categoryOf(m.category).adj ? ' · ' + esc(categoryOf(m.category).adj) : '') +
@@ -461,13 +476,13 @@ $('mkSelAll').addEventListener('change', e => {
 $('mkSelDel').addEventListener('click', async () => {
   const ids = [...selected].filter(id => items.some(m => m.id === id));
   if (!ids.length) return;
-  const names = ids.slice(0, 5).map(id => '«' + items.find(m => m.id === id).name + '»').join(', ') + (ids.length > 5 ? ' және тағы ' + (ids.length - 5) : '');
-  if (!(await ask(ids.length + ' ескерткіш белгісі өшіріледі: ' + names + '. Бұл әрекетті қайтару мүмкін емес. Жалғастырасыз ба?', { ok: 'Өшіру (' + ids.length + ')', danger: true }))) return;
+  const names = ids.slice(0, 5).map(id => '«' + view(items.find(m => m.id === id)).name + '»').join(', ') + (ids.length > 5 ? tx(' және тағы ', ' и ещё ') + (ids.length - 5) : '');
+  if (!(await ask(tx(ids.length + ' ескерткіш белгісі өшіріледі: ' + names + '. Бұл әрекетті қайтару мүмкін емес. Жалғастырасыз ба?', 'Будут удалены метки памятников (' + ids.length + '): ' + names + '. Это действие нельзя отменить. Продолжить?'), { ok: tx('Өшіру', 'Удалить') + ' (' + ids.length + ')', danger: true }))) return;
   try {
     const j = await api('delete', { id: ids.join(',') });
     ids.forEach(id => selected.delete(id));
     render();
-    toast((j.removed ?? ids.length) + ' белгі өшірілді.');
+    toast(tx((j.removed ?? ids.length) + ' белгі өшірілді.', 'Удалено меток: ' + (j.removed ?? ids.length) + '.'));
   } catch (err) { toast(err.message, true); }
 });
 
@@ -499,10 +514,19 @@ function loadFflate() {
     document.head.appendChild(sc);
   });
 }
-const exportTitle = () => $('mkTitle').value.trim() || defaultTitle(filtered(), genitive);
-/** Экспорт бөлімдері: санат бойынша бөлек кестелер (бір санат болса — панельдегі атаумен). */
-const exportSections = (list = filtered()) => sections(list, $('mkTitle').disabled ? '' : $('mkTitle').value.trim(), genitive);
-const docTitle = secs => secs.length === 1 ? secs[0].title : 'Тарих және мәдениет ескерткіштерінің тізімі';
+const exportTitle = () => $('mkTitle').value.trim() || defaultTitle(filtered(), genitive, docLang());
+/** Экспорт бөлімдері: санат бойынша бөлек кестелер (бір санат болса — панельдегі атаумен); тілі — «Құжат тілі» (интерфейстен тәуелсіз).
+    Деректер түпнұсқа жазбалардан (екі тілдегі өрістерімен) алынады. */
+const raw = list => list.map(m => items.find(x => x.id === m.id) || m);
+const exportSections = (list = filtered(), lang = docLang()) => sections(raw(list), $('mkTitle').disabled ? '' : $('mkTitle').value.trim(), genitive, lang);
+const docTitle = (secs, lang = docLang()) => secs.length === 1 ? secs[0].title : (lang === 'ru' ? 'Список памятников истории и культуры' : 'Тарих және мәдениет ескерткіштерінің тізімі');
+/** Құжат тілінде толтырылмаған өрістер — ескерту (бос өріс екінші тілдегі мәнмен алынады). */
+function warnMissing(list, lang) {
+  const n = raw(list).filter(m => I18N.missing(m, ['name', 'period', 'place'], lang).length).length;
+  if (n) toast(lang === 'ru'
+    ? tx(n + ' ескерткіштің орысша мәліметтері толық емес — олардың орнына қазақшасы алынды.', 'У ' + n + ' памятников не заполнены русские сведения — вместо них взяты казахские.')
+    : tx(n + ' ескерткіштің қазақша мәліметтері толық емес — олардың орнына орысшасы алынды.', 'У ' + n + ' памятников не заполнены казахские сведения — вместо них взяты русские.'), true);
+}
 const fileName = ext => 'eskertkishter_tizimi_' + new Date().toISOString().slice(0, 10) + '.' + ext;
 async function busy(label, fn) {
   const el = $('mkBusy');
@@ -510,20 +534,21 @@ async function busy(label, fn) {
   try { await fn(); el.textContent = ''; }
   catch (e) { el.textContent = ''; toast(e.message || String(e), true); }
 }
-async function buildDocx(list = filtered()) { const secs = exportSections(list); return docxBlob(secs, docTitle(secs), await loadFflate()); }
-async function buildPdf(list = filtered()) {
-  const secs = exportSections(list);
-  if (!globalThis.mura || !globalThis.mura.pdf) throw new Error('PDF тек Mura GIS бағдарламасында жасалады.');
-  const bytes = await globalThis.mura.pdf(pdfHtml(secs, docTitle(secs)));
+async function buildDocx(list = filtered(), lang = docLang()) { const secs = exportSections(list, lang); warnMissing(list, lang); return docxBlob(secs, docTitle(secs, lang), await loadFflate(), lang); }
+async function buildPdf(list = filtered(), lang = docLang()) {
+  const secs = exportSections(list, lang);
+  warnMissing(list, lang);
+  if (!globalThis.mura || !globalThis.mura.pdf) throw new Error(tx('PDF тек Mura GIS бағдарламасында жасалады.', 'PDF создаётся только в программе Mura GIS.'));
+  const bytes = await globalThis.mura.pdf(pdfHtml(secs, docTitle(secs, lang), lang));
   return new Blob([bytes], { type: 'application/pdf' });
 }
 $('mkGeo').addEventListener('click', () => {
   const list = filtered();
-  download(JSON.stringify(geojson(list, exportTitle()), null, 2), 'application/geo+json', fileName('geojson'));
-  toast('GeoJSON: ' + list.length + ' нүкте.');
+  download(JSON.stringify(geojson(raw(list), exportTitle()), null, 2), 'application/geo+json', fileName('geojson'));
+  toast('GeoJSON: ' + list.length + tx(' нүкте.', ' точек.'));
 });
-$('mkDocx').addEventListener('click', () => busy('Word құжаты жасалуда…', async () => { download(await buildDocx(), '', fileName('docx')); }));
-$('mkPdf').addEventListener('click', () => busy('PDF жасалуда…', async () => { download(await buildPdf(), '', fileName('pdf')); }));
+$('mkDocx').addEventListener('click', () => busy(tx('Word құжаты жасалуда…', 'Создаётся документ Word…'), async () => { download(await buildDocx(), '', fileName('docx')); }));
+$('mkPdf').addEventListener('click', () => busy(tx('PDF жасалуда…', 'Создаётся PDF…'), async () => { download(await buildPdf(), '', fileName('pdf')); }));
 
 /* ======================= Импорт ======================= */
 // KML, KMZ, GPX және сырттағы GeoJSON — «Импортталғандарға»: «Сәйкестендіру» басылмайынша белгі емес.
@@ -533,10 +558,10 @@ $('mkGeoFile').addEventListener('change', async e => {
   const files = [...(e.target.files || [])];
   e.target.value = '';
   for (const f of files) {
-    await busy('Импортталуда: ' + f.name + '…', async () => {
+    await busy(tx('Импортталуда: ', 'Импорт: ') + f.name + '…', async () => {
       if (/\.(kml|kmz|gpx)$/i.test(f.name)) {
         const pts = await parseGeoFile(f, /\.kmz$/i.test(f.name) ? await loadFflate() : null);
-        if (!pts.length) throw new Error(f.name + ': нүкте табылмады.');
+        if (!pts.length) throw new Error(f.name + tx(': нүкте табылмады.', ': точки не найдены.'));
         const r = await api('iadd', { data: JSON.stringify(pts) });
         toast(f.name + ': ' + r.added + ' нүкте импортталды' + (r.skipped ? ', ' + r.skipped + ' қайталанған не қате нүкте алынбады' : '') + '. Оларды «Импортталғандар» қойындысынан сәйкестендіріңіз.');
         setTab('imp');
@@ -545,10 +570,10 @@ $('mkGeoFile').addEventListener('change', async e => {
         return;
       }
       let o;
-      try { o = JSON.parse(await f.text()); } catch (ex) { throw new Error(f.name + ': файл оқылмады (JSON емес).'); }
+      try { o = JSON.parse(await f.text()); } catch (ex) { throw new Error(f.name + tx(': файл оқылмады (JSON емес).', ': не удалось прочитать файл (не JSON).')); }
       if (!isMuraMarks(o)) {
         const pts = parseGeojsonPoints(o, f.name);
-        if (!pts.length) throw new Error(f.name + ': нүкте не полигон табылмады.');
+        if (!pts.length) throw new Error(f.name + tx(': нүкте не полигон табылмады.', ': точки или полигоны не найдены.'));
         const r = await api('iadd', { data: JSON.stringify(pts) });
         toast(f.name + ': ' + r.added + ' нүкте импортталды' + (r.skipped ? ', ' + r.skipped + ' қайталанған не қате нүкте алынбады' : '') + '. Оларды «Импортталғандар» қойындысынан сәйкестендіріңіз.');
         setTab('imp');
@@ -557,9 +582,9 @@ $('mkGeoFile').addEventListener('change', async e => {
         return;
       }
       const list = fromGeojson(o).filter(m => m.name && isFinite(m.lat) && isFinite(m.lon));
-      if (!list.length) throw new Error(f.name + ': атауы бар нүкте (Point) табылмады.');
+      if (!list.length) throw new Error(f.name + tx(': атауы бар нүкте (Point) табылмады.', ': не найдены точки (Point) с наименованием.'));
       const r = await api('import', { data: JSON.stringify(list) });
-      toast('Қосылды: ' + r.added + ', жаңартылды: ' + r.updated + (r.skipped ? ', қабылданбады: ' + r.skipped : '') + '.');
+      toast(tx('Қосылды: ', 'Добавлено: ') + r.added + tx(', жаңартылды: ', ', обновлено: ') + r.updated + (r.skipped ? tx(', қабылданбады: ', ', не принято: ') + r.skipped : '') + '.');
       setTab('marks');
     });
   }
@@ -620,18 +645,19 @@ for (const id of ['mkIQ', 'mkIFile']) $(id).addEventListener(id === 'mkIQ' ? 'in
     сақталғанда нүкте импорттан алынады. */
 function identify(x) {
   const note = [x.desc, 'Импорт: ' + [x.file, x.folder].filter(Boolean).join(' / ')].filter(Boolean).join('\n');
-  openDialog({ name: x.name || '', note, lat: x.lat, lon: x.lon }, {
-    title: 'Импортталған нүктені сәйкестендіру',
+  // Импортталған атау мен сипаттама — интерфейс тіліндегі өріске
+  openDialog(UI === 'ru' ? { name_ru: x.name || '', note_ru: note, lat: x.lat, lon: x.lon } : { name: x.name || '', note, lat: x.lat, lon: x.lon }, {
+    title: tx('Импортталған нүктені сәйкестендіру', 'Сопоставление импортированной точки'),
     onSaved: async () => { try { await api('idel', { id: x.id }); } catch (e) { toast(e.message, true); } },
   });
 }
 async function removeImport(x) {
-  try { await api('idel', { id: x.id }); toast('Импорттан өшірілді: «' + (x.name || '(атаусыз)') + '».'); }
+  try { await api('idel', { id: x.id }); toast(tx('Импорттан өшірілді: «', 'Удалено из импорта: «') + (x.name || tx('(атаусыз)', '(без названия)')) + '».'); }
   catch (e) { toast(e.message, true); }
 }
 $('mkIDelAll').addEventListener('click', async () => {
-  if (!(await ask('Барлық импортталған нүкте (' + imports.length + ') тізімнен өшірілсін бе? Сәйкестендірілген белгілерге әсер етпейді.', { ok: 'Өшіру', danger: true }))) return;
-  try { await api('idel', { id: 'all' }); toast('Импортталғандар тазаланды.'); } catch (e) { toast(e.message, true); }
+  if (!(await ask(tx('Барлық импортталған нүкте (' + imports.length + ') тізімнен өшірілсін бе? Сәйкестендірілген белгілерге әсер етпейді.', 'Удалить из списка все импортированные точки (' + imports.length + ')? Сопоставленные метки не затрагиваются.'), { ok: tx('Өшіру', 'Удалить'), danger: true }))) return;
+  try { await api('idel', { id: 'all' }); toast(tx('Импортталғандар тазаланды.', 'Импортированные точки удалены.')); } catch (e) { toast(e.message, true); }
 });
 
 function filteredImports() {
@@ -649,7 +675,7 @@ function renderImports() {
   if (!open || tab !== 'imp') return;
   $('mkIDelAll').hidden = !imports.length;
   const list = filteredImports();
-  $('mkIInfo').textContent = list.length === imports.length ? imports.length + ' нүкте' : list.length + ' / ' + imports.length + ' нүкте';
+  $('mkIInfo').textContent = (list.length === imports.length ? imports.length : list.length + ' / ' + imports.length) + tx(' нүкте', ' точек');
   const box = $('mkImpList');
   if (!imports.length) { box.innerHTML = '<div class="qa-empty">Импортталған нүкте жоқ. Құралдар жолағындағы «Импорт» арқылы KML, KMZ, GPX не GeoJSON файлын таңдаңыз.</div>'; return; }
   if (!list.length) { box.innerHTML = '<div class="qa-empty">Сүзгіге сай нүкте табылмады.</div>'; return; }
@@ -664,7 +690,7 @@ function renderImports() {
       '<div class="qa-sc-act"><button type="button" class="lnk mk-ident" data-iact="ident">Сәйкестендіру</button><button type="button" class="lnk" data-iact="go">Картадан көрсету</button>' +
       '<button type="button" class="lnk lnk--danger" data-iact="del">Өшіру</button></div></div></div>';
   }
-  if (list.length > 1000) html += '<div class="qa-empty">Тағы ' + (list.length - 1000) + ' нүкте — іздеу не файл сүзгісін қолданыңыз.</div>';
+  if (list.length > 1000) html += '<div class="qa-empty">' + tx('Тағы ' + (list.length - 1000) + ' нүкте — іздеу не файл сүзгісін қолданыңыз.', 'Ещё точек: ' + (list.length - 1000) + ' — воспользуйтесь поиском или фильтром по файлу.') + '</div>';
   box.innerHTML = html;
 }
 $('mkImpList').addEventListener('click', e => {
@@ -685,6 +711,6 @@ $('mkLegend').innerHTML = CATEGORIES.slice().sort((a, b) => a.order - b.order).m
 /* ======================= Іске қосу ======================= */
 paintLayerVisibility();
 paintImpVisibility();
-api('list').catch(e => { toast('Белгілер жүктелмеді: ' + e.message, true); render(); });
+api('list').catch(e => { toast(tx('Белгілер жүктелмеді: ', 'Метки не загружены: ') + e.message, true); render(); });
 
 globalThis.__marks = { symbolSvg, exportSections, get imports() { return imports; }, setTab, identify, get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };

@@ -161,3 +161,20 @@ body.mura .qa-rlbl { position: relative; padding-left: 20px; }
 .wb-side--a { right: 10px; }
 .wb-side--b { left: 10px; }
 .wb-side:empty { display: none; }
+
+/* ===== Екі тілдегі өрістер (js/i18n.js: biField / biPair): «ҚАЗ» және «РУС» ===== */
+.mura-bi-row{display:flex;gap:6px;align-items:flex-start}
+.mura-bi-row + .mura-bi-row{margin-top:6px}
+.mura-bi-tag{flex:0 0 34px;text-align:center;font:700 10px/1 system-ui,sans-serif;letter-spacing:.04em;color:var(--steppe);background:var(--paper2);border-radius:6px;padding:6px 0;margin-top:8px;user-select:none}
+.mura-bi-row > input,.mura-bi-row > textarea{flex:1 1 auto;min-width:0;width:auto}
+.mura-doclang select{width:auto;padding:4px 8px}
+
+/* ===== Тіл таңдау (бастапқы терезе, «Баптаулар → Тіл / Язык») ===== */
+.mura-langsw{display:inline-flex;gap:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--white);flex:0 0 auto}
+.mura-langb{border:0;background:none;padding:6px 12px;font:600 13px/1.2 inherit;font-family:inherit;color:var(--soft);cursor:pointer}
+.mura-langb + .mura-langb{border-left:1px solid var(--line)}
+.mura-langb[aria-pressed="true"]{background:var(--steppe);color:#fff}
+.mura-langb:not([aria-pressed="true"]):hover{color:var(--ink);background:var(--paper2)}
+.mura-start-lang{margin-left:auto}
+.mura-set-h{margin:14px 0 8px;font-size:13.5px}
+.mura-set-h:first-child{margin-top:4px}

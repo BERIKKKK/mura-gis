@@ -6,6 +6,7 @@
    Жауап: { ok, items, id, added, updated, skipped, error }. */
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { tx } = require('./lang');
 
 const LIMITS = { name: 200, a_name: 120, b_name: 120, note: 3000 };
 const VEHICLES = ['car', '4x4', 'foot'];
@@ -30,15 +31,15 @@ class RoutesStore {
 
   /** Бір маршрутты тексеріп, қалыпқа келтіру (қате болса — Error). */
   static clean(d) {
-    if (!d || typeof d !== 'object') throw new Error('Дерек оқылмады.');
+    if (!d || typeof d !== 'object') throw new Error(tx('Дерек оқылмады.', 'Не удалось прочитать данные.'));
     const pts = (Array.isArray(d.pts) ? d.pts : []).map(p => [Number(p && p[0]), Number(p && p[1])])
       .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180)
       .map(p => [Math.round(p[0] * 1e7) / 1e7, Math.round(p[1] * 1e7) / 1e7]);
-    if (pts.length < 2) throw new Error('Маршрутта кемінде 2 нүкте болуы керек.');
-    if (pts.length > MAX_PTS) throw new Error('Маршруттың нүктесі тым көп (' + MAX_PTS + '-нан аспауы керек).');
+    if (pts.length < 2) throw new Error(tx('Маршрутта кемінде 2 нүкте болуы керек.', 'В маршруте должно быть не менее 2 точек.'));
+    if (pts.length > MAX_PTS) throw new Error(tx('Маршруттың нүктесі тым көп (' + MAX_PTS + '-нан аспауы керек).', 'Слишком много точек в маршруте (не более ' + MAX_PTS + ').'));
     const f = {};
     for (const [k, max] of Object.entries(LIMITS)) f[k] = [...String(d[k] ?? '').trim()].slice(0, max).join('');
-    if (!f.name) f.name = [f.a_name, f.b_name].filter(Boolean).join(' — ') || 'Атаусыз маршрут';
+    if (!f.name) f.name = [f.a_name, f.b_name].filter(Boolean).join(' — ') || tx('Атаусыз маршрут', 'Маршрут без названия');
     const vehicle = VEHICLES.includes(d.vehicle) ? d.vehicle : '4x4';
     const season = SEASONS.includes(d.season) ? d.season : 'all';
     const checked = /^\d{4}-\d{2}-\d{2}$/.test(String(d.checked || '')) ? String(d.checked) : '';
@@ -65,7 +66,7 @@ class RoutesStore {
   remove(id) {
     const items = this.load();
     const i = items.findIndex(x => x.id === String(id || ''));
-    if (i < 0) throw new Error('Маршрут табылмады.');
+    if (i < 0) throw new Error(tx('Маршрут табылмады.', 'Маршрут не найден.'));
     items.splice(i, 1);
     this.write(items);
   }
@@ -74,8 +75,8 @@ class RoutesStore {
   importMany(raw) {
     let list;
     try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
-    if (!Array.isArray(list)) throw new Error('Маршруттар тізімі оқылмады.');
-    if (list.length > 5000) throw new Error('Бір файлда маршрут тым көп (5000-нан аспауы керек).');
+    if (!Array.isArray(list)) throw new Error(tx('Маршруттар тізімі оқылмады.', 'Не удалось прочитать список маршрутов.'));
+    if (list.length > 5000) throw new Error(tx('Бір файлда маршрут тым көп (5000-нан аспауы керек).', 'Слишком много маршрутов в одном файле (не более 5000).'));
     const items = this.load();
     const now = new Date().toISOString();
     let added = 0, updated = 0, skipped = 0;
@@ -99,13 +100,13 @@ class RoutesStore {
     const op = url.searchParams.get('op') || '';
     const out = o => new Response(JSON.stringify(o), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
     try {
-      if (request.method !== 'POST') return out({ ok: false, error: 'POST керек.' });
+      if (request.method !== 'POST') return out({ ok: false, error: tx('POST керек.', 'Нужен POST.') });
       const fd = await request.formData();
       if (op === 'list') return out({ ok: true, items: this.list() });
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
       if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, items: this.list() }); }
       if (op === 'import') { const r = this.importMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
-      return out({ ok: false, error: 'Белгісіз әрекет.' });
+      return out({ ok: false, error: tx('Белгісіз әрекет.', 'Неизвестное действие.') });
     } catch (e) {
       return out({ ok: false, error: e.message || String(e) });
     }

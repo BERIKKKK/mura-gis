@@ -15,6 +15,8 @@ const { noTable } = require('./gpkg');
 const { find: findRegion } = require('./regions');
 const gpkgRead = require('./gpkg-read');
 const updates = require('./updates');
+const lang = require('./lang');
+const { tx } = lang;
 
 const SRC = path.join(__dirname, '..', 'src');
 const REPO_URL = 'https://github.com/BERIKKKK/mura-gis';
@@ -44,6 +46,14 @@ function bindStores() {
 }
 
 ipcMain.on('mura:version', e => { e.returnValue = app.getVersion(); });
+ipcMain.on('mura:lang', e => { e.returnValue = lang.get(); });
+/** Интерфейс тілін ауыстыру («Баптаулар» терезесінен): баптау сақталады, мәзір қайта құрылады; бетті беттің өзі қайта жүктейді. */
+ipcMain.handle('mura:set-lang', (e, v) => {
+  if (!fromApp(e) || !lang.LANGS.includes(v)) return { ok: false };
+  lang.set(v);
+  buildMenu();
+  return { ok: true, lang: lang.get() };
+});
 ipcMain.on('mura:project-info', e => { e.returnValue = projects ? projects.info() : { current: null, recent: [], legacy: null }; });
 
 /* Алмасу буфері (картаның оң жақ мәзірі: координатаны көшіру / қою) — тек бағдарламаның өз бетінен */
@@ -54,8 +64,8 @@ ipcMain.handle('mura:clip-write', (e, text) => { if (fromApp(e) && typeof text =
 /* Ескерткіштер тізімін PDF-ке айналдыру: бет дайын HTML-ді жібереді, ол жасырын терезеде (JavaScript-сіз)
    ашылып, Chromium-ның өз баспа қозғалтқышымен A4 PDF болады. Файлды сақтау — беттің өзінде (жүктеу терезесі). */
 ipcMain.handle('mura:pdf', async (e, html) => {
-  if (!String(e.senderFrame && e.senderFrame.url || '').startsWith('mura://app/')) throw new Error('Рұқсат жоқ');
-  if (typeof html !== 'string' || html.length > 20e6) throw new Error('Құжат тым үлкен');
+  if (!String(e.senderFrame && e.senderFrame.url || '').startsWith('mura://app/')) throw new Error(tx('Рұқсат жоқ', 'Нет доступа'));
+  if (typeof html !== 'string' || html.length > 20e6) throw new Error(tx('Құжат тым үлкен', 'Документ слишком большой'));
   const tmp = path.join(app.getPath('temp'), 'mura-pdf-' + process.pid + '-' + Date.now() + '.html');
   fs.writeFileSync(tmp, html);
   const w = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true, spellcheck: false } });
@@ -76,7 +86,7 @@ ipcMain.handle('mura:pdf', async (e, html) => {
 const ok = o => ({ ok: true, ...o });
 const fail = e => ({ ok: false, error: e && e.message || String(e) });
 const guard = fn => async (e, ...a) => {
-  if (!fromApp(e)) return fail('Рұқсат жоқ');
+  if (!fromApp(e)) return fail(tx('Рұқсат жоқ', 'Нет доступа'));
   try { return await fn(...a); } catch (err) { return fail(err); }
 };
 /** Жоба мәліметтерін тексеру: атауы, облыс (тізімнен не бос), аудан (сол облыстікі не бос). */
@@ -84,7 +94,7 @@ function cleanMeta(m) {
   m = m && typeof m === 'object' ? m : {};
   const cut = (v, n) => [...String(v ?? '').trim()].slice(0, n).join('');
   const name = cut(m.name, 120);
-  if (!name) throw new Error('Жоба атауын енгізіңіз.');
+  if (!name) throw new Error(tx('Жоба атауын енгізіңіз.', 'Введите название проекта.'));
   const r = findRegion(cut(m.oblast, 80));
   const oblast = r ? r.name : '';
   const district = r && r.units.includes(cut(m.district, 80)) ? cut(m.district, 80) : '';
@@ -94,12 +104,12 @@ function afterSwitch() {
   bindStores();
   if (win) win.webContents.reload();
 }
-const safeName = s => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || 'Жоба';
+const safeName = s => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || tx('Жоба', 'Проект');
 
 async function newProject(meta, opts) {
   const m = cleanMeta(meta);
   const r = await dialog.showSaveDialog(win, {
-    title: 'Жаңа жобаны сақтау (GeoPackage)',
+    title: tx('Жаңа жобаны сақтау (GeoPackage)', 'Сохранить новый проект (GeoPackage)'),
     defaultPath: path.join(app.getPath('documents'), safeName(m.name) + '.gpkg'),
     filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }],
   });
@@ -114,9 +124,9 @@ async function newProject(meta, opts) {
 async function openProject(file) {
   if (!file) {
     const r = await dialog.showOpenDialog(win, {
-      title: 'Жобаны ашу', properties: ['openFile'],
+      title: tx('Жобаны ашу', 'Открыть проект'), properties: ['openFile'],
       defaultPath: projects.current ? path.dirname(projects.current.file) : app.getPath('documents'),
-      filters: [{ name: 'Mura GIS жобасы (GeoPackage)', extensions: ['gpkg'] }, { name: 'Барлық файлдар', extensions: ['*'] }],
+      filters: [{ name: tx('Mura GIS жобасы (GeoPackage)', 'Проект Mura GIS (GeoPackage)'), extensions: ['gpkg'] }, { name: tx('Барлық файлдар', 'Все файлы'), extensions: ['*'] }],
     });
     if (r.canceled || !r.filePaths[0]) return ok({ canceled: true });
     file = r.filePaths[0];
@@ -127,12 +137,14 @@ async function openProject(file) {
   if (fs.existsSync(file) && !gpkgRead.isMuraProject(file)) {
     const cur = !!projects.current;
     const r = await dialog.showMessageBox(win, {
-      type: 'question', title: 'Бөтен GeoPackage',
-      message: path.basename(file) + ' — Mura GIS жобасы емес.',
+      type: 'question', title: tx('Бөтен GeoPackage', 'Сторонний GeoPackage'),
+      message: path.basename(file) + tx(' — Mura GIS жобасы емес.', ' — не проект Mura GIS.'),
       detail: cur
-        ? 'Оның қабаттарын (ескерткіштер, ескерткіш аумақтары, қорғау аймақтары, маршруттар) ашық «' + projects.info().current.name + '» жобасына импорттауға болады: атрибуттар сәйкестендіріледі, аймақтар заңнамаға сәйкестігі тексеріледі. Файлдың өзі өзгермейді.'
-        : 'Деректерін алу үшін алдымен жаңа жоба құрып, «Файл → GeoPackage-тен импорттау» арқылы қабаттарын импорттаңыз (файлдың өзі өзгермейді). Не файлды жоба ретінде ашуға болады — оған Mura GIS қабаттары қосылады.',
-      buttons: cur ? ['Жобаға импорттау…', 'Жоба ретінде ашу', 'Бас тарту'] : ['Жоба ретінде ашу', 'Бас тарту'],
+        ? tx('Оның қабаттарын (ескерткіштер, ескерткіш аумақтары, қорғау аймақтары, маршруттар) ашық «' + projects.info().current.name + '» жобасына импорттауға болады: атрибуттар сәйкестендіріледі, аймақтар заңнамаға сәйкестігі тексеріледі. Файлдың өзі өзгермейді.',
+          'Его слои (памятники, территории памятников, охранные зоны, маршруты) можно импортировать в открытый проект «' + projects.info().current.name + '»: атрибуты будут сопоставлены, зоны проверены на соответствие законодательству. Сам файл не изменяется.')
+        : tx('Деректерін алу үшін алдымен жаңа жоба құрып, «Файл → GeoPackage-тен импорттау» арқылы қабаттарын импорттаңыз (файлдың өзі өзгермейді). Не файлды жоба ретінде ашуға болады — оған Mura GIS қабаттары қосылады.',
+          'Чтобы взять его данные, сначала создайте новый проект и импортируйте слои через «Файл → Импорт из GeoPackage» (сам файл не изменяется). Или откройте файл как проект — в него будут добавлены слои Mura GIS.'),
+      buttons: cur ? [tx('Жобаға импорттау…', 'Импортировать в проект…'), tx('Жоба ретінде ашу', 'Открыть как проект'), tx('Бас тарту', 'Отмена')] : [tx('Жоба ретінде ашу', 'Открыть как проект'), tx('Бас тарту', 'Отмена')],
       defaultId: 0, cancelId: cur ? 2 : 1, noLink: true,
     });
     if (cur && r.response === 0) { ui('import-gpkg\n' + file); return ok({ canceled: true, importing: true }); }
@@ -146,15 +158,15 @@ async function openProject(file) {
 ipcMain.handle('mura:gpkg-inspect', guard(async file => {
   if (!file) {
     const r = await dialog.showOpenDialog(win, {
-      title: 'GeoPackage-тен импорттау', properties: ['openFile'],
+      title: tx('GeoPackage-тен импорттау', 'Импорт из GeoPackage'), properties: ['openFile'],
       defaultPath: projects.current ? path.dirname(projects.current.file) : app.getPath('documents'),
-      filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }, { name: 'Барлық файлдар', extensions: ['*'] }],
+      filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }, { name: tx('Барлық файлдар', 'Все файлы'), extensions: ['*'] }],
     });
     if (r.canceled || !r.filePaths[0]) return ok({ canceled: true });
     file = r.filePaths[0];
   }
   file = path.resolve(String(file));
-  if (projects.current && projects.current.file === file) throw new Error('Бұл — ашық жобаның өз файлы.');
+  if (projects.current && projects.current.file === file) throw new Error(tx('Бұл — ашық жобаның өз файлы.', 'Это файл самого открытого проекта.'));
   return ok({ data: gpkgRead.inspect(file) });
 }));
 ipcMain.handle('mura:project-new', guard((meta, opts) => newProject(meta, opts)));
@@ -171,7 +183,7 @@ ipcMain.handle('mura:project-reveal', guard(() => { if (projects.current) shell.
 /** Мәзірден / бағдарламадан ашу (қате болса — хабар терезесі). */
 async function openFromMenu(file) {
   const r = await guard(openProject)({ senderFrame: { url: 'mura://app/' } }, file);
-  if (!r.ok) dialog.showErrorBox('Жобаны ашу', r.error);
+  if (!r.ok) dialog.showErrorBox(tx('Жобаны ашу', 'Открыть проект'), r.error);
 }
 const ui = cmd => { if (win) win.webContents.send('mura:ui', cmd); };
 
@@ -206,16 +218,25 @@ function createWindow() {
     let tpl = null;
     if (p.isEditable) {
       tpl = [
-        { label: 'Қию', role: 'cut', accelerator: 'CmdOrCtrl+X', enabled: !!f.canCut },
-        { label: 'Көшіру', role: 'copy', accelerator: 'CmdOrCtrl+C', enabled: !!f.canCopy },
-        { label: 'Қою', role: 'paste', accelerator: 'CmdOrCtrl+V', enabled: !!f.canPaste },
+        { label: tx('Қию', 'Вырезать'), role: 'cut', accelerator: 'CmdOrCtrl+X', enabled: !!f.canCut },
+        { label: tx('Көшіру', 'Копировать'), role: 'copy', accelerator: 'CmdOrCtrl+C', enabled: !!f.canCopy },
+        { label: tx('Қою', 'Вставить'), role: 'paste', accelerator: 'CmdOrCtrl+V', enabled: !!f.canPaste },
         { type: 'separator' },
-        { label: 'Барлығын белгілеу', role: 'selectAll', accelerator: 'CmdOrCtrl+A', enabled: !!f.canSelectAll },
+        { label: tx('Барлығын белгілеу', 'Выделить всё'), role: 'selectAll', accelerator: 'CmdOrCtrl+A', enabled: !!f.canSelectAll },
       ];
     } else if (p.selectionText && p.selectionText.trim()) {
-      tpl = [{ label: 'Көшіру', role: 'copy', accelerator: 'CmdOrCtrl+C' }];
+      tpl = [{ label: tx('Көшіру', 'Копировать'), role: 'copy', accelerator: 'CmdOrCtrl+C' }];
     }
     if (tpl) Menu.buildFromTemplate(tpl).popup({ window: win });
+  });
+  // Тіл ауысқанда бет қайта жүктеледі; сақталмаған өзгерістер болса (beforeunload) — пайдаланушыдан сұраймыз
+  win.webContents.on('will-prevent-unload', e => {
+    const r = dialog.showMessageBoxSync(win, {
+      type: 'warning', buttons: [tx('Қайта жүктеу', 'Перезагрузить'), tx('Бас тарту', 'Отмена')], defaultId: 1, cancelId: 1,
+      message: tx('Сақталмаған өзгерістер бар.', 'Есть несохранённые изменения.'),
+      detail: tx('Бет қайта жүктелсе, олар жоғалады.', 'При перезагрузке страницы они будут потеряны.'),
+    });
+    if (r === 0) e.preventDefault();
   });
   win.webContents.on('will-navigate', (e, url) => {
     if (!url.startsWith('mura://app/')) { e.preventDefault(); if (/^https?:/i.test(url)) shell.openExternal(url); }
@@ -224,7 +245,7 @@ function createWindow() {
 
 function recentMenu() {
   const list = projects ? projects.recent().filter(x => x.exists) : [];
-  if (!list.length) return [{ label: 'Әзірге жоқ', enabled: false }];
+  if (!list.length) return [{ label: tx('Әзірге жоқ', 'Пока нет'), enabled: false }];
   return list.slice(0, 10).map((x, i) => ({ label: (i + 1) + '. ' + (x.name || path.basename(x.path)).replace(/&/g, '&&') + '  —  ' + x.path.replace(/&/g, '&&'), click: () => openFromMenu(x.path) }));
 }
 
@@ -233,49 +254,50 @@ function buildMenu() {
   const tpl = [
     ...(isMac ? [{ role: 'appMenu' }] : []),
     {
-      label: 'Файл',
+      label: tx('Файл', 'Файл'),
       submenu: [
-        { label: 'Жаңа жоба…', accelerator: 'CmdOrCtrl+N', click: () => ui('new') },
-        { label: 'Жобаны ашу…', accelerator: 'CmdOrCtrl+O', click: () => openFromMenu() },
-        { label: 'Соңғы жобалар', submenu: recentMenu() },
-        { label: 'Бастапқы терезе', click: () => ui('start') },
+        { label: tx('Жаңа жоба…', 'Новый проект…'), accelerator: 'CmdOrCtrl+N', click: () => ui('new') },
+        { label: tx('Жобаны ашу…', 'Открыть проект…'), accelerator: 'CmdOrCtrl+O', click: () => openFromMenu() },
+        { label: tx('Соңғы жобалар', 'Последние проекты'), submenu: recentMenu() },
+        { label: tx('Бастапқы терезе', 'Начальное окно'), click: () => ui('start') },
         { type: 'separator' },
-        { label: 'Баптаулар…', accelerator: 'CmdOrCtrl+,', enabled: !!(projects && projects.current), click: () => ui('settings') },
-        { label: 'Жоба қалтасын ашу', enabled: !!(projects && projects.current), click: () => shell.showItemInFolder(projects.current.file) },
-        { label: 'Жобаны жабу', enabled: !!(projects && projects.current), click: () => { projects.close(); afterSwitch(); } },
+        // Баптаулар жоба ашылмаса да қолжетімді: интерфейс тілі жобаға байланысты емес
+        { label: tx('Баптаулар…', 'Настройки…'), accelerator: 'CmdOrCtrl+,', click: () => ui('settings') },
+        { label: tx('Жоба қалтасын ашу', 'Открыть папку проекта'), enabled: !!(projects && projects.current), click: () => shell.showItemInFolder(projects.current.file) },
+        { label: tx('Жобаны жабу', 'Закрыть проект'), enabled: !!(projects && projects.current), click: () => { projects.close(); afterSwitch(); } },
         { type: 'separator' },
-        { label: 'GeoPackage-тен импорттау…', accelerator: 'CmdOrCtrl+I', enabled: !!(projects && projects.current), click: () => ui('import-gpkg') },
-        { label: 'Сақталған аймақтарды файлға экспорттау…', enabled: !!(projects && projects.current), click: exportStore },
-        { label: 'Сақталған аймақтарды файлдан импорттау…', enabled: !!(projects && projects.current), click: importStore },
+        { label: tx('GeoPackage-тен импорттау…', 'Импорт из GeoPackage…'), accelerator: 'CmdOrCtrl+I', enabled: !!(projects && projects.current), click: () => ui('import-gpkg') },
+        { label: tx('Сақталған аймақтарды файлға экспорттау…', 'Экспортировать сохранённые зоны в файл…'), enabled: !!(projects && projects.current), click: exportStore },
+        { label: tx('Сақталған аймақтарды файлдан импорттау…', 'Импортировать сохранённые зоны из файла…'), enabled: !!(projects && projects.current), click: importStore },
         { type: 'separator' },
-        isMac ? { role: 'close', label: 'Жабу' } : { role: 'quit', label: 'Шығу' },
+        isMac ? { role: 'close', label: tx('Жабу', 'Закрыть') } : { role: 'quit', label: tx('Шығу', 'Выход') },
       ],
     },
     {
-      label: 'Түзету',
+      label: tx('Түзету', 'Правка'),
       submenu: [
-        { role: 'undo', label: 'Болдырмау' }, { role: 'redo', label: 'Қайталау' }, { type: 'separator' },
-        { role: 'cut', label: 'Қию' }, { role: 'copy', label: 'Көшіру' }, { role: 'paste', label: 'Қою' }, { role: 'selectAll', label: 'Барлығын белгілеу' },
+        { role: 'undo', label: tx('Болдырмау', 'Отменить') }, { role: 'redo', label: tx('Қайталау', 'Повторить') }, { type: 'separator' },
+        { role: 'cut', label: tx('Қию', 'Вырезать') }, { role: 'copy', label: tx('Көшіру', 'Копировать') }, { role: 'paste', label: tx('Қою', 'Вставить') }, { role: 'selectAll', label: tx('Барлығын белгілеу', 'Выделить всё') },
       ],
     },
     {
-      label: 'Көрініс',
+      label: tx('Көрініс', 'Вид'),
       submenu: [
-        { role: 'reload', label: 'Қайта жүктеу' },
+        { role: 'reload', label: tx('Қайта жүктеу', 'Перезагрузить') },
         { type: 'separator' },
-        { role: 'resetZoom', label: 'Қалыпты өлшем' }, { role: 'zoomIn', label: 'Үлкейту' }, { role: 'zoomOut', label: 'Кішірейту' },
+        { role: 'resetZoom', label: tx('Қалыпты өлшем', 'Обычный размер') }, { role: 'zoomIn', label: tx('Үлкейту', 'Увеличить') }, { role: 'zoomOut', label: tx('Кішірейту', 'Уменьшить') },
         { type: 'separator' },
-        { role: 'togglefullscreen', label: 'Толық экран' },
-        { role: 'toggleDevTools', label: 'Әзірлеуші құралдары' },
+        { role: 'togglefullscreen', label: tx('Толық экран', 'Полноэкранный режим') },
+        { role: 'toggleDevTools', label: tx('Әзірлеуші құралдары', 'Инструменты разработчика') },
       ],
     },
     {
-      label: 'Анықтама',
+      label: tx('Анықтама', 'Справка'),
       submenu: [
-        { label: 'Жаңартуларды тексеру', click: () => updates.check(win, { manual: true }) },
-        { label: 'Барлық нұсқалар (GitHub)', click: () => shell.openExternal(REPO_URL + '/releases') },
+        { label: tx('Жаңартуларды тексеру', 'Проверить обновления'), click: () => updates.check(win, { manual: true }) },
+        { label: tx('Барлық нұсқалар (GitHub)', 'Все версии (GitHub)'), click: () => shell.openExternal(REPO_URL + '/releases') },
         { type: 'separator' },
-        { label: 'Mura GIS туралы', click: about },
+        { label: tx('Mura GIS туралы', 'О программе Mura GIS'), click: about },
       ],
     },
   ];
@@ -283,6 +305,7 @@ function buildMenu() {
 }
 
 function about() {
+  if (lang.get() === 'ru') return aboutRu();
   dialog.showMessageBox(win, {
     type: 'info', title: 'Mura GIS туралы', buttons: ['Жабу', 'GitHub беті', 'Заң (Әділет)'], cancelId: 0,
     message: 'Mura GIS ' + app.getVersion() + ' — тарихи-мәдени мұра объектілеріне арналған ГАЖ бағдарламасы',
@@ -307,25 +330,51 @@ function about() {
   });
 }
 
+function aboutRu() {
+  dialog.showMessageBox(win, {
+    type: 'info', title: 'О программе Mura GIS', buttons: ['Закрыть', 'Страница GitHub', 'Закон (Әділет)'], cancelId: 0,
+    message: 'Mura GIS ' + app.getVersion() + ' — ГИС для объектов историко-культурного наследия',
+    detail:
+      'Возможности:\n' +
+      '• нанесение памятников на карту: наименование, местонахождение, вид, категория, статус; список памятников (DOCX, PDF), GeoJSON;\n' +
+      '• расчёт охранной зоны, зоны регулирования застройки и зоны охраняемого природного ландшафта, схема и документ (DOCX, PNG, GeoJSON);\n' +
+      '• все области, города республиканского значения и районы Казахстана; измерительные инструменты, слои карты.\n\n' +
+      'Применённые нормативные правовые акты:\n' +
+      '• Закон Республики Казахстан от 26 декабря 2019 года № 288-VI ЗРК «Об охране и использовании объектов историко-культурного наследия» — ' +
+      'виды памятников (статья 5), категории (статья 6), основные понятия и Государственный список памятников истории и культуры (статья 3);\n' +
+      '• приказ Министра культуры и спорта Республики Казахстан от 14 апреля 2020 года № 86 «Об утверждении Правил определения охранной зоны, ' +
+      'зоны регулирования застройки и зоны охраняемого природного ландшафта памятника истории и культуры и режима их использования» (пункты 7–9);\n' +
+      '• образец текста приложений о границах зон — постановление акимата Актюбинской области от 19 марта 2024 года № 66;\n' +
+      '• образец таблицы списка памятников — приложение к постановлению акимата Туркестанской области от 17 сентября 2020 года № 188 ' +
+      '«Об утверждении Государственного списка памятников истории и культуры местного значения Туркестанской области».\n\n' +
+      (projects.current ? 'Открытый проект: ' + projects.current.file + '\n' : '') +
+      'Папка настроек: ' + projects.dir + '\n' +
+      'Electron ' + process.versions.electron,
+  }).then(r => {
+    if (r.response === 1) shell.openExternal(REPO_URL);
+    if (r.response === 2) shell.openExternal('https://adilet.zan.kz/rus/docs/Z1900000288');
+  });
+}
+
 async function exportStore() {
   const r = await dialog.showSaveDialog(win, {
-    title: 'Сақталған аймақтарды экспорттау',
+    title: tx('Сақталған аймақтарды экспорттау', 'Экспорт сохранённых зон'),
     defaultPath: path.join(app.getPath('documents'), 'mura-gis-qorgau-' + new Date().toISOString().slice(0, 10) + '.json'),
     filters: [{ name: 'JSON', extensions: ['json'] }],
   });
   if (r.canceled || !r.filePath) return;
-  try { fs.writeFileSync(r.filePath, store.exportJson()); dialog.showMessageBox(win, { type: 'info', message: 'Экспортталды: ' + r.filePath }); }
-  catch (e) { dialog.showErrorBox('Экспорт', e.message); }
+  try { fs.writeFileSync(r.filePath, store.exportJson()); dialog.showMessageBox(win, { type: 'info', message: tx('Экспортталды: ', 'Экспортировано: ') + r.filePath }); }
+  catch (e) { dialog.showErrorBox(tx('Экспорт', 'Экспорт'), e.message); }
 }
 
 async function importStore() {
-  const r = await dialog.showOpenDialog(win, { title: 'Сақталған аймақтарды импорттау', properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
+  const r = await dialog.showOpenDialog(win, { title: tx('Сақталған аймақтарды импорттау', 'Импорт сохранённых зон'), properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
   if (r.canceled || !r.filePaths[0]) return;
   try {
     const { added, updated } = store.importFrom(fs.readFileSync(r.filePaths[0], 'utf8'));
-    await dialog.showMessageBox(win, { type: 'info', message: 'Импортталды: жаңа — ' + added + ', жаңартылған — ' + updated + '.', detail: 'Тізім жаңарту үшін бет қайта жүктеледі.' });
+    await dialog.showMessageBox(win, { type: 'info', message: tx('Импортталды: жаңа — ' + added + ', жаңартылған — ' + updated + '.', 'Импортировано: новых — ' + added + ', обновлённых — ' + updated + '.'), detail: tx('Тізім жаңарту үшін бет қайта жүктеледі.', 'Страница будет перезагружена для обновления списка.') });
     win.webContents.reload();
-  } catch (e) { dialog.showErrorBox('Импорт', e.message); }
+  } catch (e) { dialog.showErrorBox(tx('Импорт', 'Импорт'), e.message); }
 }
 
 /** Командалық жолда берілген .gpkg файлы (жобаны «Ашу» арқылы не файлды бағдарламаға сүйреп әкелгенде). */
@@ -338,6 +387,8 @@ app.on('second-instance', (_e, argv) => {
 });
 
 app.whenReady().then(() => {
+  // Тіл: баптау → орнатқышта таңдалғаны → жүйе тілі (main/lang.js)
+  lang.init(app.getPath('userData'), { installFile: app.isPackaged ? path.join(process.resourcesPath, 'install-lang.txt') : '', locale: app.getLocale() });
   projects = new Projects(path.join(app.getPath('userData'), 'data'));
   // Бағдарлама бастапқы терезеден басталады; .gpkg файлы берілсе (не MURA_PROJECT — тесттер үшін), бірден сол ашылады
   const startFile = argProject(process.argv) || process.env.MURA_PROJECT || '';
@@ -345,7 +396,7 @@ app.whenReady().then(() => {
     try {
       if (fs.existsSync(startFile)) projects.open(startFile);
       else projects.create(startFile, { name: path.basename(startFile, '.gpkg'), oblast: process.env.MURA_OBLAST || '', district: process.env.MURA_DISTRICT || '', app_version: app.getVersion() });
-    } catch (e) { console.error('Жоба ашылмады:', e.message); }
+    } catch (e) { console.error(tx('Жоба ашылмады:', 'Проект не открыт:'), e.message); }
   }
   bindStores();
 
@@ -366,7 +417,7 @@ app.whenReady().then(() => {
 
   // Жүктелетін файлдар (GeoJSON, DOCX, PNG, ZIP) — әрдайым «Сақтау» терезесі
   session.defaultSession.on('will-download', (e, item) => {
-    item.setSaveDialogOptions({ title: 'Файлды сақтау', defaultPath: path.join(app.getPath('documents'), item.getFilename()) });
+    item.setSaveDialogOptions({ title: tx('Файлды сақтау', 'Сохранить файл'), defaultPath: path.join(app.getPath('documents'), item.getFilename()) });
   });
 
   // Тек геолокация т.б. рұқсаттары керек емес; толық экран — рұқсат

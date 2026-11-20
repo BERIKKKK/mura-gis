@@ -4,6 +4,7 @@
    Жауап пішімі: { ok, items, id, error }. */
 const os = require('node:os');
 const crypto = require('node:crypto');
+const { tx } = require('./lang');
 
 class Store {
   /** table — { load(), write(items) }: жобаның қабаты (gpkg.js → Project.table('zones')) не noTable. */
@@ -25,20 +26,22 @@ class Store {
 
   /** Жазбаны тексеріп, қалыпқа келтіру: { fields, pts, custom } (қате болса — Error). */
   static clean(d) {
-    if (!d || typeof d !== 'object') throw new Error('Дерек оқылмады.');
+    if (!d || typeof d !== 'object') throw new Error(tx('Дерек оқылмады.', 'Не удалось прочитать данные.'));
     const pts = [];
     for (const p of Array.isArray(d.pts) ? d.pts : []) {
       const lat = Number(p && p.lat), lon = Number(p && p.lon);
-      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error('Нүкте координатасы дұрыс емес.');
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw new Error(tx('Нүкте координатасы дұрыс емес.', 'Неверная координата точки.'));
       pts.push({ lat: Math.round(lat * 1e8) / 1e8, lon: Math.round(lon * 1e8) / 1e8 });
     }
-    if (pts.length < 4 || pts.length > 500) throw new Error('Кемінде 4 нүкте керек.');
-    const limits = { name: 200, gen: 220, period: 120, oblast: 80, district: 80, place: 1500, desc: 6000, type: 20, height: 12, d1: 12, d2: 12, d3: 12 };
+    if (pts.length < 4 || pts.length > 500) throw new Error(tx('Кемінде 4 нүкте керек.', 'Нужно не менее 4 точек.'));
+    // *_ru — орысша нұсқасы (деректер екі тілде толтырылады; құжат қай тілде шықса, сол тілдегісі алынады)
+    const limits = { name: 200, gen: 220, period: 120, oblast: 80, district: 80, place: 1500, desc: 6000, type: 20, height: 12, d1: 12, d2: 12, d3: 12,
+      name_ru: 200, gen_ru: 220, period_ru: 120, place_ru: 1500, desc_ru: 6000 };
     const fields = {};
     const src = d.fields && typeof d.fields === 'object' ? d.fields : {};
     for (const [k, max] of Object.entries(limits)) fields[k] = [...String(src[k] ?? '').trim()].slice(0, max).join('');
-    if (!fields.name) throw new Error('Ескерткіш атауын енгізіңіз.');
-    for (const k of ['d1', 'd2', 'd3']) if (!(parseFloat(fields[k].replace(',', '.')) > 0)) throw new Error('Аймақ қашықтықтарын енгізіңіз.');
+    if (!fields.name && !fields.name_ru) throw new Error(tx('Ескерткіш атауын енгізіңіз.', 'Введите наименование памятника.'));
+    for (const k of ['d1', 'd2', 'd3']) if (!(parseFloat(fields[k].replace(',', '.')) > 0)) throw new Error(tx('Аймақ қашықтықтарын енгізіңіз.', 'Введите расстояния зон.'));
 
     return { fields, pts, custom: Store.cleanCustom(d.custom) };
   }
@@ -56,7 +59,7 @@ class Store {
     const old = i >= 0 ? items[i] : null;
     if (!old) id = crypto.randomBytes(8).toString('hex');
     const rec = {
-      id, name: fields.name, district: fields.district, fields, pts,
+      id, name: fields.name || fields.name_ru, name_ru: fields.name_ru, district: fields.district, fields, pts,
       ...(custom ? { custom } : {}),
       created_at: old?.created_at || now, created_by: old?.created_by || user,
       updated_at: now, updated_by: user,
@@ -70,8 +73,8 @@ class Store {
   addMany(raw) {
     let list;
     try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
-    if (!Array.isArray(list)) throw new Error('Жазбалар тізімі оқылмады.');
-    if (list.length > 5000) throw new Error('Бір импортта жазба тым көп (5000-нан аспауы керек).');
+    if (!Array.isArray(list)) throw new Error(tx('Жазбалар тізімі оқылмады.', 'Не удалось прочитать список записей.'));
+    if (list.length > 5000) throw new Error(tx('Бір импортта жазба тым көп (5000-нан аспауы керек).', 'Слишком много записей в одном импорте (не более 5000).'));
     const items = this.load();
     const now = new Date().toISOString();
     const user = (() => { try { return os.userInfo().username; } catch (e) { return ''; } })();
@@ -80,10 +83,10 @@ class Store {
     list.forEach((d, i) => {
       try {
         const { fields, pts, custom } = Store.clean(d);
-        items.push({ id: crypto.randomBytes(8).toString('hex'), name: fields.name, district: fields.district, fields, pts, ...(custom ? { custom } : {}),
+        items.push({ id: crypto.randomBytes(8).toString('hex'), name: fields.name || fields.name_ru, name_ru: fields.name_ru, district: fields.district, fields, pts, ...(custom ? { custom } : {}),
           created_at: now, created_by: user, updated_at: now, updated_by: user });
         added++;
-      } catch (e) { errors.push((d && d.fields && d.fields.name || (i + 1) + '-жазба') + ': ' + e.message); }
+      } catch (e) { errors.push((d && d.fields && d.fields.name || tx((i + 1) + '-жазба', 'Запись ' + (i + 1))) + ': ' + e.message); }
     });
     if (added) this.write(items);
     return { added, skipped: errors.length, errors: errors.slice(0, 50) };
@@ -111,7 +114,7 @@ class Store {
   remove(id) {
     const items = this.load();
     const i = items.findIndex(x => x.id === String(id || ''));
-    if (i < 0) throw new Error('Жазба табылмады.');
+    if (i < 0) throw new Error(tx('Жазба табылмады.', 'Запись не найдена.'));
     items.splice(i, 1);
     this.write(items);
   }
@@ -120,7 +123,7 @@ class Store {
   importFrom(text) {
     let j = JSON.parse(String(text));
     if (j && !Array.isArray(j) && Array.isArray(j.items)) j = j.items;
-    if (!Array.isArray(j)) throw new Error('Файлда сақталған аймақтар тізімі жоқ.');
+    if (!Array.isArray(j)) throw new Error(tx('Файлда сақталған аймақтар тізімі жоқ.', 'В файле нет списка сохранённых зон.'));
     const items = this.load();
     let added = 0, updated = 0;
     for (const r of j) {
@@ -142,13 +145,13 @@ class Store {
     const op = url.searchParams.get('op') || '';
     const out = o => new Response(JSON.stringify(o), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
     try {
-      if (request.method !== 'POST') return out({ ok: false, error: 'POST керек.' });
+      if (request.method !== 'POST') return out({ ok: false, error: tx('POST керек.', 'Нужен POST.') });
       const fd = await request.formData();
       if (op === 'list') return out({ ok: true, items: this.list() });
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, items: this.list() }); }
       if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, items: this.list() }); }
       if (op === 'add') { const r = this.addMany(fd.get('data')); return out({ ok: true, ...r, items: this.list() }); }
-      return out({ ok: false, error: 'Белгісіз әрекет.' });
+      return out({ ok: false, error: tx('Белгісіз әрекет.', 'Неизвестное действие.') });
     } catch (e) {
       return out({ ok: false, error: e.message || String(e) });
     }

@@ -7,6 +7,7 @@
    Шекара нүктесін оң жақ батырмамен басу бұрынғыдай — нүктені өшіреді; сызғыш режимінде — өлшеуден бас тарту. */
 import { parseOne } from '../qorgau/app.js';
 import { dms } from '../marks/export.js';
+const tx = (kk, ru) => (globalThis.MuraI18n && globalThis.MuraI18n.ru ? ru : kk);
 
 const $ = id => document.getElementById(id);
 const map = globalThis.MuraMarks && globalThis.MuraMarks.map;
@@ -33,7 +34,7 @@ function toast(msg, err) {
 }
 async function clipWrite(text) {
   try { if (globalThis.mura && globalThis.mura.clipWrite) await globalThis.mura.clipWrite(text); else await navigator.clipboard.writeText(text); return true; }
-  catch (e) { toast('Көшірілмеді: ' + e.message, true); return false; }
+  catch (e) { toast(tx('Көшірілмеді: ', 'Не скопировано: ') + e.message, true); return false; }
 }
 async function clipRead() {
   try { return globalThis.mura && globalThis.mura.clipRead ? await globalThis.mura.clipRead() : await navigator.clipboard.readText(); }
@@ -105,8 +106,8 @@ addEventListener('resize', closeMenu);
 if (map) map.on('movestart zoomstart', closeMenu);
 
 const copyItems = p => [
-  { label: 'Координатаны көшіру', hint: fmtDec(p), icon: IC.copy, run: async () => { if (await clipWrite(fmtDec(p))) toast('Көшірілді: ' + fmtDec(p)); } },
-  { label: 'Координатаны көшіру (° ′ ″)', hint: fmtDms(p), icon: IC.copy, run: async () => { if (await clipWrite(fmtDms(p))) toast('Көшірілді: ' + fmtDms(p)); } },
+  { label: 'Координатаны көшіру', hint: fmtDec(p), icon: IC.copy, run: async () => { if (await clipWrite(fmtDec(p))) toast(tx('Көшірілді: ', 'Скопировано: ') + fmtDec(p)); } },
+  { label: 'Координатаны көшіру (° ′ ″)', hint: fmtDms(p), icon: IC.copy, run: async () => { if (await clipWrite(fmtDms(p))) toast(tx('Көшірілді: ', 'Скопировано: ') + fmtDms(p)); } },
 ];
 /* Google Maps: осы нүкте белгімен, картаның қазіргі масштабымен; «!3m1!1e3» — спутник түрі. Сілтеме жүйенің браузерінде ашылады (main.js). */
 function gmapsUrl(p, sat) {

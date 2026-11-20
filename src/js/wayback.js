@@ -280,12 +280,13 @@
       var res = rels.map(function () { return undefined; });
       function show() {
         var parts = res.map(function (m, i) {
-          var side = rels.length > 1 ? (i ? 'оң: ' : 'сол: ') : '';
+          var RU = !!(window.MuraI18n && window.MuraI18n.ru);
+          var side = rels.length > 1 ? (i ? (RU ? 'справа: ' : 'оң: ') : (RU ? 'слева: ' : 'сол: ')) : '';
           if (m === undefined) return side + '…';
-          if (!m) return side + 'дерек жоқ';
+          if (!m) return side + (RU ? 'нет данных' : 'дерек жоқ');
           return side + (m.date || '?') + (m.src ? ' · ' + m.src : '') + (m.res ? ' · ' + (Math.round(m.res * 100) / 100) + ' м' : '');
         });
-        el.info.textContent = 'Түсірілген: ' + parts.join(' | ');
+        el.info.textContent = (window.MuraI18n && window.MuraI18n.ru ? 'Снято: ' : 'Түсірілген: ') + parts.join(' | ');
       }
       el.info.title = 'Карта ортасындағы суреттің түсірілген күні, көзі және анықтығы (Esri метадеректері)';
       show();
@@ -335,7 +336,7 @@
         list = releases.slice();
         fill(); apply(); refreshList();
       }, function (e) {
-        el.info.textContent = 'Wayback тізімі жүктелмеді: ' + e.message;
+        el.info.textContent = (window.MuraI18n && window.MuraI18n.ru ? 'Список Wayback не загружен: ' : 'Wayback тізімі жүктелмеді: ') + e.message;
         group.fire('tileerror');
       });
     };

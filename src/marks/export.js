@@ -8,30 +8,52 @@
    Қаулының өз мәтіні қосылмайды — тек кесте. */
 import { sortMarks } from './sort.js';
 
+/* Тілдер. Интерфейс тілі (js/i18n.js) мен құжат тілі бөлек: кесте интерфейс қай тілде болса да, қазақша не орысша шыға алады.
+   Орысша кесте — Түркістан облысы әкімдігінің 2020 ж. 17 қыркүйектегі № 188 қаулысына қосымшаның ресми орысша мәтіні бойынша:
+   «№ п/н | Наименование памятника | Вид памятника | Географические координаты памятника | Местонахождение памятника».
+   Ескерткіштің атауы, мерзімі, орналасқан жері құжат тілінде алынады (name / name_ru т.б.; бос болса — екінші тілдегісі). */
+const I18N = globalThis.MuraI18n || { ru: false, local: o => o };
+const RU = !!I18N.ru;
+const UI = RU ? 'ru' : 'kk';
+let DL = UI;                                    // ағымдағы құжаттың тілі (экспорт функциялары орнатады)
+const useLang = l => { DL = l === 'ru' || l === 'kk' ? l : UI; return DL; };
+const dx = (kk, ru) => (DL === 'ru' ? ru : kk);
+const REG = globalThis.MuraRegions;
+/** Облыс/аудан атауы құжатта: орысшада — ресми орысша атауы. */
+const place = (name, region) => (DL === 'ru' && REG ? REG.ru(name, region) : name);
+/** Тізімдер: label/short/adj — интерфейс тіліндегі мәтін (тізімдер, сүзгілер), kk — қазақша атауы (GeoJSON-да сақталады);
+    құжатта — lab(x, кілт) арқылы құжат тіліндегісі. */
+const loc = list => list.map(x => ({ ...x, kkv: { label: x.label, short: x.short, adj: x.adj }, kk: x.label, ...(RU ? x.ru : {}) }));
+const lab = (x, k) => (DL === 'ru' ? x.ru : x.kkv)[k];
+
 /* ---------- Анықтамалықтар («Тарихи-мәдени мұра объектілерін қорғау және пайдалану туралы» ҚР Заңы, 2019 ж. № 288-VI) ---------- */
 /** 5-бап, 1-тармақ: тарих және мәдениет ескерткіштерінің түрлері. short — кестедегі жазылуы. */
-export const TYPES = [
-  { v: 'archeo', label: 'Археология ескерткіштері', short: 'археология' },
-  { v: 'arch', label: 'Қала құрылысы және сәулет ескерткіштері', short: 'қала құрылысы және сәулет' },
-  { v: 'ensemble', label: 'Ансамбльдер мен кешендер', short: 'ансамбльдер мен кешендер' },
-  { v: 'sacred', label: 'Киелі объектілер', short: 'киелі объектілер' },
-  { v: 'art', label: 'Монументтік өнер құрылыстары', short: 'монументтік өнер' },
-];
+export const TYPES = loc([
+  { v: 'archeo', label: 'Археология ескерткіштері', short: 'археология', ru: { label: 'Памятники археологии', short: 'археология' } },
+  { v: 'arch', label: 'Қала құрылысы және сәулет ескерткіштері', short: 'қала құрылысы және сәулет', ru: { label: 'Памятники градостроительства и архитектуры', short: 'градостроительство и архитектура' } },
+  { v: 'ensemble', label: 'Ансамбльдер мен кешендер', short: 'ансамбльдер мен кешендер', ru: { label: 'Ансамбли и комплексы', short: 'ансамбли и комплексы' } },
+  { v: 'sacred', label: 'Киелі объектілер', short: 'киелі объектілер', ru: { label: 'Сакральные объекты', short: 'сакральные объекты' } },
+  { v: 'art', label: 'Монументтік өнер құрылыстары', short: 'монументтік өнер', ru: { label: 'Сооружения монументального искусства', short: 'монументальное искусство' } },
+]);
 /** 6-бап: тарих және мәдениет ескерткіштерінің санаттары. fill / outline — картадағы белгінің түсі (әр санаттың өз түсі).
     Тізімдегі рет — сұрыптау мен экспорттағы рет (маңыздылығы бойынша). */
-export const CATEGORIES = [
-  { v: 'local', label: 'Жергілікті маңызы бар', adj: 'жергілікті маңызы бар', fill: '#F28C00', outline: '#7A4100', order: 2 },
-  { v: 'rep', label: 'Республикалық маңызы бар', adj: 'республикалық маңызы бар', fill: '#E0202E', outline: '#6B0710', order: 1 },
-  { v: 'intl', label: 'Халықаралық маңызы бар', adj: 'халықаралық маңызы бар', fill: '#8E3FC4', outline: '#3E1460', order: 0 },
-  { v: '', label: 'Анықталмаған', adj: '', fill: '#8E8A80', outline: '#3F3B35', order: 3 },
-];
+export const CATEGORIES = loc([
+  { v: 'local', label: 'Жергілікті маңызы бар', adj: 'жергілікті маңызы бар', fill: '#F28C00', outline: '#7A4100', order: 2, ru: { label: 'Местного значения', adj: 'местного значения' } },
+  { v: 'rep', label: 'Республикалық маңызы бар', adj: 'республикалық маңызы бар', fill: '#E0202E', outline: '#6B0710', order: 1, ru: { label: 'Республиканского значения', adj: 'республиканского значения' } },
+  { v: 'intl', label: 'Халықаралық маңызы бар', adj: 'халықаралық маңызы бар', fill: '#8E3FC4', outline: '#3E1460', order: 0, ru: { label: 'Международного значения', adj: 'международного значения' } },
+  { v: '', label: 'Анықталмаған', adj: '', fill: '#8E8A80', outline: '#3F3B35', order: 3, ru: { label: 'Не определена', adj: '' } },
+]);
 /** 3, 4, 5-баптар: объектінің құқықтық мәртебесі. */
-export const STATUSES = [
-  { v: 'state', label: 'Тарих және мәдениет ескерткіші (Мемлекеттік тізімге енгізілген)', short: 'Мемлекеттік тізімде' },
-  { v: 'prelim', label: 'Алдын ала есепке алу тізіміне енгізілген объект', short: 'Алдын ала есепке алу тізімінде' },
-  { v: 'archreg', label: 'Археологиялық жұмыстар барысында анықталған объект (тізілімде)', short: 'Археологиялық жұмыстар тізілімінде' },
-  { v: 'excluded', label: 'Мәртебесінен айырылған (Мемлекеттік тізімнен алып тасталған)', short: 'Тізімнен алып тасталған' },
-];
+export const STATUSES = loc([
+  { v: 'state', label: 'Тарих және мәдениет ескерткіші (Мемлекеттік тізімге енгізілген)', short: 'Мемлекеттік тізімде',
+    ru: { label: 'Памятник истории и культуры (включён в Государственный список)', short: 'В Государственном списке' } },
+  { v: 'prelim', label: 'Алдын ала есепке алу тізіміне енгізілген объект', short: 'Алдын ала есепке алу тізімінде',
+    ru: { label: 'Объект, включённый в список предварительного учета', short: 'В списке предварительного учета' } },
+  { v: 'archreg', label: 'Археологиялық жұмыстар барысында анықталған объект (тізілімде)', short: 'Археологиялық жұмыстар тізілімінде',
+    ru: { label: 'Объект, выявленный в ходе археологических работ (в реестре)', short: 'В реестре археологических работ' } },
+  { v: 'excluded', label: 'Мәртебесінен айырылған (Мемлекеттік тізімнен алып тасталған)', short: 'Тізімнен алып тасталған',
+    ru: { label: 'Лишён статуса (исключён из Государственного списка)', short: 'Исключён из списка' } },
+]);
 /** 5-бап түрлерінің шартты белгілері (src/marks/symbols/*.svg — QGIS параметрлі SVG). */
 export const SYMBOL_FILE = { archeo: 'archaeology', arch: 'architectural', ensemble: 'ensemble', sacred: 'sacred', art: 'monumental' };
 const byV = (list, v) => list.find(x => x.v === v) || null;
@@ -52,7 +74,8 @@ export function dms(v) {
 export const coordLines = m => [dms(m.lat) + (m.lat < 0 ? ' S' : ' N'), dms(m.lon) + (m.lon < 0 ? ' W' : ' E')];
 /** Кестедегі атау: «Сүткент қалашығы, І–ХV ғасырлар» (үлгідегідей мерзімі атаудан кейін). */
 export const nameCell = m => String(m.name || '').trim() + (String(m.period || '').trim() ? ', ' + String(m.period).trim() : '');
-export const NO_DISTRICT = 'Ауданы көрсетілмеген';
+const noDistrict = () => dx('Ауданы көрсетілмеген', 'Район не указан');
+const noOblast = () => dx('Облысы көрсетілмеген', 'Область не указана');
 
 /**
  * Сұрыпталған, облыс пен аудан бойынша топталған жолдар: [{ oblast, oblastHead, district, items: [{ n, m }] }].
@@ -66,7 +89,7 @@ export function groups(marks) {
   for (const m of sorted) {
     const ob = String(m.oblast || '').trim();
     const isCity = / қаласы$/.test(ob) && !/облысы/.test(ob);
-    const d = String(m.district || '').trim() || (isCity && !multi ? ob : NO_DISTRICT);   // бірнеше облыс болса — облыс жолы бөлек шығады
+    const d = String(m.district || '').trim() || (isCity && !multi ? ob : noDistrict());   // бірнеше облыс болса — облыс жолы бөлек шығады
     let g = out[out.length - 1];
     if (!g || g.oblast !== ob || g.district !== d) {
       g = { oblast: ob, oblastHead: multi && (!out.length || out[out.length - 1].oblast !== ob), district: d, items: [] };
@@ -81,24 +104,34 @@ export function groups(marks) {
  * Экспорт бөлімдері — санат бойынша: [{ cat, title, marks }], рет: халықаралық → республикалық → жергілікті → анықталмаған.
  * title — тек бір санат болғанда қолданылады (пайдаланушы өзгерткен атау); бірнеше санатта әр бөлімнің атауы өзі құрастырылады.
  */
-export function sections(marks, title, genitive) {
+export function sections(marks, title, genitive, lang) {
+  useLang(lang);
   const by = new Map();
-  for (const m of sortMarks(marks)) {
+  for (const m of sortMarks(marks.map(m => I18N.local(m, DL)))) {
     const c = categoryOf(m.category).v;
     if (!by.has(c)) by.set(c, []);
     by.get(c).push(m);
   }
-  const out = [...by.entries()].map(([cat, list]) => ({ cat, marks: list, title: defaultTitle(list, genitive) }));
+  const out = [...by.entries()].map(([cat, list]) => ({ cat, marks: list, title: defaultTitle(list, genitive, DL) }));
   if (out.length === 1 && title) out[0].title = title;
   return out;
 }
 
 /** Тізім атауы: белгілердің облысы мен санатынан (бәрі бірдей болса) құрастырылады. */
-export function defaultTitle(marks, genitive) {
+export function defaultTitle(marks, genitive, lang) {
+  if (lang) useLang(lang);
   const uniq = k => [...new Set(marks.map(m => String(m[k] || '').trim()))];
   const ob = uniq('oblast'), cat = uniq('category'), st = uniq('status');
+  if (DL === 'ru') {
+    // «Государственный список памятников истории и культуры местного значения Туркестанской области»
+    const of = ob.length === 1 && ob[0] ? ' ' + (REG ? REG.ruCase(ob[0], 'gen') : ob[0]) : '';
+    const adjRu = cat.length === 1 && lab(categoryOf(cat[0]), 'adj') ? ' ' + lab(categoryOf(cat[0]), 'adj') : '';
+    if (st.length === 1 && st[0] === 'prelim') return 'список предварительного учета объектов историко-культурного наследия' + of;
+    if (st.length === 1 && st[0] === 'state') return 'Государственный список памятников истории и культуры' + adjRu + of;
+    return 'список памятников истории и культуры' + adjRu + of;
+  }
   const where = ob.length === 1 && ob[0] ? (genitive ? genitive(ob[0]) : ob[0]) + ' ' : '';
-  const adj = cat.length === 1 && categoryOf(cat[0]).adj ? categoryOf(cat[0]).adj + ' ' : '';
+  const adj = cat.length === 1 && lab(categoryOf(cat[0]), 'adj') ? lab(categoryOf(cat[0]), 'adj') + ' ' : '';
   if (st.length === 1 && st[0] === 'prelim') return where + 'тарихи-мәдени мұра объектілерін алдын ала есепке алу тізімі';
   if (st.length === 1 && st[0] === 'state') return where + adj + 'тарих және мәдениет ескерткіштерінің мемлекеттік тізімі';
   return where + adj + 'тарих және мәдениет ескерткіштерінің тізімі';
@@ -115,11 +148,14 @@ export function geojson(marks, title) {
       id: m.id,
       geometry: { type: 'Point', coordinates: [Number(m.lon.toFixed(8)), Number(m.lat.toFixed(8))] },
       properties: {
-        id: m.id, name: m.name, period: m.period || '', oblast: m.oblast || '', district: m.district || '', place: m.place || '',
-        type: m.type, type_kk: typeOf(m.type).label,
-        category: m.category || '', category_kk: categoryOf(m.category).label,
-        status: m.status, status_kk: statusOf(m.status).label,
-        note: m.note || '', lat: m.lat, lon: m.lon, lat_dms: coordLines(m)[0], lon_dms: coordLines(m)[1],
+        id: m.id, name: m.name, name_ru: m.name_ru || '', period: m.period || '', period_ru: m.period_ru || '',
+        oblast: m.oblast || '', district: m.district || '', place: m.place || '', place_ru: m.place_ru || '',
+        type: m.type, type_kk: typeOf(m.type).kk,
+        category: m.category || '', category_kk: categoryOf(m.category).kk,
+        status: m.status, status_kk: statusOf(m.status).kk,
+        type_ru: typeOf(m.type).ru.label, category_ru: categoryOf(m.category).ru.label, status_ru: statusOf(m.status).ru.label,
+        oblast_ru: REG ? REG.ru(m.oblast || '') : '', district_ru: REG ? REG.ru(m.district || '', m.oblast) : '',
+        note: m.note || '', note_ru: m.note_ru || '', lat: m.lat, lon: m.lon, lat_dms: coordLines(m)[0], lon_dms: coordLines(m)[1],
         created_at: m.created_at || '', updated_at: m.updated_at || '',
       },
     })),
@@ -135,16 +171,16 @@ export function fromGeojson(o) {
     if (!g || g.type !== 'Point' || !Array.isArray(g.coordinates)) continue;
     const p = f.properties || {};
     const pick = (...ks) => { for (const k of ks) if (p[k] != null && String(p[k]).trim()) return String(p[k]).trim(); return ''; };
-    const code = (list, v, kk) => (list.some(x => x.v === v) ? v : (list.find(x => x.label === kk) || {}).v);
+    const code = (list, v, kk) => (list.some(x => x.v === v) ? v : (list.find(x => x.kk === kk || x.label === kk) || {}).v);
     out.push({
       id: pick('id') || (typeof f.id === 'string' ? f.id : ''),
-      name: pick('name', 'Name', 'NAME', 'атауы', 'title'),
-      period: pick('period', 'мерзімі'), oblast: pick('oblast', 'облыс'), district: pick('district', 'аудан'),
-      place: pick('place', 'орналасқан жері', 'description'),
-      type: code(TYPES, pick('type'), pick('type_kk')) || 'archeo',
-      category: code(CATEGORIES, pick('category'), pick('category_kk')) ?? 'local',
-      status: code(STATUSES, pick('status'), pick('status_kk')) || 'state',
-      note: pick('note'),
+      name: pick('name', 'Name', 'NAME', 'атауы', 'title'), name_ru: pick('name_ru', 'наименование'),
+      period: pick('period', 'мерзімі'), period_ru: pick('period_ru', 'датировка'), oblast: pick('oblast', 'облыс'), district: pick('district', 'аудан'),
+      place: pick('place', 'орналасқан жері', 'description'), place_ru: pick('place_ru', 'местонахождение'),
+      type: code(TYPES, pick('type'), pick('type_kk', 'type_ru')) || 'archeo',
+      category: code(CATEGORIES, pick('category'), pick('category_kk', 'category_ru')) ?? 'local',
+      status: code(STATUSES, pick('status'), pick('status_kk', 'status_ru')) || 'state',
+      note: pick('note'), note_ru: pick('note_ru'),
       lat: +g.coordinates[1], lon: +g.coordinates[0],
       created_at: pick('created_at'), updated_at: pick('updated_at'),
     });
@@ -161,7 +197,9 @@ function run(text, o = {}) {
 const para = (runs, align = 'left', after = 0) => '<w:p><w:pPr><w:spacing w:before="0" w:after="' + after + '" w:line="240" w:lineRule="auto"/><w:jc w:val="' + align + '"/></w:pPr>' + runs + '</w:p>';
 const CONTENT_W = 9354;                         // A4: 11906 − сол жақ 1701 − оң жақ 851 (twip)
 const COLS = [600, 2450, 1750, 1950, 2604];     // № | атауы | түрі | координаттары | орналасқан жері
-const HEAD = ['№\nр/с', 'Ескерткіштің атауы', 'Ескерткіштің түрі', 'Ескерткіштің географиялық координаттары', 'Ескерткіштің орналасқан жері'];
+const head = () => (DL === 'ru'
+  ? ['№\nп/н', 'Наименование памятника', 'Вид памятника', 'Географические координаты памятника', 'Местонахождение памятника']
+  : ['№\nр/с', 'Ескерткіштің атауы', 'Ескерткіштің түрі', 'Ескерткіштің географиялық координаттары', 'Ескерткіштің орналасқан жері']);
 
 function cell(text, w, o = {}) {
   return '<w:tc><w:tcPr><w:tcW w:w="' + w + '" w:type="dxa"/>' + (o.span ? '<w:gridSpan w:val="' + o.span + '"/>' : '') +
@@ -173,16 +211,16 @@ const row = (cells, o = {}) => '<w:tr><w:trPr><w:cantSplit/>' + (o.header ? '<w:
 function docxTable(marks) {
   const G = groups(marks);
   const borders = '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(k => '<w:' + k + ' w:val="single" w:sz="4" w:space="0" w:color="000000"/>').join('') + '</w:tblBorders>';
-  let rows = row(HEAD.map((h, i) => cell(h, COLS[i], { b: true, align: 'center', sz: 22 })), { header: true }) +
+  let rows = row(head().map((h, i) => cell(h, COLS[i], { b: true, align: 'center', sz: 22 })), { header: true }) +
     row(COLS.map((w, i) => cell(String(i + 1), w, { align: 'center', sz: 20 })), { header: true });
   for (const g of G) {
-    if (g.oblastHead) rows += row([cell((g.oblast || 'Облысы көрсетілмеген').toUpperCase(), CONTENT_W, { span: 5, b: true, align: 'center', shade: 'E6E6E6' })]);
-    rows += row([cell(g.district, CONTENT_W, { span: 5, b: true, align: 'center' })]);
+    if (g.oblastHead) rows += row([cell((place(g.oblast) || noOblast()).toUpperCase(), CONTENT_W, { span: 5, b: true, align: 'center', shade: 'E6E6E6' })]);
+    rows += row([cell(place(g.district, g.oblast), CONTENT_W, { span: 5, b: true, align: 'center' })]);
     for (const { n, m } of g.items) {
       rows += row([
         cell(String(n), COLS[0], { align: 'center' }),
         cell(nameCell(m), COLS[1]),
-        cell(typeOf(m.type).short, COLS[2], { align: 'center' }),
+        cell(lab(typeOf(m.type), 'short'), COLS[2], { align: 'center' }),
         cell(coordLines(m).join('\n'), COLS[3], { align: 'center' }),
         cell(String(m.place || '').trim(), COLS[4]),
       ]);
@@ -198,7 +236,8 @@ export function docxBody(secs) {
   return secs.map((s, i) => titlePara(s.title, i > 0) + docxTable(s.marks)).join('') + para('');
 }
 
-export function docxBlob(secs, title, fflate) {
+export function docxBlob(secs, title, fflate, lang) {
+  if (lang) useLang(lang);
   const H = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
   const doc = H + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>' +
     docxBody(secs) +
@@ -207,7 +246,7 @@ export function docxBlob(secs, title, fflate) {
     '<w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>' +
     '<w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:t>1</w:t></w:r><w:r><w:rPr><w:sz w:val="20"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>';
   const styles = H + '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-    '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:sz w:val="28"/><w:szCs w:val="28"/><w:lang w:val="kk-KZ" w:eastAsia="ru-RU" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>' +
+    '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman" w:eastAsia="Times New Roman" w:cs="Times New Roman"/><w:sz w:val="28"/><w:szCs w:val="28"/><w:lang w:val="' + dx('kk-KZ', 'ru-RU') + '" w:eastAsia="ru-RU" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>' +
     '<w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>' +
     '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>' +
     '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>' +
@@ -226,7 +265,7 @@ export function docxBlob(secs, title, fflate) {
     '<Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>';
   const now = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const core = H + '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' +
-    '<dc:title>' + xml(cap(title)) + '</dc:title><dc:language>kk-KZ</dc:language>' +
+    '<dc:title>' + xml(cap(title)) + '</dc:title><dc:language>' + dx('kk-KZ', 'ru-RU') + '</dc:language>' +
     '<dcterms:created xsi:type="dcterms:W3CDTF">' + now + '</dcterms:created><dcterms:modified xsi:type="dcterms:W3CDTF">' + now + '</dcterms:modified></cp:coreProperties>';
   const u = fflate.strToU8;
   const zip = fflate.zipSync({
@@ -244,20 +283,21 @@ function pdfTable(marks) {
   const w = COLS.map(c => (c / CONTENT_W * 100).toFixed(2) + '%');
   let body = '';
   for (const g of G) {
-    if (g.oblastHead) body += '<tr class="g o"><td colspan="5">' + esc((g.oblast || 'Облысы көрсетілмеген').toUpperCase()) + '</td></tr>';
-    body += '<tr class="g"><td colspan="5">' + esc(g.district) + '</td></tr>';
+    if (g.oblastHead) body += '<tr class="g o"><td colspan="5">' + esc((place(g.oblast) || noOblast()).toUpperCase()) + '</td></tr>';
+    body += '<tr class="g"><td colspan="5">' + esc(place(g.district, g.oblast)) + '</td></tr>';
     for (const { n, m } of g.items) {
-      body += '<tr><td class="c">' + n + '</td><td>' + esc(nameCell(m)) + '</td><td class="c">' + esc(typeOf(m.type).short) + '</td>' +
+      body += '<tr><td class="c">' + n + '</td><td>' + esc(nameCell(m)) + '</td><td class="c">' + esc(lab(typeOf(m.type), 'short')) + '</td>' +
         '<td class="c nw">' + coordLines(m).map(esc).join('<br>') + '</td><td>' + br(String(m.place || '').trim()) + '</td></tr>';
     }
   }
   return '<table><colgroup>' + w.map(x => '<col style="width:' + x + '">').join('') + '</colgroup>' +
-    '<thead><tr>' + HEAD.map(h => '<th>' + br(h) + '</th>').join('') + '</tr><tr class="num">' + HEAD.map((_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr></thead>' +
+    '<thead><tr>' + head().map(h => '<th>' + br(h) + '</th>').join('') + '</tr><tr class="num">' + head().map((_, i) => '<th>' + (i + 1) + '</th>').join('') + '</tr></thead>' +
     '<tbody>' + body + '</tbody></table>';
 }
 /** Әр санат — өз атауы бар бөлек кесте, келесі санат жаңа беттен басталады. */
-export function pdfHtml(secs, title) {
-  return '<!doctype html><html lang="kk"><head><meta charset="utf-8"><title>' + esc(cap(title)) + '</title><style>' +
+export function pdfHtml(secs, title, lang) {
+  if (lang) useLang(lang);
+  return '<!doctype html><html lang="' + dx('kk', 'ru') + '"><head><meta charset="utf-8"><title>' + esc(cap(title)) + '</title><style>' +
     '@page{size:A4;margin:20mm 15mm 18mm 30mm}' +
     'body{margin:0;font:12pt/1.25 "Times New Roman",Times,serif;color:#000}' +
     'h1{font-size:14pt;font-weight:bold;text-align:center;margin:0 0 12pt}' +
