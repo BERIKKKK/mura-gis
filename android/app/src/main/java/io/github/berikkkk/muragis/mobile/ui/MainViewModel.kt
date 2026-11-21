@@ -21,7 +21,9 @@ import io.github.berikkkk.muragis.core.geo.Geo
 import io.github.berikkkk.muragis.core.gpkg.MuraProject
 import io.github.berikkkk.muragis.core.io.FormatException
 import io.github.berikkkk.muragis.core.io.ImportedMonument
+import io.github.berikkkk.muragis.core.io.ImportedPlace
 import io.github.berikkkk.muragis.core.io.ImportedRoute
+import io.github.berikkkk.muragis.core.io.PlaceGeoJson
 import io.github.berikkkk.muragis.core.io.MonumentGeoJson
 import io.github.berikkkk.muragis.core.io.PointFiles
 import io.github.berikkkk.muragis.core.io.PointRecord
@@ -31,6 +33,8 @@ import io.github.berikkkk.muragis.core.model.Ids
 import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Localized
 import io.github.berikkkk.muragis.core.model.Monument
+import io.github.berikkkk.muragis.core.model.Place
+import io.github.berikkkk.muragis.core.model.PlaceKind
 import io.github.berikkkk.muragis.core.model.Regions
 import io.github.berikkkk.muragis.core.model.MonumentType
 import io.github.berikkkk.muragis.core.model.Route
@@ -81,7 +85,7 @@ import java.net.URL
 
 /** Толық экранды мәзірдің беттері. */
 enum class MenuPage {
-    ROOT, MONUMENTS, ROUTES, COORDS, SETTINGS, ABOUT;
+    ROOT, MONUMENTS, PLACES, ROUTES, COORDS, SETTINGS, ABOUT;
 
     /** «Артқа» апаратын бет. */
     val parent get() = if (this == ABOUT) SETTINGS else ROOT
@@ -105,8 +109,11 @@ sealed interface Sheet {
     data object Pin : Sheet
 }
 
-/** Картаның ортасындағы нысана арқылы нүкте таңдау: жаңа ескерткіш не маршруттың А/Б нүктесі. */
-enum class Pick { MONUMENT, PLAN_A, PLAN_B, EDITOR }
+/**
+ * Картаның ортасындағы нысана арқылы нүкте таңдау: жаңа белгі ([MARK] — түрі кейін сұралады: ескерткіш не өзге нысан),
+ * жаңа ескерткіш, жаңа өзге нысан, маршруттың А/Б нүктесі, өңдеу терезесінен орынды қайта таңдау.
+ */
+enum class Pick { MARK, MONUMENT, PLACE, PLAN_A, PLAN_B, EDITOR, PLACE_EDITOR }
 
 /** Маршрут құрудың басы/соңы. [markId] — ескерткіш болса (желіде ескерткіш түйіні ретінде ізделеді). */
 data class PlanPoint(val lat: Double, val lon: Double, val label: String, val markId: String? = null, val gps: Boolean = false)
@@ -147,12 +154,12 @@ data class RouteEdit(val base: Route, val points: List<RoutePoint>, val selected
 }
 
 /** Импорт алдында тексерілетін бөтен нүктелер (KML, KMZ, GPX, бөтен GeoJSON). */
-data class PendingPoints(val file: String, val points: List<PointRecord>)
+data class PendingPoints(val file: String, val points: List<PointRecord>, val target: ImportTarget = ImportTarget.MONUMENTS)
 
 /** Импортталған карта нәтижесі (тексеру есебі). */
 data class MapImportReport(val layer: MapLayer?, val error: String?, val detail: String = "")
 
-enum class ImportTarget { MONUMENTS, ROUTES }
+enum class ImportTarget { MONUMENTS, PLACES, ROUTES }
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val g = (app as MuraApp).graph
@@ -181,6 +188,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _selected = MutableStateFlow<String?>(null); val selected: StateFlow<String?> = _selected
     private val _selectedRoute = MutableStateFlow<String?>(null); val selectedRoute: StateFlow<String?> = _selectedRoute
     private val _edit = MutableStateFlow<RouteEdit?>(null); val edit: StateFlow<RouteEdit?> = _edit
+    private val _places = MutableStateFlow<List<Place>>(emptyList()); val places: StateFlow<List<Place>> = _places
+    private val _selectedPlace = MutableStateFlow<String?>(null); val selectedPlace: StateFlow<String?> = _selectedPlace
+    /** Өзге нысанды өңдеу терезесі: жаңа (id жоқ) не бар жазба. */
+    private val _placeEditor = MutableStateFlow<Place?>(null); val placeEditor: StateFlow<Place?> = _placeEditor
+    /** Жаңа белгінің орны таңдалды — енді түрі сұралады (ескерткіш белгісі не өзге нысан). */
+    private val _markChoice = MutableStateFlow<io.github.berikkkk.muragis.core.geo.LatLon?>(null)
+    val markChoice: StateFlow<io.github.berikkkk.muragis.core.geo.LatLon?> = _markChoice
     /** Ескерткіш өңдеу терезесі: жаңа (id жоқ) не бар жазба. */
     private val _editor = MutableStateFlow<Monument?>(null); val editor: StateFlow<Monument?> = _editor
     private val _pending = MutableStateFlow<PendingPoints?>(null); val pending: StateFlow<PendingPoints?> = _pending
@@ -246,6 +260,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun reloadAll() = io {
         _monuments.value = store.monuments()
+        _places.value = store.places()
         _routes.value = store.routes()
         _layers.value = g.layers.layers()
         _jobs.value = g.layers.jobs()
@@ -296,7 +311,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ======================= Ескерткіштер ======================= */
     fun setFilter(f: MonumentFilter) { _filter.value = f }
-    fun select(id: String?) { _selected.value = id }
+    fun select(id: String?) { _selected.value = id; if (id != null) _selectedPlace.value = null }
     fun monument(id: String?): Monument? = id?.let { i -> _monuments.value.firstOrNull { it.id == i } }
 
     fun openEditor(m: Monument?) { _editor.value = m; _pick.value = null }
@@ -336,17 +351,65 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         msg(R.string.msg_deleted_n, n)
     }
 
-    /** Құрылғының ағымдағы координатасы бойынша жаңа ескерткіш. */
-    fun newMonumentAtGps() {
+    /** Құрылғының ағымдағы координатасы бойынша жаңа белгі: [kind] — MARK (түрі сұралады), MONUMENT не PLACE. */
+    fun newMarkAtGps(kind: Pick = Pick.MONUMENT) {
         msg(R.string.msg_gps_wait)
         location.requestFix { loc ->
             if (loc == null) msg(R.string.err_no_gps, error = true)
-            else newMonumentAt(loc.latitude, loc.longitude)
+            else when (kind) {
+                Pick.MARK -> newMarkAt(loc.latitude, loc.longitude)
+                Pick.PLACE -> newPlaceAt(loc.latitude, loc.longitude)
+                else -> newMonumentAt(loc.latitude, loc.longitude)
+            }
+        }
+    }
+    fun newMonumentAtGps() = newMarkAtGps(Pick.MONUMENT)
+
+    /* ======================= Белгі қою: түрін таңдау ======================= */
+    /** Жаңа белгі — алдымен түрі сұралады: ескерткіш белгісі (өрістері өзгеріссіз) не өзге нысан. */
+    fun newMarkAt(lat: Double, lon: Double) { _pick.value = null; _markChoice.value = io.github.berikkkk.muragis.core.geo.LatLon(lat, lon) }
+    fun chooseMark(monument: Boolean) {
+        val p = _markChoice.value ?: return
+        _markChoice.value = null
+        if (monument) newMonumentAt(p.lat, p.lon) else newPlaceAt(p.lat, p.lon)
+    }
+    fun dismissMarkChoice() { _markChoice.value = null }
+
+    /* ======================= Өзге нысандар ======================= */
+    fun selectPlace(id: String?) { _selectedPlace.value = id; if (id != null) { _selected.value = null; _selectedRoute.value = null } }
+    fun place(id: String?): Place? = id?.let { i -> _places.value.firstOrNull { it.id == i } }
+    fun openPlaceEditor(p: Place?) { _placeEditor.value = p; _pick.value = null }
+    fun newPlaceAt(lat: Double, lon: Double) = openPlaceEditor(Place(id = "", lat = lat, lon = lon, kind = PlaceKind.SETTLEMENT))
+    fun closePlaceEditor() { _placeEditor.value = null }
+
+    private var parkedPlace: Place? = null
+    fun repickInPlaceEditor(current: Place) { parkedPlace = current; _placeEditor.value = null; _menu.value = null; _sheet.value = null; _pick.value = Pick.PLACE_EDITOR }
+    fun placeEditorPicked(lat: Double, lon: Double) { val p = parkedPlace ?: return; parkedPlace = null; _pick.value = null; _placeEditor.value = p.copy(lat = lat, lon = lon) }
+    fun cancelPlaceEditorPick() { val p = parkedPlace; parkedPlace = null; _pick.value = null; _placeEditor.value = p }
+
+    fun savePlace(p: Place, done: (Boolean) -> Unit) = io {
+        try {
+            val saved = store.savePlace(if (p.id.isEmpty()) p.copy(id = Ids.newId()) else p)
+            _places.value = store.places()
+            _selectedPlace.value = saved.id
+            _selected.value = null
+            withContext(Dispatchers.Main) { done(true); _placeEditor.value = null }
+            msg(R.string.msg_saved)
+        } catch (e: ValidationException) {
+            msg(R.string.err_coords, error = true)
+            withContext(Dispatchers.Main) { done(false) }
         }
     }
 
+    fun deletePlaces(ids: Collection<String>) = io {
+        val n = store.deletePlaces(ids)
+        _places.value = store.places()
+        if (_selectedPlace.value in ids) _selectedPlace.value = null
+        msg(R.string.msg_deleted_n, n)
+    }
+
     /* ======================= Маршруттар ======================= */
-    fun selectRoute(id: String?) { _selectedRoute.value = id }
+    fun selectRoute(id: String?) { _selectedRoute.value = id; if (id != null) _selectedPlace.value = null }
 
     fun startNewRoute() { _edit.value = RouteEdit(Route(id = ""), emptyList()); _selectedRoute.value = null; _menu.value = null; _sheet.value = null; saveDraft() }
     fun editRoute(id: String) { _routes.value.firstOrNull { it.id == id }?.let { _edit.value = RouteEdit(it, it.points); _menu.value = null; _sheet.value = null; saveDraft() } }
@@ -446,6 +509,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun gpsPoint(): PlanPoint? = location.location.value?.let { PlanPoint(it.latitude, it.longitude, str(R.string.my_location), gps = true) }
     fun monumentPoint(id: String): PlanPoint? = monument(id)?.let { PlanPoint(it.lat, it.lon, it.name.display(prefs.value.dataLang), markId = it.id) }
+    /** Өзге нысан — қарапайым нүкте ретінде (маршрут желісінде ескерткіш түйіні емес). */
+    fun placePoint(id: String): PlanPoint? = place(id)?.let { PlanPoint(it.lat, it.lon, it.title(prefs.value.dataLang)) }
     fun pinPoint(): PlanPoint? = _pin.value?.let { PlanPoint(it.lat, it.lon, str(R.string.input_point)) }
 
     /** Маршрут құру парағын ашу. [to] берілсе — Б нүктесі (мыс. ескерткіш карточкасынан «Осы жерге маршрут»). */
@@ -834,7 +899,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                             MuraProject.requireProject(db)
                             val a = store.importMonuments(MuraProject.readMarks(db, lang))
                             val b = store.importRoutes(MuraProject.readRoutes(db, lang))
-                            msg(R.string.msg_import_project, a.added, a.updated, b.added, b.updated)
+                            val c = store.importPlaces(MuraProject.readPlaces(db, lang))
+                            msg(R.string.msg_import_project, a.added, a.updated, b.added, b.updated, c.added, c.updated)
                         }
                     } finally { f.delete() }
                 }
@@ -842,22 +908,24 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     val text = readBytes(uri).toString(Charsets.UTF_8)
                     if (target == ImportTarget.ROUTES) reportRoutes(RouteFormats.parseGeoJson(text, lang))
                     else {
+                        // Mura GIS-тің өз файлдары өз орнына түседі; бөтен нүктелер — қайда қосу керегі сұралады
                         val root = kotlinx.serialization.json.Json.parseToJsonElement(text)
                         if (MonumentGeoJson.isMura(root)) reportMonuments(MonumentGeoJson.parse(root, lang))
-                        else _pending.value = PendingPoints(name, PointFiles.parseGeoJson(root, name))
+                        else if (PlaceGeoJson.isMura(root)) reportPlaces(PlaceGeoJson.parse(root, lang))
+                        else _pending.value = PendingPoints(name, PointFiles.parseGeoJson(root, name), target)
                     }
                 }
                 "kml" -> {
                     val t = readBytes(uri).toString(Charsets.UTF_8)
-                    if (target == ImportTarget.ROUTES) reportRoutes(RouteFormats.parseKml(t, lang)) else _pending.value = PendingPoints(name, PointFiles.parseKml(t, name))
+                    if (target == ImportTarget.ROUTES) reportRoutes(RouteFormats.parseKml(t, lang)) else _pending.value = PendingPoints(name, PointFiles.parseKml(t, name), target)
                 }
                 "kmz" -> {
                     val b = readBytes(uri)
-                    if (target == ImportTarget.ROUTES) reportRoutes(RouteFormats.parseKmz(b, lang)) else _pending.value = PendingPoints(name, PointFiles.parseKmz(b, name))
+                    if (target == ImportTarget.ROUTES) reportRoutes(RouteFormats.parseKmz(b, lang)) else _pending.value = PendingPoints(name, PointFiles.parseKmz(b, name), target)
                 }
                 "gpx" -> {
                     val t = readBytes(uri).toString(Charsets.UTF_8)
-                    if (target == ImportTarget.ROUTES) reportRoutes(RouteFormats.parseGpx(t, lang)) else _pending.value = PendingPoints(name, PointFiles.parseGpx(t, name))
+                    if (target == ImportTarget.ROUTES) reportRoutes(RouteFormats.parseGpx(t, lang)) else _pending.value = PendingPoints(name, PointFiles.parseGpx(t, name), target)
                 }
                 else -> msg(R.string.err_unknown_format, error = true)
             }
@@ -867,13 +935,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: kotlinx.serialization.SerializationException) {
             msg(R.string.err_json, error = true)
         } finally {
-            _monuments.value = store.monuments(); _routes.value = store.routes()
+            _monuments.value = store.monuments(); _routes.value = store.routes(); _places.value = store.places()
             _busy.value = false
         }
     }
 
     private fun reportMonuments(list: List<ImportedMonument>) {
         val r = store.importMonuments(list)
+        msg(R.string.msg_import_result, r.added, r.updated, r.skipped)
+    }
+
+    private fun reportPlaces(list: List<ImportedPlace>) {
+        val r = store.importPlaces(list)
         msg(R.string.msg_import_result, r.added, r.updated, r.skipped)
     }
 
@@ -895,6 +968,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _monuments.value = store.monuments()
     }
 
+    /** Бөтен нүктелерді өзге нысан ретінде қосу: атауы — [lang] тіліндегі атау, түрі — [kind]. */
+    fun importPendingAsPlaces(indices: Set<Int>, lang: Lang, kind: PlaceKind) = io {
+        val p = _pending.value ?: return@io
+        val list = p.points.filterIndexed { i, _ -> i in indices }.map {
+            ImportedPlace(Place(lat = it.lat, lon = it.lon, name = Localized.of(lang, it.name), kind = kind), setOf(lang), false)
+        }
+        _pending.value = null
+        reportPlaces(list)
+        _places.value = store.places()
+    }
+
     fun dismissPending() { _pending.value = null }
 
     enum class ExportFormat(val ext: String, val mime: String) {
@@ -909,11 +993,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val cr = getApplication<Application>().contentResolver
             val mons = if (onlyFiltered) filteredMonuments.value else store.monuments()
             val rts = store.routes().filter { routeId == null || it.id == routeId }
-            val title = if (target == ImportTarget.MONUMENTS) "Mura GIS" else "Mura GIS routes"
+            val title = when (target) { ImportTarget.MONUMENTS -> "Mura GIS"; ImportTarget.PLACES -> "Mura GIS places"; ImportTarget.ROUTES -> "Mura GIS routes" }
             if (format == ExportFormat.GPKG) {
                 val f = File(g.exportsDir, "export-" + System.nanoTime() + ".gpkg")
                 AndroidSqlDb.create(f).use { db ->
-                    MuraProject.export(db, if (target == ImportTarget.MONUMENTS) mons else store.monuments(), if (target == ImportTarget.ROUTES) rts else rts, lang, "Mura GIS Android")
+                    MuraProject.export(db, if (target == ImportTarget.MONUMENTS) mons else store.monuments(), rts, lang, "Mura GIS Android", store.places())
                 }
                 cr.openOutputStream(uri, "wt")?.use { o -> f.inputStream().use { it.copyTo(o) } }
                 f.delete()
@@ -922,6 +1006,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     ImportTarget.MONUMENTS -> when (format) {
                         ExportFormat.KML -> MonumentGeoJson.exportKml(mons, lang, title)
                         else -> MonumentGeoJson.export(mons, lang, title)
+                    }
+                    ImportTarget.PLACES -> when (format) {
+                        ExportFormat.KML -> PlaceGeoJson.exportKml(store.places(), lang, title)
+                        else -> PlaceGeoJson.export(store.places(), lang, title)
                     }
                     ImportTarget.ROUTES -> when (format) {
                         ExportFormat.GPX -> RouteFormats.toGpx(rts, lang, title, store.monuments().associateBy { it.id })

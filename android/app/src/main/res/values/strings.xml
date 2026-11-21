@@ -230,7 +230,7 @@
     <string name="msg_source_download_blocked">Сақталды, бірақ бұл провайдерден офлайн жүктеу бұғатталған (шарттары тыйым салады).</string>
     <string name="msg_download_started">Жүктеу басталды (хабарландыруда көрінеді)</string>
     <string name="msg_import_started">Импорт басталды…</string>
-    <string name="msg_import_project">Ескерткіштер: +%1$d, жаңартылды %2$d; маршруттар: +%3$d, жаңартылды %4$d</string>
+    <string name="msg_import_project">Ескерткіштер: +%1$d, жаңартылды %2$d; маршруттар: +%3$d, жаңартылды %4$d; өзге нысандар: +%5$d, жаңартылды %6$d</string>
     <string name="msg_import_result">Қосылды: %1$d, жаңартылды: %2$d, өткізілді: %3$d</string>
     <string name="msg_nothing_found">Файлда сәйкес деректер табылмады</string>
     <string name="msg_exported">Экспортталды</string>
@@ -288,7 +288,7 @@
     <string name="gps_searching">GPS іздеуде…</string>
     <string name="gps_tap_enable">Орынды көрсету үшін түртіңіз</string>
     <string name="this_point">Осы нүкте</string>
-    <string name="pick_mark_hint">Жаңа белгі: картаны жылжытып, нысананы ескерткіш орнына қойыңыз не GPS орнын алыңыз.</string>
+    <string name="pick_mark_hint">Жаңа белгі: картаны жылжытып, нысананы белгі орнына қойыңыз не GPS орнын алыңыз. Содан кейін белгі түрін таңдайсыз.</string>
     <string name="pick_a_hint">А нүктесі: картаны жылжытып, нысананы қажетті жерге қойыңыз.</string>
     <string name="pick_b_hint">Б нүктесі: картаны жылжытып, нысананы қажетті жерге қойыңыз.</string>
     <string name="pick_my_location_acc">Менің орным (±%1$d м)</string>
@@ -353,7 +353,7 @@
     <string name="cin_err_switch">Форматты ауыстыру үшін алдымен ағымдағы мәнді түзетіңіз.</string>
     <string name="input_point">Енгізілген нүкте</string>
     <string name="route_here">Маршрут</string>
-    <string name="save_as_monument">Ескерткіш ретінде сақтау</string>
+    <string name="save_as_monument">Белгі қою</string>
     <string name="remove_point">Нүктені алып тастау</string>
 
     <!-- Маршрут құру (А → Б) -->
@@ -365,7 +365,7 @@
     <string name="plan_to_ph">Баратын жер</string>
     <string name="plan_swap">А мен Б-ны ауыстыру</string>
     <string name="plan_pick_map">Картадан нұсқау</string>
-    <string name="plan_find_monument">Ескерткішті табу</string>
+    <string name="plan_find_monument">Ескерткішті не нысанды табу</string>
     <string name="plan_more_monuments">Тағы %1$d ескерткіш — атауын жазыңыз</string>
     <string name="seg_car">Көлік</string>
     <string name="seg_4x4">4×4</string>
@@ -441,4 +441,28 @@
     <string name="not_downloaded_here">Бұл аумақтың картасы жүктелмеген</string>
     <string name="import_options">Импорт баптаулары: қалта, TMS, EPSG:3395</string>
     <string name="map_details">Карта туралы</string>
+    <!-- Өзге нысандар -->
+    <string name="tab_places">Өзге нысандар</string>
+    <string name="menu_places_sub">%1$d нысан</string>
+    <string name="places_count">Өзге нысандар: %1$d</string>
+    <string name="places_count_filtered">Өзге нысандар: %1$d / %2$d</string>
+    <string name="places_search_hint">Нысанды іздеу</string>
+    <string name="add_place">Өзге нысан қосу</string>
+    <string name="new_place">Жаңа өзге нысан</string>
+    <string name="edit_place">Өзге нысанды өңдеу</string>
+    <string name="f_place_kind">Түрі</string>
+    <string name="f_place_name">Атауы (міндетті емес)</string>
+    <string name="place_name_note">Атауы бос болса, картада және тізімде түрі көрсетіледі.</string>
+    <string name="confirm_delete_place">«%1$s» нысанын өшіру керек пе?</string>
+    <string name="all_kinds">Барлығы</string>
+    <string name="mark_choice_title">Қандай белгі қоямыз?</string>
+    <string name="mark_choice_monument">Ескерткіш белгісі</string>
+    <string name="mark_choice_monument_sub">Тарихи-мәдени мұра объектісі: мерзімі, түрі, санаты, мәртебесі…</string>
+    <string name="mark_choice_place">Өзге нысандар</string>
+    <string name="mark_choice_place_sub">Елді мекен, қыстау, жайлау, тұрақ, құдық т.б.</string>
+    <string name="import_formats_places">GeoJSON (Mura GIS не басқа), Mura GIS жобасы (.gpkg), KML, KMZ, GPX.</string>
+    <string name="import_where">Қайда қосу керек?</string>
+    <string name="pending_note_places">Бұл нүктелер таңдалған түрдегі өзге нысан ретінде қосылады: атауы — атау өрісіне.</string>
+    <string name="pick_place_hint">Жаңа өзге нысан: картаны жылжытып, нысананы орнына қойыңыз не GPS орнын алыңыз.</string>
+    <string name="pick_place_editor_hint">Нысанның орны: картаны жылжытып, нысананы жаңа орынға қойыңыз не GPS орнын алыңыз. Енгізілген мәліметтер сақталады.</string>
 </resources>

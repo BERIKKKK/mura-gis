@@ -10,6 +10,8 @@ import io.github.berikkkk.muragis.core.geo.Bounds
 import io.github.berikkkk.muragis.core.geo.LatLon
 import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Monument
+import io.github.berikkkk.muragis.core.model.Place
+import io.github.berikkkk.muragis.core.model.PlaceKind
 import io.github.berikkkk.muragis.core.model.Route
 import io.github.berikkkk.muragis.core.model.RoutePoint
 import org.json.JSONArray
@@ -36,6 +38,8 @@ interface MapEvents {
     fun onMapTap(lat: Double, lon: Double)
     fun onMapLongPress(lat: Double, lon: Double)
     fun onMonumentTap(id: String)
+    /** Өзге нысан басылды. */
+    fun onPlaceTap(id: String) {}
     fun onRouteTap(id: String)
     fun onVertexTap(index: Int)
     fun onVertexMoved(index: Int, lat: Double, lon: Double)
@@ -112,6 +116,8 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             val icons = SymbolIcons.all(ctx, (30 * density).toInt())
             icons.forEach { (k, v) -> s.addImage(k, v) }
             val cs = (44 * density).toInt()
+            val pls = (24 * density).toInt()
+            PlaceKind.entries.forEach { k -> s.addImage(SymbolIcons.placeIconName(k), SymbolIcons.place(k, pls)) }
             for (n in 2..99) s.addImage("cl-$n", SymbolIcons.cluster(n.toString(), cs))
             s.addImage("cl-100", SymbolIcons.cluster("99+", cs))
             s.addImage("cl-1k", SymbolIcons.cluster("999+", cs))
@@ -145,6 +151,16 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
 
     fun setSelected(m: Monument?) {
         push(StyleBuilder.SRC_SEL, fc(JSONArray().apply { if (m != null) put(point(m.lon, m.lat, JSONObject())) }))
+    }
+
+    fun setPlaces(list: List<Place>) {
+        val a = JSONArray()
+        for (p in list) a.put(point(p.lon, p.lat, JSONObject().put("id", p.id).put("icon", SymbolIcons.placeIconName(p.kind))))
+        push(StyleBuilder.SRC_PLACES, fc(a))
+    }
+
+    fun setSelectedPlace(p: Place?) {
+        push(StyleBuilder.SRC_PLACE_SEL, fc(JSONArray().apply { if (p != null) put(point(p.lon, p.lat, JSONObject())) }))
     }
 
     fun setRoutes(list: List<Route>, selectedId: String?, hiddenId: String? = null) {
@@ -276,6 +292,10 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             if (m.queryRenderedFeatures(pb, StyleBuilder.LYR_PIN).isNotEmpty()) { events.onPinTap(); return }
         }
         m.queryRenderedFeatures(box, StyleBuilder.LYR_MON).firstOrNull()?.getStringProperty("id")?.let { events.onMonumentTap(it); return }
+        if (!events.isEditingRoute()) {
+            val qb = android.graphics.RectF(sp.x - 16 * density, sp.y - 16 * density, sp.x + 16 * density, sp.y + 16 * density)
+            m.queryRenderedFeatures(qb, StyleBuilder.LYR_PLACES).firstOrNull()?.getStringProperty("id")?.let { events.onPlaceTap(it); return }
+        }
         if (!events.isEditingRoute()) {
             val rb = android.graphics.RectF(sp.x - 12 * density, sp.y - 12 * density, sp.x + 12 * density, sp.y + 12 * density)
             m.queryRenderedFeatures(rb, StyleBuilder.LYR_ROUTES).firstOrNull()?.getStringProperty("id")?.let { events.onRouteTap(it); return }
