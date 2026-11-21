@@ -112,6 +112,11 @@ object Sorting {
         return compareText(x, y)
     }
 
+    /** Өзге нысандар: атауы бойынша (атауы жоқтары — түрінің атауымен), сосын түрі бойынша. */
+    fun sortPlaces(list: List<Place>, lang: Lang): List<Place> = list.sortedWith { a, b ->
+        compareNames(a.title(lang), b.title(lang)).let { if (it != 0) it else a.kind.ordinal - b.kind.ordinal }
+    }
+
     /** Құжаттағы рет: санат, облыс, аудан, атау (жұмыс үстеліндегі sortMarks). */
     fun sortMonuments(list: List<Monument>, lang: Lang): List<Monument> = list.sortedWith { a, b ->
         (a.category.order - b.category.order).takeIf { it != 0 }

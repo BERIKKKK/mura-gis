@@ -111,6 +111,49 @@ data class Monument(
     val extra: String = "",
 )
 
+/**
+ * Өзге нысанның түрі — ескерткіш емес, бірақ далада бағдар болатын нысандар. Кодтар жұмыс үстеліндегімен бірдей
+ * (main/places.js); тізімге жаңа түр тек соңына қосылады, бар код өзгертілмейді.
+ */
+enum class PlaceKind(val code: String, val kk: String, val ru: String) {
+    SETTLEMENT("settlement", "Елді мекен", "Населённый пункт"),
+    QYSTAU("qystau", "Қыстау", "Зимовка (қыстау)"),
+    ZHAILAU("zhailau", "Жайлау", "Летнее пастбище (жайлау)"),
+    KUZEU("kuzeu", "Күзеу", "Осеннее стойбище (күзеу)"),
+    KOKTEU("kokteu", "Көктеу", "Весеннее стойбище (көктеу)"),
+    TURAQ("turaq", "Тұрақ", "Стоянка"),
+    WELL("well", "Құдық", "Колодец"),
+    SPRING("spring", "Бұлақ", "Родник"),
+    OTHER("other", "Басқа", "Другое");
+
+    fun label(lang: Lang) = if (lang == Lang.KK) kk else ru
+
+    companion object {
+        fun of(code: String?) = entries.firstOrNull { it.code == code } ?: OTHER
+        fun byLabel(label: String?) = entries.firstOrNull { it.kk == label || it.ru == label }
+    }
+}
+
+/**
+ * Өзге нысан (елді мекен, қыстау, құдық…): тек түрі, атауы (міндетті емес) және координатасы.
+ * Ескерткіштерден бөлек сақталады (жұмыс үстелі: жобаның places қабаты). [extra] — бізге белгісіз қасиеттер.
+ */
+data class Place(
+    val id: String = Ids.newId(),
+    val lat: Double,
+    val lon: Double,
+    val name: Localized = Localized.EMPTY,
+    val kind: PlaceKind = PlaceKind.OTHER,
+    val createdAt: String = "",
+    val createdBy: String = "",
+    val updatedAt: String = "",
+    val updatedBy: String = "",
+    val extra: String = "",
+) {
+    /** Көрсетілетін атау: атауы бос болса — түрінің атауы. */
+    fun title(lang: Lang): String = name.display(lang).ifBlank { kind.label(lang) }
+}
+
 /** Маршрут нүктесі; [monumentId] бар болса — нүкте ескерткішке байланған. */
 data class RoutePoint(val lat: Double, val lon: Double, val monumentId: String? = null)
 

@@ -1,6 +1,7 @@
 package io.github.berikkkk.muragis.core.db
 
 import io.github.berikkkk.muragis.core.io.ImportedMonument
+import io.github.berikkkk.muragis.core.io.ImportedPlace
 import io.github.berikkkk.muragis.core.io.ImportedRoute
 import io.github.berikkkk.muragis.core.model.Category
 import io.github.berikkkk.muragis.core.model.Ids
@@ -8,6 +9,8 @@ import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Localized
 import io.github.berikkkk.muragis.core.model.Monument
 import io.github.berikkkk.muragis.core.model.MonumentType
+import io.github.berikkkk.muragis.core.model.Place
+import io.github.berikkkk.muragis.core.model.PlaceKind
 import io.github.berikkkk.muragis.core.model.Route
 import io.github.berikkkk.muragis.core.model.RoutePoint
 import io.github.berikkkk.muragis.core.model.Season
@@ -16,14 +19,15 @@ import io.github.berikkkk.muragis.core.model.Validation
 import io.github.berikkkk.muragis.core.model.Vehicle
 
 /**
- * Құрылғыдағы негізгі дерекқор (SQLite): ескерткіштер, маршруттар, карта қабаттары, жүктеу тапсырмалары.
+ * Құрылғыдағы негізгі дерекқор (SQLite): ескерткіштер, өзге нысандар, маршруттар, карта қабаттары, жүктеу тапсырмалары.
  * Әр тілдің мәні — бөлек баған (name_kk, name_ru …), сондықтан бір тілдің мәні екіншісінің үстінен жазылмайды.
  * Болашақ синхрондауға дайындық: тұрақты 16 таңбалы id, updated_at (ISO, UTC), жұмсақ өшіру (deleted = 1, «tombstone»).
  */
 class LocalStore(val db: SqlDb, private val user: String = "") {
 
     companion object {
-        const val SCHEMA_VERSION = 1
+        /** 1 — бастапқы схема; 2 — өзге нысандар (places). */
+        const val SCHEMA_VERSION = 2
         private val LOC = listOf("name", "period", "oblast", "district", "place", "note")
         private val ROUTE_LOC = listOf("name", "a_name", "b_name", "note")
     }
@@ -71,6 +75,16 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                     bytes INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL, error TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')""")
                 db.exec("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL DEFAULT '')")
+            }
+            if (v < 2) {
+                // Өзге нысандар: бар кестелерге тимейді — ескі дерекқор жаңа нұсқада толық оқылады
+                db.exec("""CREATE TABLE IF NOT EXISTS places (
+                    id TEXT PRIMARY KEY NOT NULL, lat REAL NOT NULL, lon REAL NOT NULL,
+                    name_kk TEXT NOT NULL DEFAULT '', name_ru TEXT NOT NULL DEFAULT '', kind TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT '', created_by TEXT NOT NULL DEFAULT '',
+                    updated_at TEXT NOT NULL DEFAULT '', updated_by TEXT NOT NULL DEFAULT '',
+                    extra TEXT NOT NULL DEFAULT '', deleted INTEGER NOT NULL DEFAULT 0)""")
+                db.exec("CREATE INDEX IF NOT EXISTS places_updated ON places(updated_at)")
             }
             db.exec("PRAGMA user_version = $SCHEMA_VERSION")
         }
@@ -167,6 +181,77 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                     updatedAt = stamp, updatedBy = inc.updatedBy, extra = inc.extra.ifEmpty { local.extra },
                 )
                 writeMonument(rec)
+                updated++
+            }
+        }
+        return ImportResult(added, updated, skipped)
+    }
+
+    /* ======================= Өзге нысандар ======================= */
+
+    private fun placeFrom(r: Row) = Place(
+        id = r.string("id")!!, lat = r.double("lat")!!, lon = r.double("lon")!!,
+        name = Localized(r.string("name_kk") ?: "", r.string("name_ru") ?: ""), kind = PlaceKind.of(r.string("kind")),
+        createdAt = r.string("created_at") ?: "", createdBy = r.string("created_by") ?: "",
+        updatedAt = r.string("updated_at") ?: "", updatedBy = r.string("updated_by") ?: "",
+        extra = r.string("extra") ?: "",
+    )
+
+    fun places(): List<Place> = db.query("SELECT * FROM places WHERE deleted = 0", emptyList(), ::placeFrom)
+
+    fun place(id: String): Place? = db.query("SELECT * FROM places WHERE id = ? AND deleted = 0", listOf(id), ::placeFrom).firstOrNull()
+
+    private fun writePlace(p: Place) {
+        val cols = listOf("id", "lat", "lon", "name_kk", "name_ru", "kind", "created_at", "created_by", "updated_at", "updated_by", "extra", "deleted")
+        val vals = listOf<Any?>(p.id, p.lat, p.lon, p.name.kk, p.name.ru, p.kind.code, p.createdAt, p.createdBy, p.updatedAt, p.updatedBy, p.extra, 0L)
+        db.exec("INSERT OR REPLACE INTO places (" + cols.joinToString(",") + ") VALUES (" + cols.joinToString(",") { "?" } + ")", vals)
+    }
+
+    /** Сақтау (жаңа не бар жазба): created_* сақталады, updated_* жаңарады. */
+    fun savePlace(p: Place): Place {
+        val c = Validation.clean(p)
+        val now = Ids.now()
+        val old = db.query("SELECT created_at, created_by FROM places WHERE id = ?", listOf(c.id)) { (it.string("created_at") ?: "") to (it.string("created_by") ?: "") }.firstOrNull()
+        val rec = c.copy(
+            createdAt = old?.first?.ifEmpty { null } ?: c.createdAt.ifEmpty { now },
+            createdBy = old?.second?.ifEmpty { null } ?: c.createdBy.ifEmpty { user },
+            updatedAt = now, updatedBy = user,
+        )
+        db.tx { writePlace(rec) }
+        return rec
+    }
+
+    /** Жұмсақ өшіру (ескерткіштердегідей «tombstone» қалады). */
+    fun deletePlaces(ids: Collection<String>): Int {
+        if (ids.isEmpty()) return 0
+        val now = Ids.now()
+        var n = 0
+        db.tx {
+            for (id in ids) {
+                n += (db.scalarLong("SELECT count(*) FROM places WHERE id = ? AND deleted = 0", listOf(id)) ?: 0L).toInt()
+                db.exec("UPDATE places SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?", listOf(now, user, id))
+            }
+        }
+        return n
+    }
+
+    /** Импорт: id бірдей болса — жаңасы қалады; тек файлдағы тілдің атауы ауыстырылады (ескерткіштердегідей). */
+    fun importPlaces(list: List<ImportedPlace>): ImportResult {
+        var added = 0; var updated = 0; var skipped = 0
+        val now = Ids.now()
+        db.tx {
+            for (ip in list) {
+                val inc = try { Validation.clean(ip.place) } catch (e: Exception) { skipped++; continue }
+                val local = if (ip.hasId) db.query("SELECT * FROM places WHERE id = ?", listOf(inc.id), ::placeFrom).firstOrNull() else null
+                val stamp = inc.updatedAt.ifEmpty { now }
+                if (local == null) {
+                    writePlace(inc.copy(createdAt = inc.createdAt.ifEmpty { now }, updatedAt = stamp)); added++; continue
+                }
+                if (stamp <= local.updatedAt) { skipped++; continue }
+                var name = local.name
+                for (l in ip.langs) name = name.with(l, inc.name[l])
+                writePlace(local.copy(lat = inc.lat, lon = inc.lon, kind = inc.kind, name = name,
+                    updatedAt = stamp, updatedBy = inc.updatedBy, extra = inc.extra.ifEmpty { local.extra }))
                 updated++
             }
         }
