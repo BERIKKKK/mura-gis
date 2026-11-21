@@ -274,6 +274,9 @@
     <string name="update_available">Новая версия: %1$s</string>
     <string name="update_download">Скачать APK · %1$s</string>
     <string name="update_notes">Что нового (GitHub)</string>
+    <string name="update_downloading">Загрузка… %1$d%%</string>
+    <string name="update_install">Установить · %1$s</string>
+    <string name="update_failed">Загрузка не удалась (файл неполный или повреждён) — повторить</string>
     <string name="about_version">Mura GIS Android %1$s (сборка %2$d)</string>
     <string name="about_text">Мобильная ГИС для объектов историко-культурного наследия: памятники и маршруты. Версионируется отдельно от настольной Mura GIS; данные (GeoJSON, проект .gpkg, GPX) совместимы.</string>
 

@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.berikkkk.muragis.core.update.AppUpdate
@@ -69,6 +71,7 @@ private val DATA = listOf(
 fun AboutPage(vm: MainViewModel) {
     val ctx = LocalContext.current
     val update by vm.update.collectAsState()
+    val apk by vm.apk.collectAsState()
     fun open(url: String) = runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 
     Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 32.dp)) {
@@ -101,9 +104,21 @@ fun AboutPage(vm: MainViewModel) {
         ) { vm.checkUpdate() }
         if (u is UpdateState.Available) {
             Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                u.release.apkUrl?.let { apk ->
-                    BigButton(stringResource(R.string.update_download, fmtBytes(u.release.apkSize)), Modifier.fillMaxWidth(), primary = true,
-                        icon = { Icon(Icons.Filled.Download, null, Modifier.size(20.dp)) }) { open(apk) }
+                // APK браузерсіз, фонда жүктеледі; дайын болғанда орнату терезесі өзі ашылады (MainViewModel.downloadUpdate)
+                if (u.release.apkUrl != null) {
+                    val a = apk
+                    val label = when (a) {
+                        is ApkState.Downloading -> stringResource(R.string.update_downloading, if (a.total > 0) (a.done * 100 / a.total).toInt() else 0)
+                        is ApkState.Ready -> stringResource(R.string.update_install, u.release.version)
+                        ApkState.Failed -> stringResource(R.string.update_failed)
+                        ApkState.Idle -> stringResource(R.string.update_download, fmtBytes(u.release.apkSize))
+                    }
+                    BigButton(label, Modifier.fillMaxWidth(), primary = true,
+                        icon = {
+                            if (a is ApkState.Downloading) CircularProgressIndicator(
+                                progress = { if (a.total > 0) a.done.toFloat() / a.total else 0f }, modifier = Modifier.size(20.dp), color = Chrome.onAccent, strokeWidth = 2.dp)
+                            else Icon(Icons.Filled.Download, null, Modifier.size(20.dp))
+                        }) { if (a !is ApkState.Downloading) vm.downloadUpdate(u.release) }
                 }
                 BigButton(stringResource(R.string.update_notes), Modifier.fillMaxWidth()) { open(u.release.pageUrl) }
             }
@@ -112,7 +127,7 @@ fun AboutPage(vm: MainViewModel) {
         ChromeLabel(stringResource(R.string.about_libs))
         LinkList(LIBRARIES + DATA, ::open)
         Spacer(Modifier.padding(top = 8.dp))
-        LinkList(listOf(OpenItem(stringResource(R.string.about_source), "github.com/${AppUpdate.REPO}", AppUpdate.REPO_URL)), ::open)
+        LinkList(listOf(OpenItem(stringResource(R.string.about_source), "", AppUpdate.REPO_URL)), ::open)
     }
 }
 
@@ -126,8 +141,10 @@ private fun LinkList(items: List<OpenItem>, open: (String) -> Unit) {
                 Modifier.fillMaxWidth().heightIn(min = 44.dp).clickable { open(it.url) }.padding(horizontal = 14.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                // Екеуі де weight: ұзын лицензия/сілтеме мәтіні атауды қысып тастамайды (енді бөліседі, артығы — «…»)
                 Text(it.name, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                Text(it.license, color = Chrome.dim, fontSize = 12.5.sp)
+                if (it.license.isNotEmpty()) Text(it.license, color = Chrome.dim, fontSize = 12.5.sp, textAlign = TextAlign.End, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, null, tint = Chrome.dim, modifier = Modifier.size(16.dp))
             }
         }

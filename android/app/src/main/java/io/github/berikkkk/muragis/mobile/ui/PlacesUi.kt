@@ -27,7 +27,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -104,7 +103,7 @@ fun MarkChoiceDialog(vm: MainViewModel) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     OptionRow(stringResource(R.string.mark_choice_monument), stringResource(R.string.mark_choice_monument_sub),
                         leading = { Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Chrome.bg3), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.AccountBalance, null, tint = Chrome.accent)
+                            Icon(LucideIcons.Landmark, null, tint = Chrome.accent)
                         } }) { vm.chooseMark(true) }
                     OptionRow(stringResource(R.string.mark_choice_place), stringResource(R.string.mark_choice_place_sub),
                         leading = { Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { PlaceBadge(PlaceKind.QYSTAU, 32.dp) } }) { vm.chooseMark(false) }
