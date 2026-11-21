@@ -5,6 +5,8 @@ import io.github.berikkkk.muragis.core.db.q
 import io.github.berikkkk.muragis.core.geo.LatLon
 import io.github.berikkkk.muragis.core.io.FormatException
 import io.github.berikkkk.muragis.core.io.ImportedMonument
+import io.github.berikkkk.muragis.core.io.ImportedPlace
+import io.github.berikkkk.muragis.core.io.PlaceGeoJson
 import io.github.berikkkk.muragis.core.io.ImportedRoute
 import io.github.berikkkk.muragis.core.io.MONUMENT_TEXT_FIELDS
 import io.github.berikkkk.muragis.core.io.MonumentGeoJson
@@ -12,6 +14,7 @@ import io.github.berikkkk.muragis.core.io.RouteFormats
 import io.github.berikkkk.muragis.core.model.Ids
 import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Monument
+import io.github.berikkkk.muragis.core.model.Place
 import io.github.berikkkk.muragis.core.model.Route
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -23,7 +26,7 @@ import kotlinx.serialization.json.put
 
 /**
  * Mura GIS жобасы (.gpkg) — жұмыс үстеліндегі main/gpkg.js пішімі (OGC GeoPackage 1.4, WGS 84).
- * Android тек marks және routes қабаттарын жазады/оқиды; zones және imports кестелері жұмыс үстелі ашуы үшін бос құрылады
+ * Android тек marks, places және routes қабаттарын жазады/оқиды; zones және imports кестелері жұмыс үстелі ашуы үшін бос құрылады
  * (қорғау аймағы Android нұсқасына кірмейді).
  */
 object MuraProject {
@@ -43,13 +46,15 @@ object MuraProject {
             listOf("name", "a_name", "b_name", "vehicle", "season", "checked", "note", "created_at", "created_by", "updated_at", "updated_by")),
         "imports" to Layer("Импортталған нүктелер", "KML, KMZ, GPX файлдарынан импортталған нүктелер (Mura GIS)", "POINT",
             listOf("name", "description", "file", "folder", "imported_at")),
+        "places" to Layer("Өзге нысандар / Прочие объекты", "Елді мекен, қыстау, құдық т.б. / Населённые пункты, зимовки, колодцы и др. (Mura GIS)", "POINT",
+            listOf("name", "name_ru", "kind", "created_at", "created_by", "updated_at", "updated_by")),
     )
 
     private const val WGS84_WKT = "GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]]," +
         "PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]]"
 
     fun isGeoPackage(db: SqlDb) = db.tableExists("gpkg_contents")
-    fun hasMuraLayers(db: SqlDb) = db.tableExists("marks") || db.tableExists("routes")
+    fun hasMuraLayers(db: SqlDb) = db.tableExists("marks") || db.tableExists("routes") || db.tableExists("places")
 
     /** GeoPackage-тің міндетті кестелері және Mura GIS қабаттары (жұмыс үстеліндегі ensure()). */
     fun ensure(db: SqlDb) = db.tx {
@@ -133,6 +138,19 @@ object MuraProject {
         writeLayer(db, "marks", rows, props, list.map { doubleArrayOf(it.lon, it.lat) })
     }
 
+    /** Өзге нысандар: бағандарда — қазақша және орысша атау (жұмыс үстеліндегідей), props-та — толық жазба. */
+    fun writePlaces(db: SqlDb, list: List<Place>) {
+        val rows = ArrayList<Triple<ByteArray, String, Map<String, String>>>()
+        val props = ArrayList<String>()
+        for (p in list) {
+            val vals = mapOf("name" to p.name.kk, "name_ru" to p.name.ru, "kind" to p.kind.code,
+                "created_at" to p.createdAt, "created_by" to p.createdBy, "updated_at" to p.updatedAt, "updated_by" to p.updatedBy)
+            rows += Triple(GpkgGeometry.encode(Geom.Point(p.lon, p.lat)), p.id, vals)
+            props += io.github.berikkkk.muragis.core.io.JSON.encodeToString(JsonElement.serializer(), PlaceGeoJson.properties(p))
+        }
+        writeLayer(db, "places", rows, props, list.map { doubleArrayOf(it.lon, it.lat) })
+    }
+
     fun writeRoutes(db: SqlDb, list: List<Route>, lang: Lang) {
         val rows = ArrayList<Triple<ByteArray, String, Map<String, String>>>()
         val props = ArrayList<String>()
@@ -155,10 +173,11 @@ object MuraProject {
     }
 
     /** Толық экспорт: жаңа файлға (бос дерекқорға) жоба. */
-    fun export(db: SqlDb, monuments: List<Monument>, routes: List<Route>, lang: Lang, projectName: String) {
+    fun export(db: SqlDb, monuments: List<Monument>, routes: List<Route>, lang: Lang, projectName: String, places: List<Place> = emptyList()) {
         create(db, mapOf("name" to projectName, "app" to "Mura GIS Android", "data_lang" to lang.code))
         writeMarks(db, monuments, lang)
         writeRoutes(db, routes, lang)
+        writePlaces(db, places)
     }
 
     /**
@@ -197,6 +216,22 @@ object MuraProject {
         return out
     }
 
+    /** Өзге нысандар (жобада places қабаты болмаса — бос тізім: ескі жобалар да ашылады). */
+    fun readPlaces(db: SqlDb, importLang: Lang): List<ImportedPlace> {
+        if (!db.tableExists("places")) return emptyList()
+        val cols = LAYERS.getValue("places").cols
+        val out = ArrayList<ImportedPlace>()
+        db.forEach("SELECT * FROM places ORDER BY fid") { row ->
+            val g = GpkgGeometry.decode(row.blob("geom")) as? Geom.Point ?: return@forEach
+            val p = rowProps(row, cols)
+            row.string("uid")?.let { p["id"] = JsonPrimitive(it) }
+            // Бағандағы атау (QGIS-те өңделуі мүмкін) — қазақшасы; props-тағы name_kk-ны соған теңестіреміз
+            if (p.containsKey("name_kk")) p["name_kk"] = p["name"] ?: JsonPrimitive("")
+            out += PlaceGeoJson.fromProperties(JsonObject(p), g.y, g.x, importLang)
+        }
+        return out
+    }
+
     fun readRoutes(db: SqlDb, importLang: Lang): List<ImportedRoute> {
         if (!db.tableExists("routes")) return emptyList()
         val cols = LAYERS.getValue("routes").cols
@@ -214,6 +249,6 @@ object MuraProject {
 
     fun requireProject(db: SqlDb) {
         if (!isGeoPackage(db)) throw FormatException("gpkg_not", "Not a GeoPackage")
-        if (!hasMuraLayers(db)) throw FormatException("gpkg_no_layers", "No marks/routes layers")
+        if (!hasMuraLayers(db)) throw FormatException("gpkg_no_layers", "No marks/routes/places layers")
     }
 }

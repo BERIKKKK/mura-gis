@@ -11,6 +11,7 @@ import android.util.Xml
 import androidx.core.graphics.PathParser
 import io.github.berikkkk.muragis.core.model.Category
 import io.github.berikkkk.muragis.core.model.MonumentType
+import io.github.berikkkk.muragis.core.model.PlaceKind
 import org.xmlpull.v1.XmlPullParser
 
 /**
@@ -109,6 +110,40 @@ object SymbolIcons {
         p.textSize = sizePx * if (label.length >= 4) 0.27f else 0.36f
         val fm = p.fontMetrics
         cv.drawText(label, r, r - (fm.ascent + fm.descent) / 2, p)
+        return bmp
+    }
+
+    /**
+     * Өзге нысандардың белгісі: түріне қарай түс пен қысқа таңба (жұмыс үстеліндегі src/marks/places.js-пен бірдей).
+     * Пішіні — дөңгеленген шаршы: ескерткіш белгілерінен (SVG пішіндер) бірден ажыратылады.
+     */
+    val PLACE_STYLE: Map<PlaceKind, Pair<Int, String>> = mapOf(
+        PlaceKind.SETTLEMENT to (Color.rgb(109, 76, 159) to "Е"),
+        PlaceKind.QYSTAU to (Color.rgb(141, 110, 99) to "Қ"),
+        PlaceKind.ZHAILAU to (Color.rgb(46, 125, 50) to "Ж"),
+        PlaceKind.KUZEU to (Color.rgb(230, 108, 0) to "Кз"),
+        PlaceKind.KOKTEU to (Color.rgb(124, 179, 66) to "Кк"),
+        PlaceKind.TURAQ to (Color.rgb(84, 110, 122) to "Т"),
+        PlaceKind.WELL to (Color.rgb(21, 101, 192) to "◎"),
+        PlaceKind.SPRING to (Color.rgb(0, 151, 167) to "Б"),
+        PlaceKind.OTHER to (Color.rgb(117, 117, 117) to "•"),
+    )
+
+    fun placeIconName(k: PlaceKind) = "pl-" + k.code
+
+    fun place(k: PlaceKind, sizePx: Int): Bitmap {
+        val (fill, label) = PLACE_STYLE.getValue(k)
+        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        val s = sizePx.toFloat()
+        p.color = Color.WHITE; cv.drawRoundRect(RectF(0f, 0f, s, s), s * 0.28f, s * 0.28f, p)
+        val inset = s * 0.11f
+        p.color = fill; cv.drawRoundRect(RectF(inset, inset, s - inset, s - inset), s * 0.2f, s * 0.2f, p)
+        p.color = Color.WHITE; p.textAlign = Paint.Align.CENTER; p.isFakeBoldText = true
+        p.textSize = s * if (label.length >= 2) 0.36f else 0.48f
+        val fm = p.fontMetrics
+        cv.drawText(label, s / 2, s / 2 - (fm.ascent + fm.descent) / 2, p)
         return bmp
     }
 

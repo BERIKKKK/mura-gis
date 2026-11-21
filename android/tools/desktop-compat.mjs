@@ -24,15 +24,21 @@ const MARKS = [
 const ROUTES = [{ id: 'aaaaaaaaaaaaaaaa', name: 'Шымкент — Сүткент', a_name: 'Шымкент', b_name: 'Сүткент', vehicle: 'car', season: 'dry', checked: '2025-05-01', note: 'жол',
   pts: [[42.3, 69.6], [42.5, 68.9], [42.6512345, 68.1234567]], updated_at: '2025-04-01T00:00:00.000Z' }];
 
+// Өзге нысандар — жұмыс үстеліндегі жазба пішімі (main/places.js): name — қазақша, name_ru — орысша
+const PLACES = [{ id: 'bbbbbbbbbbbbbbbb', name: 'Ақбұлақ', name_ru: 'Акбулак', kind: 'spring', lat: 49.1234567, lon: 57.7654321,
+  created_at: '2025-01-01T00:00:00.000Z', updated_at: '2025-05-01T00:00:00.000Z' }];
+
 if (cmd === 'read-gpkg') {
   const { Project } = require(path.join(repo, 'main', 'gpkg.js'));
   const p = Project.open(file);
-  const out = { meta: p.meta(), marks: p.load('marks'), routes: p.load('routes'), counts: p.counts() };
+  const out = { meta: p.meta(), marks: p.load('marks'), routes: p.load('routes'), places: p.load('places'), counts: p.counts() };
   // Жұмыс үстелінің өз тексерулері (MarksStore.clean / RoutesStore.clean) Android жазбаларын қабылдай ма
   const { MarksStore } = require(path.join(repo, 'main', 'marks.js'));
   const { RoutesStore } = require(path.join(repo, 'main', 'routes.js'));
   out.marksValid = out.marks.map(m => { try { MarksStore.clean(m); return true; } catch (e) { return e.message; } });
   out.routesValid = out.routes.map(r => { try { RoutesStore.clean(r); return true; } catch (e) { return e.message; } });
+  const { PlacesStore } = require(path.join(repo, 'main', 'places.js'));
+  out.placesValid = out.places.map(x => { try { return PlacesStore.clean(x).kind === x.kind; } catch (e) { return e.message; } });
   p.close();
   process.stdout.write(JSON.stringify(out));
 } else if (cmd === 'write-gpkg') {
@@ -40,6 +46,7 @@ if (cmd === 'read-gpkg') {
   const p = Project.create(file, { name: 'Desktop test' });
   p.write('marks', MARKS);
   p.write('routes', ROUTES);
+  p.write('places', PLACES);
   p.close();
 } else if (cmd === 'marks-geojson') {
   const { geojson } = await import(pathToFileURL(path.join(repo, 'src', 'marks', 'export.js')).href);

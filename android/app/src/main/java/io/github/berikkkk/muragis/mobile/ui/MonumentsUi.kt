@@ -286,7 +286,7 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
 fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filtered: Boolean, routeId: String? = null, onDone: () -> Unit) {
     val prefs by vm.prefs.collectAsState()
     var lang by remember { mutableStateOf(if (kind == DataDialog.IMPORT) prefs.dataLang else prefs.exportLang) }
-    val formats = if (target == ImportTarget.MONUMENTS) listOf(MainViewModel.ExportFormat.GEOJSON, MainViewModel.ExportFormat.GPKG, MainViewModel.ExportFormat.KML)
+    val formats = if (target != ImportTarget.ROUTES) listOf(MainViewModel.ExportFormat.GEOJSON, MainViewModel.ExportFormat.GPKG, MainViewModel.ExportFormat.KML)
     else listOf(MainViewModel.ExportFormat.GPX, MainViewModel.ExportFormat.GEOJSON, MainViewModel.ExportFormat.KML, MainViewModel.ExportFormat.GPKG)
     var format by remember { mutableStateOf(formats.first()) }
     var onlyFiltered by remember { mutableStateOf(filtered) }
@@ -304,7 +304,10 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
         text = {
             Column {
                 if (kind == DataDialog.IMPORT) {
-                    Text(stringResource(if (target == ImportTarget.MONUMENTS) R.string.import_formats_monuments else R.string.import_formats_routes), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(when (target) {
+                        ImportTarget.MONUMENTS -> R.string.import_formats_monuments; ImportTarget.PLACES -> R.string.import_formats_places
+                        ImportTarget.ROUTES -> R.string.import_formats_routes
+                    }), style = MaterialTheme.typography.bodySmall)
                     SectionTitle(stringResource(R.string.import_lang))
                     LangRadio(lang) { lang = it }
                     Text(stringResource(R.string.import_lang_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
@@ -332,7 +335,7 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
                 if (kind == DataDialog.IMPORT) open.launch(arrayOf("*/*"))
                 else {
                     val stamp = java.text.SimpleDateFormat("yyyyMMdd", Locale.ROOT).format(java.util.Date())
-                    val base = if (target == ImportTarget.MONUMENTS) "eskertkishter" else "marshruttar"
+                    val base = when (target) { ImportTarget.MONUMENTS -> "eskertkishter"; ImportTarget.PLACES -> "ozge-nysandar"; ImportTarget.ROUTES -> "marshruttar" }
                     savers.getValue(format).launch("$base-${lang.code}-$stamp.${format.ext}")
                 }
             }) { Text(stringResource(if (kind == DataDialog.IMPORT) R.string.choose_file else R.string.save_file)) }
@@ -341,12 +344,17 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
     )
 }
 
-/** KML/KMZ/GPX/бөтен GeoJSON нүктелерін ескерткіш ретінде импорттау алдында қарау. */
+/**
+ * KML/KMZ/GPX/бөтен GeoJSON нүктелерін импорттау алдында қарау: қайда қосу керегі сұралады — ескерткіштерге
+ * (түрі, санаты, мәртебесі) не өзге нысандарға (түрі). Әдепкісі — импорт басталған бет.
+ */
 @Composable
 fun PendingPointsDialog(vm: MainViewModel, p: PendingPoints) {
     val prefs by vm.prefs.collectAsState()
     val ui = uiLang()
     var sel by remember(p) { mutableStateOf(p.points.indices.toSet()) }
+    var asPlaces by remember(p) { mutableStateOf(p.target == ImportTarget.PLACES) }
+    var kind by remember { mutableStateOf(io.github.berikkkk.muragis.core.model.PlaceKind.OTHER) }
     var lang by remember { mutableStateOf(prefs.dataLang) }
     var type by remember { mutableStateOf(MonumentType.ARCHEO) }
     var cat by remember { mutableStateOf(Category.NONE) }
@@ -355,7 +363,7 @@ fun PendingPointsDialog(vm: MainViewModel, p: PendingPoints) {
         Surface(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(16.dp)) {
                 Text(stringResource(R.string.pending_title, p.file, p.points.size), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.pending_note), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                Text(stringResource(if (asPlaces) R.string.pending_note_places else R.string.pending_note), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = sel.size == p.points.size, onCheckedChange = { sel = if (it) p.points.indices.toSet() else emptySet() })
                     Text(stringResource(R.string.select_all, sel.size))
@@ -373,16 +381,27 @@ fun PendingPointsDialog(vm: MainViewModel, p: PendingPoints) {
                         }
                     }
                 }
+                Text(stringResource(R.string.import_where), style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(selected = !asPlaces, onClick = { asPlaces = false }, label = { Text(stringResource(R.string.tab_monuments)) })
+                    FilterChip(selected = asPlaces, onClick = { asPlaces = true }, label = { Text(stringResource(R.string.tab_places)) })
+                }
                 Text(stringResource(R.string.import_lang), style = MaterialTheme.typography.labelLarge)
                 LangRadio(lang) { lang = it }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Dropdown(stringResource(R.string.f_type), type, MonumentType.entries, { it.label(ui) }, { type = it }, Modifier.weight(1f))
-                    Dropdown(stringResource(R.string.f_category), cat, Category.entries, { it.label(ui) }, { cat = it }, Modifier.weight(1f))
+                if (asPlaces) {
+                    Dropdown(stringResource(R.string.f_place_kind), kind, io.github.berikkkk.muragis.core.model.PlaceKind.entries, { it.label(ui) }, { kind = it }, Modifier.fillMaxWidth())
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Dropdown(stringResource(R.string.f_type), type, MonumentType.entries, { it.label(ui) }, { type = it }, Modifier.weight(1f))
+                        Dropdown(stringResource(R.string.f_category), cat, Category.entries, { it.label(ui) }, { cat = it }, Modifier.weight(1f))
+                    }
+                    Dropdown(stringResource(R.string.f_status), status, Status.entries, { it.label(ui) }, { status = it }, Modifier.fillMaxWidth())
                 }
-                Dropdown(stringResource(R.string.f_status), status, Status.entries, { it.label(ui) }, { status = it }, Modifier.fillMaxWidth())
                 Row(Modifier.align(Alignment.End).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { vm.dismissPending() }) { Text(stringResource(R.string.cancel)) }
-                    Button(enabled = sel.isNotEmpty(), onClick = { vm.importPending(sel, lang, type, cat, status) }) { Text(stringResource(R.string.import_n, sel.size)) }
+                    Button(enabled = sel.isNotEmpty(), onClick = {
+                        if (asPlaces) vm.importPendingAsPlaces(sel, lang, kind) else vm.importPending(sel, lang, type, cat, status)
+                    }) { Text(stringResource(R.string.import_n, sel.size)) }
                 }
             }
         }

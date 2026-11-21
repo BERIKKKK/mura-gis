@@ -127,6 +127,7 @@ private fun PointRow(isA: Boolean, label: String?, open: Boolean, onClick: () ->
 @Composable
 private fun PointChooser(vm: MainViewModel, act: MainActivity, isA: Boolean, q: String, setQ: (String) -> Unit, done: () -> Unit) {
     val monuments by vm.monuments.collectAsState()
+    val places by vm.places.collectAsState()
     val prefs by vm.prefs.collectAsState()
     val pin by vm.pin.collectAsState()
     Column(Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Chrome.bg2).padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -153,6 +154,10 @@ private fun PointChooser(vm: MainViewModel, act: MainActivity, isA: Boolean, q: 
         }
         if (monuments.size > found.size && q.isBlank()) Text(stringResource(R.string.plan_more_monuments, monuments.size - found.size), color = Chrome.dim, fontSize = 12.sp,
             modifier = Modifier.padding(8.dp))
+        // Өзге нысандар (елді мекен, қыстау, құдық…) — ескерткіштерден кейін
+        (if (q.isBlank()) places else places.filter { it.name.matches(q) || it.kind.label(lang).contains(q, true) }).take(20).forEach { p ->
+            ChooserItem(Icons.Filled.Place, p.title(lang)) { vm.placePoint(p.id)?.let { vm.setPlanPoint(isA, it) }; done() }
+        }
     }
 }
 

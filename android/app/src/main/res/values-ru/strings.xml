@@ -230,7 +230,7 @@
     <string name="msg_source_download_blocked">Сохранено, но офлайн-загрузка у этого провайдера заблокирована (запрещена условиями).</string>
     <string name="msg_download_started">Загрузка начата (видна в уведомлении)</string>
     <string name="msg_import_started">Импорт начат…</string>
-    <string name="msg_import_project">Памятники: +%1$d, обновлено %2$d; маршруты: +%3$d, обновлено %4$d</string>
+    <string name="msg_import_project">Памятники: +%1$d, обновлено %2$d; маршруты: +%3$d, обновлено %4$d; прочие объекты: +%5$d, обновлено %6$d</string>
     <string name="msg_import_result">Добавлено: %1$d, обновлено: %2$d, пропущено: %3$d</string>
     <string name="msg_nothing_found">В файле не найдено подходящих данных</string>
     <string name="msg_exported">Экспортировано</string>
@@ -288,7 +288,7 @@
     <string name="gps_searching">Поиск GPS…</string>
     <string name="gps_tap_enable">Нажмите, чтобы показать местоположение</string>
     <string name="this_point">Эта точка</string>
-    <string name="pick_mark_hint">Новая метка: сдвиньте карту и наведите прицел на памятник или возьмите координаты GPS.</string>
+    <string name="pick_mark_hint">Новая метка: сдвиньте карту и наведите прицел на место метки или возьмите координаты GPS. Затем выберите тип метки.</string>
     <string name="pick_a_hint">Точка А: сдвиньте карту и наведите прицел на нужное место.</string>
     <string name="pick_b_hint">Точка Б: сдвиньте карту и наведите прицел на нужное место.</string>
     <string name="pick_my_location_acc">Моё местоположение (±%1$d м)</string>
@@ -349,7 +349,7 @@
     <string name="cin_err_switch">Чтобы сменить формат, сначала исправьте текущее значение.</string>
     <string name="input_point">Введённая точка</string>
     <string name="route_here">Маршрут</string>
-    <string name="save_as_monument">Сохранить как памятник</string>
+    <string name="save_as_monument">Поставить метку</string>
     <string name="remove_point">Убрать точку</string>
 
     <string name="plan_title">Построить маршрут</string>
@@ -360,7 +360,7 @@
     <string name="plan_to_ph">Куда</string>
     <string name="plan_swap">Поменять А и Б</string>
     <string name="plan_pick_map">Указать на карте</string>
-    <string name="plan_find_monument">Найти памятник</string>
+    <string name="plan_find_monument">Найти памятник или объект</string>
     <string name="plan_more_monuments">Ещё памятников: %1$d — введите название</string>
     <string name="seg_car">Авто</string>
     <string name="seg_4x4">4×4</string>
@@ -435,4 +435,28 @@
     <string name="not_downloaded_here">Карта этой территории не загружена</string>
     <string name="import_options">Параметры импорта: папка, TMS, EPSG:3395</string>
     <string name="map_details">О карте</string>
+    <!-- Өзге нысандар -->
+    <string name="tab_places">Прочие объекты</string>
+    <string name="menu_places_sub">Объектов: %1$d</string>
+    <string name="places_count">Прочие объекты: %1$d</string>
+    <string name="places_count_filtered">Прочие объекты: %1$d / %2$d</string>
+    <string name="places_search_hint">Поиск объекта</string>
+    <string name="add_place">Добавить объект</string>
+    <string name="new_place">Новый объект</string>
+    <string name="edit_place">Редактирование объекта</string>
+    <string name="f_place_kind">Вид</string>
+    <string name="f_place_name">Название (необязательно)</string>
+    <string name="place_name_note">Если название не указано, на карте и в списке показывается вид объекта.</string>
+    <string name="confirm_delete_place">Удалить объект «%1$s»?</string>
+    <string name="all_kinds">Все</string>
+    <string name="mark_choice_title">Какую метку поставить?</string>
+    <string name="mark_choice_monument">Метка памятника</string>
+    <string name="mark_choice_monument_sub">Объект историко-культурного наследия: период, вид, категория, статус…</string>
+    <string name="mark_choice_place">Прочие объекты</string>
+    <string name="mark_choice_place_sub">Населённый пункт, зимовка (қыстау), пастбище (жайлау), стоянка, колодец и др.</string>
+    <string name="import_formats_places">GeoJSON (Mura GIS или другие), проект Mura GIS (.gpkg), KML, KMZ, GPX.</string>
+    <string name="import_where">Куда добавить?</string>
+    <string name="pending_note_places">Эти точки будут добавлены как прочие объекты выбранного вида: имя — в название.</string>
+    <string name="pick_place_hint">Новый объект: сдвиньте карту и наведите прицел на место или возьмите координаты GPS.</string>
+    <string name="pick_place_editor_hint">Местоположение объекта: сдвиньте карту и наведите прицел на новое место или возьмите координаты GPS. Введённые данные сохранятся.</string>
 </resources>

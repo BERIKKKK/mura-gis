@@ -24,6 +24,9 @@ object StyleBuilder {
     const val SRC_PLAN_PTS = "plan-pts"
     const val SRC_TRACK = "track"
     const val SRC_PIN = "pin"
+    const val SRC_PLACES = "places"
+    const val SRC_PLACE_SEL = "place-selected"
+    const val LYR_PLACES = "place-point"
     const val LYR_PIN = "pin-dot"
     const val LYR_CLUSTER = "mon-cluster"
     const val LYR_MON = "mon-point"
@@ -77,6 +80,7 @@ object StyleBuilder {
 
         sources.put(SRC_ROUTES, geo()).put(SRC_EDIT, geo()).put(SRC_EDIT_PTS, geo()).put(SRC_MON, geo(cluster)).put(SRC_SEL, geo()).put(SRC_LOC, geo())
             .put(SRC_PLAN, geo()).put(SRC_PLAN_PTS, geo()).put(SRC_TRACK, geo()).put(SRC_PIN, geo())
+            .put(SRC_PLACES, geo()).put(SRC_PLACE_SEL, geo())
 
         // Маршруттар: түсі — көлік түрі бойынша; таңдалғаны қалыңырақ
         layers.put(JSONObject().put("id", "routes-casing").put("type", "line").put("source", SRC_ROUTES)
@@ -107,6 +111,12 @@ object StyleBuilder {
             .put("paint", JSONObject().put("line-color", "#FFFFFF").put("line-width", 8)))
         layers.put(JSONObject().put("id", "track-line").put("type", "line").put("source", SRC_TRACK).put("layout", round)
             .put("paint", JSONObject().put("line-color", "#E2553B").put("line-width", 4.5)))
+
+        // Өзге нысандар (елді мекен, қыстау, құдық…) — ескерткіштердің астында, кластерсіз
+        layers.put(JSONObject().put("id", "place-sel-halo").put("type", "circle").put("source", SRC_PLACE_SEL)
+            .put("paint", JSONObject().put("circle-radius", 20).put("circle-color", "#FFD43B").put("circle-opacity", 0.55)))
+        layers.put(JSONObject().put("id", LYR_PLACES).put("type", "symbol").put("source", SRC_PLACES)
+            .put("layout", JSONObject().put("icon-image", arr("get", "icon")).put("icon-allow-overlap", true).put("icon-ignore-placement", true)))
 
         // Ескерткіштер: кластерлер және жеке белгілер
         layers.put(JSONObject().put("id", LYR_CLUSTER).put("type", "symbol").put("source", SRC_MON).put("filter", arr("has", "point_count"))
