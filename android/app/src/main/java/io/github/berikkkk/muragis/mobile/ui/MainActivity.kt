@@ -25,6 +25,25 @@ class MainActivity : AppCompatActivity() {
         afterLocationGrant = null
     }
     private val notifPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val bgPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { resumes.intValue++ }
+    /** onResume саны — жүйелік баптаулардан қайтқанда рұқсат күйін қайта тексеру үшін. */
+    val resumes = androidx.compose.runtime.mutableIntStateOf(0)
+
+    /** Орынға «Әрқашан» рұқсат (Android 10+) — жазу фонда, басқа қолданба ашық тұрғанда да үзілмеуі үшін. */
+    fun hasBackgroundLocation() = Build.VERSION.SDK_INT < 29 ||
+        ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** Android 11+-та жүйе баптаулар бетін ашады — онда «Әрқашан рұқсат ету» таңдалады. */
+    fun askBackgroundLocation() { if (Build.VERSION.SDK_INT >= 29) bgPerm.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION) }
+
+    fun ignoresBatteryOptimizations() = getSystemService(android.os.PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+
+    @android.annotation.SuppressLint("BatteryLife")
+    fun askIgnoreBatteryOptimizations() {
+        runCatching {
+            startActivity(android.content.Intent(android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, android.net.Uri.parse("package:$packageName")))
+        }.onFailure { runCatching { startActivity(android.content.Intent(android.provider.Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) } }
+    }
 
     fun hasLocation() = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -52,6 +71,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() { super.onStart(); mapView.onStart() }
     override fun onResume() {
         super.onResume(); mapView.onResume()
+        resumes.intValue++
         if (vm.prefs.value.showLocation && hasLocation()) vm.location.setTracking(true)
         if (vm.headingUp.value) vm.heading.setActive(true)
     }

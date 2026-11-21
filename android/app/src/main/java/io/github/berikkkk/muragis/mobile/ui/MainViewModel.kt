@@ -227,6 +227,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         reloadAll()
         restoreDraft()
+        // Жазу жүріп тұрған кезде процесс жабылып қалған болса — жазу қызметін қайта қосамыз
+        if (g.recorder.state.value?.running == true) runCatching { TrackService.start(app) }
         observeImports()
         viewModelScope.launch {
             // Жүктеу күйін жаңартып тұру (WorkManager прогресі дерекқорға жазылады)
@@ -527,6 +529,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _follow.value = true
         msg(R.string.msg_rec_started)
     }
+
+    /** GPS-ті толық өшіру («Дәлдеу» қайта басылып, растағанда): орын көрсетілмейді, навигация өшеді. */
+    fun stopGps() {
+        updatePrefs { it.copy(showLocation = false) }
+        location.setTracking(false)
+        _follow.value = false
+        if (_headingUp.value) { _headingUp.value = false; heading.setActive(false) }
+        msg(R.string.msg_gps_off)
+    }
+
+    /** «Фонда жазу» терезесін қайта көрсетпеу. */
+    var bgAskOff: Boolean
+        get() = g.settings.bgAskOff
+        set(v) { g.settings.bgAskOff = v }
 
     /** «Тоқтату»: жазу кідіртіледі, шешім парағы ашылады (сақтау / жалғастыру / жою). */
     fun askStopTrack() {

@@ -13,6 +13,7 @@ import android.location.LocationManager
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -27,11 +28,15 @@ import io.github.berikkkk.muragis.mobile.ui.MainActivity
 class TrackService : Service() {
     private var lm: LocationManager? = null
     private val listener = LocationListener { loc -> (application as MuraApp).graph.recorder.add(loc) }
+    /** Экран өшкенде процессор ұйықтап, GPS нүктелері жоғалмауы үшін (тек жазу кезінде). */
+    private var wake: PowerManager.WakeLock? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     @SuppressLint("MissingPermission")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Жүйе қызметті қайта іске қосты (START_STICKY), бірақ жазу енді жүрмейді — тоқтаймыз
+        if ((application as MuraApp).graph.recorder.state.value?.running != true) { stopSelf(); return START_NOT_STICKY }
         ensureChannel(this)
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -51,17 +56,22 @@ class TrackService : Service() {
                 m.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000L, 0f, listener, Looper.getMainLooper())
                 lm = m
             }
+            if (wake == null) wake = getSystemService(PowerManager::class.java)
+                .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MuraGIS:track").apply { setReferenceCounted(false); acquire(12 * 60 * 60 * 1000L) }
         } catch (e: Exception) {
             // Рұқсат жоқ не GPS қолжетімсіз — жазу кідіртіледі (интерфейс мұны көрсетеді)
             (application as MuraApp).graph.recorder.pause()
             stopSelf()
         }
-        return START_NOT_STICKY
+        // Жүйе процесті жауып тастаса — қызмет қайта іске қосылып, жазу жалғасады
+        return START_STICKY
     }
 
     override fun onDestroy() {
         runCatching { lm?.removeUpdates(listener) }
         lm = null
+        runCatching { wake?.release() }
+        wake = null
         super.onDestroy()
     }
 

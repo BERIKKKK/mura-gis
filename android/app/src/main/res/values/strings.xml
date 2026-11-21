@@ -201,6 +201,17 @@
     <string name="msg_heading_up">Навигация режимі: карта қозғалыс бағытымен бұрылады</string>
     <string name="msg_north_up">Солтүстік жоғарыда</string>
     <string name="err_no_compass">Бұл құрылғыда компас датчигі жоқ.</string>
+    <string name="msg_gps_off">GPS өшірілді</string>
+    <string name="msg_gps_needed_rec">Трек жазылып жатыр — GPS өшпейді. Алдымен жазуды тоқтатыңыз.</string>
+    <string name="confirm_gps_off">GPS-ті өшіресіз бе? Орныңыз картада көрсетілмейді.</string>
+    <string name="gps_off">Өшіру</string>
+    <string name="bg_title">Жазу фонда үзілмеуі үшін</string>
+    <string name="bg_text">Басқа қолданбаға өткенде не экран өшкенде де трек жазыла беруі үшін екі рұқсат беріңіз. Жазу қазірдің өзінде жүріп жатыр.</string>
+    <string name="bg_location">Орынға «Әрқашан» рұқсат беру</string>
+    <string name="bg_location_ok">✓ Орынға «Әрқашан» рұқсат бар</string>
+    <string name="bg_battery">Батарея үнемдеуінен босату</string>
+    <string name="bg_battery_ok">✓ Батарея үнемдеуінен босатылған</string>
+    <string name="bg_dont_ask">Қайта сұрамау</string>
     <string name="msg_added_to_route">Маршрутқа қосылды: %1$s</string>
     <string name="msg_draft_restored">Аяқталмаған маршрут қалпына келтірілді</string>
     <string name="msg_layer_deleted">Қабат өшірілді</string>

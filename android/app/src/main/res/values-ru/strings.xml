@@ -201,6 +201,17 @@
     <string name="msg_heading_up">Режим навигации: карта поворачивается по направлению движения</string>
     <string name="msg_north_up">Север вверху</string>
     <string name="err_no_compass">На этом устройстве нет датчика компаса.</string>
+    <string name="msg_gps_off">GPS выключен</string>
+    <string name="msg_gps_needed_rec">Идёт запись трека — GPS не выключается. Сначала остановите запись.</string>
+    <string name="confirm_gps_off">Выключить GPS? Ваше местоположение не будет показано на карте.</string>
+    <string name="gps_off">Выключить</string>
+    <string name="bg_title">Чтобы запись не прерывалась в фоне</string>
+    <string name="bg_text">Чтобы трек записывался, когда вы переходите в другое приложение или экран гаснет, дайте два разрешения. Запись уже идёт.</string>
+    <string name="bg_location">Разрешить доступ к местоположению «Всегда»</string>
+    <string name="bg_location_ok">✓ Доступ к местоположению «Всегда» есть</string>
+    <string name="bg_battery">Отключить экономию батареи</string>
+    <string name="bg_battery_ok">✓ Экономия батареи отключена</string>
+    <string name="bg_dont_ask">Больше не спрашивать</string>
     <string name="msg_added_to_route">Добавлено в маршрут: %1$s</string>
     <string name="msg_draft_restored">Восстановлен незавершённый маршрут</string>
     <string name="msg_layer_deleted">Слой удалён</string>
