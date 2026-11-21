@@ -28,7 +28,8 @@ class AppUpdateTest {
         [
           {"tag_name":"v1.4.1","draft":false,"prerelease":false,"html_url":"https://github.com/x/r/v1.4.1","assets":[]},
           {"tag_name":"android/v2.0.0-alpha.1","draft":false,"prerelease":true,"html_url":"https://github.com/x/a2",
-           "assets":[{"name":"MuraGIS-Android-2.0.0-alpha.1.apk","size":45871152,"browser_download_url":"https://github.com/x/a2.apk"}]},
+           "assets":[{"name":"MuraGIS-Android-2.0.0-alpha.1.apk","size":45871152,"browser_download_url":"https://github.com/x/a2.apk",
+             "digest":"sha256:9ACEBC4AB3ED6D12F0E77E04E41E81874AA0569F776EB01135DBFB9830130813"}]},
           {"tag_name":"android/v9.0.0","draft":true,"assets":[]},
           {"tag_name":"maps-kobda-2026-11-20","draft":false,"assets":[]},
           {"tag_name":"android/v1.0.0-alpha.2","draft":false,"prerelease":false,"html_url":"https://github.com/x/a1","assets":[]}
@@ -42,6 +43,7 @@ class AppUpdateTest {
         assertEquals("https://github.com/x/a2.apk", r.apkUrl)
         assertEquals(45871152L, r.apkSize)
         assertTrue(r.prerelease)
+        assertEquals("9acebc4ab3ed6d12f0e77e04e41e81874aa0569f776eb01135dbfb9830130813", r.apkSha256)
         assertEquals(r, AppUpdate.newer(json, 9902))
         assertNull(AppUpdate.newer(json, 19901))
         assertNull(AppUpdate.latest("not json"))

@@ -100,6 +100,14 @@ sealed interface UpdateState {
     data class Available(val release: AppUpdate.Release) : UpdateState
 }
 
+/** Жаңарту APK-сын қолданбаның ішінде жүктеу күйі (браузерсіз): жүктелуде → дайын (орнату терезесі ашылады) не қате. */
+sealed interface ApkState {
+    data object Idle : ApkState
+    data class Downloading(val done: Long, val total: Long) : ApkState
+    data class Ready(val file: File) : ApkState
+    data object Failed : ApkState
+}
+
 /** Картаның үстіндегі төменгі парақтар (бір мезгілде біреуі). */
 sealed interface Sheet {
     data class Copy(val lat: Double, val lon: Double, val title: String) : Sheet
@@ -309,6 +317,63 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 } finally { c.disconnect() }
             } catch (e: Exception) { UpdateState.Error }
         }
+    }
+
+    private val _apk = MutableStateFlow<ApkState>(ApkState.Idle); val apk: StateFlow<ApkState> = _apk
+    private var apkJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * Жаңа нұсқаның APK-сын фонда жүктеу (cache/update/, алдымен .part): өлшемі мен SHA-256 хэші GitHub-тағымен
+     * салыстырылады — бүлінген не толық жүктелмеген файл орнатуға берілмейді. Дайын болғанда орнату терезесі ашылады.
+     * Жүктеу ViewModel-де жүреді: «Бағдарлама туралы» бетінен шығып кетсе де тоқтамайды.
+     */
+    fun downloadUpdate(r: AppUpdate.Release) {
+        val url = r.apkUrl ?: return
+        if (_apk.value is ApkState.Downloading) return
+        (_apk.value as? ApkState.Ready)?.let { if (it.file.name == apkName(r) && it.file.exists()) { installApk(it.file); return } }
+        _apk.value = ApkState.Downloading(0, r.apkSize)
+        apkJob = viewModelScope.launch(Dispatchers.IO) {
+            val app = getApplication<Application>()
+            val dir = File(app.cacheDir, "update").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
+            val out = File(dir, apkName(r)); val part = File(dir, out.name + ".part")
+            val ok = try {
+                val c = URL(url).openConnection() as HttpURLConnection
+                try {
+                    c.connectTimeout = 15_000; c.readTimeout = 30_000
+                    c.setRequestProperty("User-Agent", "MuraGIS-Android/${BuildConfig.VERSION_NAME}")
+                    if (c.responseCode != 200) false else {
+                        val total = c.contentLengthLong.takeIf { it > 0 } ?: r.apkSize
+                        val md = java.security.MessageDigest.getInstance("SHA-256")
+                        var done = 0L; var shown = 0L
+                        c.inputStream.use { inp -> part.outputStream().use { o ->
+                            val buf = ByteArray(64 * 1024)
+                            while (true) {
+                                val n = inp.read(buf); if (n < 0) break
+                                o.write(buf, 0, n); md.update(buf, 0, n); done += n
+                                if (done - shown >= 256 * 1024) { shown = done; _apk.value = ApkState.Downloading(done, total) }
+                            }
+                        } }
+                        val hex = md.digest().joinToString("") { "%02x".format(it) }
+                        (r.apkSize <= 0 || done == r.apkSize) && (r.apkSha256 == null || hex == r.apkSha256) && part.renameTo(out)
+                    }
+                } finally { c.disconnect() }
+            } catch (e: Exception) { false }
+            if (!ok) { part.delete(); out.delete(); _apk.value = ApkState.Failed; return@launch }
+            _apk.value = ApkState.Ready(out)
+            withContext(Dispatchers.Main) { installApk(out) }
+        }
+    }
+
+    private fun apkName(r: AppUpdate.Release) = "MuraGIS-Android-" + r.version + ".apk"
+
+    /** Жүйенің орнату терезесі (FileProvider арқылы). «Белгісіз көздерден орнатуға» рұқсат жоқ болса, жүйе өзі сұрайды. */
+    fun installApk(f: File) {
+        val app = getApplication<Application>()
+        runCatching {
+            val uri = androidx.core.content.FileProvider.getUriForFile(app, app.packageName + ".files", f)
+            app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+        }.onFailure { _apk.value = ApkState.Failed }
     }
 
     /* ======================= Навигация: мәзір және парақтар ======================= */

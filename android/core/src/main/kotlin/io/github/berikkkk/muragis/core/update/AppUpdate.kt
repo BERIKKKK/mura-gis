@@ -19,7 +19,11 @@ object AppUpdate {
     const val REPO_URL = "https://github.com/$REPO"
     const val TAG_PREFIX = "android/v"
 
-    data class Release(val version: String, val code: Int, val pageUrl: String, val apkUrl: String?, val apkSize: Long, val prerelease: Boolean)
+    /** apkSha256 — GitHub-тың файл хэші (`digest`: «sha256:…», кіші әріппен); жоқ болса — null (ескі релиздер). */
+    data class Release(
+        val version: String, val code: Int, val pageUrl: String, val apkUrl: String?, val apkSize: Long, val prerelease: Boolean,
+        val apkSha256: String? = null,
+    )
 
     private val VERSION = Regex("""^(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?$""")
 
@@ -43,7 +47,8 @@ object AppUpdate {
             val code = versionCode(version) ?: return@mapNotNull null
             val apk = o["assets"].arr()?.mapNotNull { it.obj() }?.firstOrNull { (it.str("name") ?: "").endsWith(".apk") }
             Release(version, code, o.str("html_url") ?: "$REPO_URL/releases", apk?.str("browser_download_url"),
-                apk?.get("size")?.num()?.toLong() ?: 0L, (o["prerelease"] as? JsonPrimitive)?.booleanOrNull == true)
+                apk?.get("size")?.num()?.toLong() ?: 0L, (o["prerelease"] as? JsonPrimitive)?.booleanOrNull == true,
+                apk?.str("digest")?.takeIf { it.startsWith("sha256:") }?.removePrefix("sha256:")?.lowercase())
         }?.maxByOrNull { it.code }
 
     /** Орнатылғаннан жаңасы болса — сол релиз. */

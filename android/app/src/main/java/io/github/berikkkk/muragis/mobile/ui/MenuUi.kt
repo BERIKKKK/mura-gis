@@ -25,7 +25,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AddLocationAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Draw
@@ -34,7 +33,6 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -170,21 +168,19 @@ private fun MenuRoot(vm: MainViewModel, controller: MapController) {
             }
         } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val tracks = routes.count { MainViewModel.isTrack(it) }
-            OptionRow(stringResource(R.string.tab_monuments), stringResource(R.string.menu_monuments_sub, monuments.size), leading = { SectionIcon(Icons.Filled.AccountBalance) },
+            OptionRow(stringResource(R.string.tab_monuments), stringResource(R.string.menu_monuments_sub, monuments.size), leading = { SectionIcon(LucideIcons.Landmark) },
                 trailing = { Chevron() }) { vm.openMenu(MenuPage.MONUMENTS) }
-            // Өзге нысандар — ескерткіштердің астында (жұмыс үстеліндегідей)
+            // Өзге нысандар — ескерткіштердің астында (жұмыс үстеліндегідей). Мәзір иконкалары — Desktop-тағы Lucide иконкалары
             OptionRow(stringResource(R.string.tab_places), stringResource(R.string.menu_places_sub, places.size),
-                leading = { Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Chrome.bg3), contentAlignment = Alignment.Center) {
-                    PlaceBadge(io.github.berikkkk.muragis.core.model.PlaceKind.QYSTAU, 26.dp)
-                } }, trailing = { Chevron() }) { vm.openMenu(MenuPage.PLACES) }
-            OptionRow(stringResource(R.string.tab_routes), stringResource(R.string.menu_routes_sub, routes.size - tracks, tracks), leading = { SectionIcon(Icons.Filled.Route) },
+                leading = { SectionIcon(LucideIcons.MapPinned) }, trailing = { Chevron() }) { vm.openMenu(MenuPage.PLACES) }
+            OptionRow(stringResource(R.string.tab_routes), stringResource(R.string.menu_routes_sub, routes.size - tracks, tracks), leading = { SectionIcon(LucideIcons.Route) },
                 trailing = { Chevron() }) { vm.openMenu(MenuPage.ROUTES) }
-            OptionRow(stringResource(R.string.coord_input), "DD · DMS · UTM", leading = { SectionIcon(Icons.Filled.Place) }, trailing = { Chevron() }) { vm.openMenu(MenuPage.COORDS) }
+            OptionRow(stringResource(R.string.coord_input), "DD · DMS · UTM", leading = { SectionIcon(LucideIcons.Locate) }, trailing = { Chevron() }) { vm.openMenu(MenuPage.COORDS) }
             OptionRow(stringResource(R.string.tab_settings),
                 stringResource(R.string.menu_settings_sub,
                     stringResource(if (prefs.zoomLeft) R.string.side_left else R.string.side_right),
                     stringResource(if (prefs.barTop) R.string.bar_top else R.string.bar_bottom)),
-                leading = { SectionIcon(Icons.Filled.Settings) }, trailing = { Chevron() }) { vm.openMenu(MenuPage.SETTINGS) }
+                leading = { SectionIcon(LucideIcons.Settings) }, trailing = { Chevron() }) { vm.openMenu(MenuPage.SETTINGS) }
         }
     }
 }
