@@ -3,8 +3,6 @@
     <cloud-backup>
         <include domain="database" path="mura.db" />
         <include domain="sharedpref" path="." />
-        <exclude domain="file" path="maps/" />
-        <exclude domain="file" path="exports/" />
     </cloud-backup>
     <device-transfer>
         <include domain="database" path="mura.db" />
