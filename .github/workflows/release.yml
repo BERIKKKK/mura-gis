@@ -72,10 +72,18 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Релиз $TAG бар."
           else
-            gh release create "$TAG" --verify-tag --title "${TAG#v}" --notes-file build/release-notes.md
+            gh release create "$TAG" --verify-tag --latest --title "${TAG#v}" --notes-file build/release-notes.md
           fi
 
       - name: Құрастыру және жариялау
         run: node scripts/build-win.js --win --publish always   # NSIS-ке қазақ тілі қосылады (build/nsis-lang)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Жұмыс үстеліндегі бағдарлама жаңартуды GitHub-тағы «Latest» релизден (latest.yml) іздейді: «Latest» белгісі
+      # әрқашан жұмыс үстелі релизінде (v*) тұруы керек, Android (android/v*) не карта релиздерінде — ешқашан.
+      - name: Релизді «Latest» ету
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release edit "$TAG" --latest

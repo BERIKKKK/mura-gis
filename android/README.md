@@ -34,6 +34,11 @@ Android жинақтары [Releases](https://github.com/BERIKKKK/mura-gis/relea
 2. `android/CHANGELOG.md` — жаңа бөлім `## [X.Y.Z…]`.
 3. Құрылғыда тексеру (`docs/TESTING.md` тізімі).
 4. `git tag android/vX.Y.Z && git push origin android/vX.Y.Z` — workflow қолтаңбалы APK жинап, релиз жариялайды.
+   Релизді қолмен жасасаңыз — **міндетті түрде** `--prerelease --latest=false`:
+   `gh release create android/vX.Y.Z MuraGIS-Android-X.Y.Z.apk --prerelease --latest=false …`.
+   «Latest» белгісі әрқашан жұмыс үстелі релизінде (`v*`) тұруы керек: жұмыс үстеліндегі бағдарлама жаңартуды сол
+   релиздің `latest.yml` файлынан іздейді; Android релизі «Latest» болса — «Жаңартуды тексеру мүмкін болмады» (404).
+   Android қолданбасы өз жаңартуын `android/v*` тегтерінен табады, «Latest» белгісі оған қажет емес.
 
 Қолтаңба құпиялары (бір рет): `ANDROID_KEYSTORE_BASE64` (`base64 -w0 release.jks`), `ANDROID_KEYSTORE_PASSWORD`,
 `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. Жергілікті жинау үшін — `android/keystore.properties` (git-ке қосылмайды):
