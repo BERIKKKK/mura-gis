@@ -170,7 +170,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _follow = MutableStateFlow(false); val follow: StateFlow<Boolean> = _follow
     /** Еру соңғы рет саусақпен өшірілген сәт (elapsedRealtime) — трек жазу кезінде біраз уақыттан кейін ерудің қайта қосылуы үшін. */
     private val _followOffAt = MutableStateFlow(0L); val followOffAt: StateFlow<Long> = _followOffAt
-    /** Компас: «бағыт бойынша» режимі — карта телефонның бағытымен бұрылады (әйтпесе солтүстік жоғарыда). */
+    /** Навигация режимі (компас батырмасы): карта қозғалыс бағытымен бұрылады (әйтпесе солтүстік жоғарыда). */
     private val _headingUp = MutableStateFlow(false); val headingUp: StateFlow<Boolean> = _headingUp
     val track: StateFlow<TrackRec?> = g.recorder.state
     private val _monuments = MutableStateFlow<List<Monument>>(emptyList()); val monuments: StateFlow<List<Monument>> = _monuments
@@ -282,7 +282,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _follow.value = on
     }
 
-    /** Компас батырмасы: солтүстік жоғарыда ↔ бағыт бойынша (карта телефонмен бірге бұрылады, орынға ереді). */
+    /** Компас батырмасы: солтүстік жоғарыда ↔ навигация режимі (карта қозғалыс бағытымен бұрылады, орынға ереді). */
     fun toggleHeadingUp(): Boolean {
         if (_headingUp.value) { _headingUp.value = false; heading.setActive(false); msg(R.string.msg_north_up); return false }
         if (!heading.available) { msg(R.string.err_no_compass); return false }

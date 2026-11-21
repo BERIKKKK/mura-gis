@@ -136,8 +136,12 @@ object StyleBuilder {
             .put("paint", JSONObject()
                 .put("circle-radius", arr("interpolate", arr("exponential", 2), arr("zoom"), 0, arr("*", arr("get", "r0"), 1), 24, arr("*", arr("get", "r0"), 16777216)))
                 .put("circle-color", "#1E6FD9").put("circle-opacity", 0.15).put("circle-stroke-color", "#1E6FD9").put("circle-stroke-width", 1).put("circle-stroke-opacity", 0.4)))
-        layers.put(JSONObject().put("id", "loc-dot").put("type", "circle").put("source", SRC_LOC)
+        // Бағыт белгісіз — нүкте; белгілі болса (қозғалыс бағыты не компас) — бағытқа бұрылған үшбұрыш
+        layers.put(JSONObject().put("id", "loc-dot").put("type", "circle").put("source", SRC_LOC).put("filter", arr("!", arr("has", "brg")))
             .put("paint", JSONObject().put("circle-radius", 7).put("circle-color", "#1E6FD9").put("circle-stroke-color", "#FFFFFF").put("circle-stroke-width", 2.5)))
+        layers.put(JSONObject().put("id", "loc-arrow").put("type", "symbol").put("source", SRC_LOC).put("filter", arr("has", "brg"))
+            .put("layout", JSONObject().put("icon-image", "loc-arrow").put("icon-rotate", arr("get", "brg")).put("icon-rotation-alignment", "map")
+                .put("icon-allow-overlap", true).put("icon-ignore-placement", true)))
 
         return root.put("sources", sources).put("layers", layers).toString()
     }

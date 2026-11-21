@@ -196,9 +196,9 @@
     <string name="msg_saved">Сақталды</string>
     <string name="msg_deleted_n">Өшірілді: %1$d</string>
     <string name="msg_gps_wait">GPS координатасы анықталуда…</string>
-    <string name="compass_heading">Компас: картаны бағытым бойынша бұру</string>
-    <string name="compass_north">Компас: солтүстікті жоғары қою</string>
-    <string name="msg_heading_up">Карта бағытыңыз бойынша бұрылады</string>
+    <string name="compass_heading">Навигация режимін қосу</string>
+    <string name="compass_north">Навигация режимін өшіру (солтүстік жоғарыда)</string>
+    <string name="msg_heading_up">Навигация режимі: карта қозғалыс бағытымен бұрылады</string>
     <string name="msg_north_up">Солтүстік жоғарыда</string>
     <string name="err_no_compass">Бұл құрылғыда компас датчигі жоқ.</string>
     <string name="msg_added_to_route">Маршрутқа қосылды: %1$s</string>

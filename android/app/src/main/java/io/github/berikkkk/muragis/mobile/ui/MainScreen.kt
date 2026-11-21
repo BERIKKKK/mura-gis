@@ -171,19 +171,27 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     }
     LaunchedEffect(mapReady, routes, selectedRoute, edit?.base?.id) { if (mapReady) controller.setRoutes(routes, selectedRoute, edit?.base?.id?.ifEmpty { null }) }
     LaunchedEffect(mapReady, edit) { if (mapReady) controller.setEditRoute(edit?.points ?: emptyList(), edit?.selected ?: -1) }
-    LaunchedEffect(mapReady, loc, prefs.showLocation) {
-        if (mapReady) controller.setLocation(if (prefs.showLocation) loc?.latitude else null, loc?.longitude, loc?.accuracy ?: 0f)
+    // Орын белгісі: бағыт белгілі болса — үшбұрыш (қозғалыста — жүру бағыты, тұрғанда — навигацияда компас)
+    LaunchedEffect(mapReady) {
+        if (!mapReady) return@LaunchedEffect
+        combine(vm.location.location, vm.prefs, vm.headingUp, vm.heading.heading) { l, p, hu, h -> Triple(l?.takeIf { p.showLocation }, hu, h) }
+            .collect { (l, hu, h) -> controller.setLocation(l?.latitude, l?.longitude, l?.accuracy ?: 0f, l?.let { direction(it, h?.takeIf { hu }) }) }
     }
-    // GPS-ке еру және «бағыт бойынша» бұру: орын не компас өзгерген сайын камера жаңарады
+    // GPS-ке еру және навигация режиміндегі бұру: орын не компас өзгерген сайын камера жаңарады
     LaunchedEffect(mapReady, follow) { if (mapReady) controller.setFollowFocus(follow) }
     // (Ағындар тікелей жиналады — компастың жиі өзгерісі бүкіл экранды қайта құрмауы үшін)
     LaunchedEffect(mapReady) {
         if (!mapReady) return@LaunchedEffect
-        combine(vm.location.location, vm.follow, vm.headingUp, vm.heading.heading) { l, f, hu, h -> l?.takeIf { f } to h?.takeIf { hu } }
-            .collect { (l, h) -> if (l != null || h != null) controller.follow(l?.latitude, l?.longitude, h?.toDouble()) }
+        // Навигация режимінде карта бағытпен бұрылады: қозғалыста — жүру бағыты (GPS), тұрғанда — компас
+        combine(vm.location.location, vm.follow, vm.headingUp, vm.heading.heading) { l, f, hu, h ->
+            l?.takeIf { f } to (if (hu) (l?.let { direction(it, h) } ?: h) else null)
+        }.collect { (l, b) -> if (l != null || b != null) controller.follow(l?.latitude, l?.longitude, b?.toDouble()) }
     }
     LaunchedEffect(loc) { loc?.let { vm.heading.updateDeclination(it.latitude, it.longitude, it.altitude) } }
-    LaunchedEffect(headingUp) { if (!headingUp && mapReady) controller.resetNorth() }
+    LaunchedEffect(mapReady, headingUp) {
+        if (!mapReady) return@LaunchedEffect
+        controller.navigation = headingUp
+    }
     // Трек жазылып жатқанда: картаны саусақпен жылжытқаннан кейін 15 с ішінде қимыл болмаса, карта қайтадан орынға ереді
     LaunchedEffect(follow, track?.running, followOffAt) {
         if (follow || track?.running != true) return@LaunchedEffect
@@ -398,8 +406,16 @@ private fun niceScale(metersPerDp: Double): Pair<Double, Float> {
 }
 
 /**
+ * Орынның бағыты: жүріп келе жатса (≥ 1 м/с, ~3,6 км/сағ) — GPS-тің қозғалыс бағыты, әйтпесе — компас ([compass], болса).
+ * Баяу жүргенде GPS бағыты секіріп тұрады, сондықтан ол кезде компас сенімдірек.
+ */
+private fun direction(l: android.location.Location, compass: Float?): Float? =
+    if (l.hasBearing() && l.hasSpeed() && l.speed >= 1.0f) l.bearing else compass
+
+/**
  * Компас (zoom батырмаларының астында): тілі әрдайым солтүстікті көрсетеді (карта бұрылса — бірге бұрылады).
- * Басқанда: солтүстік жоғарыда ↔ «бағыт бойынша» (карта телефонның бағытымен бұрылады; қосулыда жиегі ерекшеленеді).
+ * Басқанда: солтүстік жоғарыда ↔ навигация режимі (карта қозғалыс бағытымен бұрылады, орын экранның төменгі бөлігінде;
+ * қосулыда жиегі ерекшеленеді).
  */
 @Composable
 private fun CompassButton(bearing: () -> Float, headingUp: Boolean, onClick: () -> Unit) {

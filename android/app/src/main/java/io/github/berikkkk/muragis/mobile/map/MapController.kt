@@ -110,6 +110,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             s.addImage("cl-1k", SymbolIcons.cluster("999+", cs))
             ensureVertexImages(editPoints.size)
             val ps = (30 * density).toInt()
+            s.addImage("loc-arrow", SymbolIcons.arrow((30 * density).toInt()))
             s.addImage("plan-a", SymbolIcons.vertex(ctx.getString(io.github.berikkkk.muragis.mobile.R.string.point_a), ps, Color.rgb(35, 36, 31), Color.WHITE))
             s.addImage("plan-b", SymbolIcons.vertex(ctx.getString(io.github.berikkkk.muragis.mobile.R.string.point_b), ps, Color.rgb(34, 81, 201), Color.WHITE))
             data.forEach { (k, v) -> s.getSourceAs<GeoJsonSource>(k)?.setGeoJson(v) }
@@ -177,12 +178,15 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         push(StyleBuilder.SRC_EDIT_PTS, fc(pts))
     }
 
-    fun setLocation(lat: Double?, lon: Double?, accuracy: Float) {
+    /** [direction] — қозғалыс/телефон бағыты (градус, солтүстіктен сағат тілімен); null болса — бағытсыз нүкте. */
+    fun setLocation(lat: Double?, lon: Double?, accuracy: Float, direction: Float? = null) {
         val a = JSONArray()
         if (lat != null && lon != null) {
             // r0 — дәлдік радиусы 0-масштабтағы пиксельмен (256 px тайл, 512 px әлем ені MapLibre-де)
             val metersPerPx0 = 156543.03392 * cos(Math.toRadians(lat)) / 2.0
-            a.put(point(lon, lat, JSONObject().put("r0", accuracy / metersPerPx0)))
+            val props = JSONObject().put("r0", accuracy / metersPerPx0)
+            if (direction != null) props.put("brg", direction.toDouble())
+            a.put(point(lon, lat, props))
         }
         push(StyleBuilder.SRC_LOC, fc(a))
     }
@@ -341,11 +345,26 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
      */
     fun setFollowFocus(on: Boolean) {
         val m = map ?: return
-        m.uiSettings.focalPoint = if (on && view.width > 0) PointF(view.width / 2f, view.height / 2f) else null
+        m.uiSettings.focalPoint = if (on && view.width > 0) PointF(view.width / 2f, (view.height + navTop()) / 2f) else null
     }
 
+    /** Навигация режимі: орын экранның төменгі бөлігінде (алдағы жол көбірек көрінеді) — камераның жоғарғы шегінісі, px. */
+    var navigation = false
+        set(v) {
+            if (field == v) return
+            field = v
+            val m = map ?: return
+            val top = navTop().toDouble()
+            // Режим өшкенде — солтүстік жоғарыға бір анимациямен (екі бөлек анимация бірін-бірі тоқтатады)
+            val b = CameraPosition.Builder(m.cameraPosition).padding(0.0, top, 0.0, 0.0)
+            if (!v) b.bearing(0.0)
+            m.easeCamera(CameraUpdateFactory.newCameraPosition(b.build()), 300)
+            if (m.uiSettings.focalPoint != null) setFollowFocus(true)
+        }
+    private fun navTop(): Float = if (navigation) view.height * 0.35f else 0f
+
     /**
-     * Камераны орынға жылжыту (масштабты өзгертпей) және, [bearing] берілсе, картаны бұру («бағыт бойынша» режимі).
+     * Камераны орынға жылжыту (масштабты өзгертпей) және, [bearing] берілсе, картаны бұру (навигация режимі).
      * [lat]/[lon] null болса — тек бұру (еру өшірулі, бірақ карта бағытпен бұрылады).
      */
     fun follow(lat: Double?, lon: Double?, bearing: Double? = null) {
@@ -359,11 +378,6 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         m.easeCamera(CameraUpdateFactory.newCameraPosition(b.build()), if (bearing != null) 250 else 500)
     }
 
-    /** Картаны солтүстікке бұру (компасты басқанда). */
-    fun resetNorth() {
-        val m = map ?: return
-        if (m.cameraPosition.bearing != 0.0) m.animateCamera(CameraUpdateFactory.bearingTo(0.0), 300)
-    }
 
     fun center(): Pair<Double, Double>? = map?.cameraPosition?.target?.let { it.latitude to it.longitude }
     fun zoom(): Double = map?.cameraPosition?.zoom ?: 0.0
