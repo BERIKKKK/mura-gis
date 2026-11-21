@@ -150,7 +150,7 @@
     function makeDivider() {
       divider = L.DomUtil.create('div', 'wb-divider', map.getContainer());
       divider.innerHTML = '<span class="wb-side wb-side--a"></span><button type="button" class="wb-handle" aria-label="Бөлгішті жылжыту" title="Сүйреп жылжытыңыз">' +
-        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l-6 6 6 6M15 6l6 6-6 6"/></svg></button><span class="wb-side wb-side--b"></span>';
+        '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 7-5 5 5 5"/><path d="m15 7 5 5-5 5"/></svg></button><span class="wb-side wb-side--b"></span>';
       divider.hidden = true;
       L.DomEvent.disableClickPropagation(divider);
       L.DomEvent.disableScrollPropagation(divider);

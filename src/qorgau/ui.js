@@ -196,7 +196,7 @@ setCoord(store.get(COORD_KEY) !== '0', false);
 
 /* ======================= Толық экран (бүкіл жұмыс аймағы) ======================= */
 const fsBtn = $('qaFsBtn');
-const FS_ICON = { on: fsBtn.querySelector('svg').innerHTML, off: '<path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/>' };
+const FS_ICON = { on: fsBtn.querySelector('svg').innerHTML, off: '<path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/>' };
 const fsNative = () => document.fullscreenElement || document.webkitFullscreenElement || null;
 const fsActive = () => fsNative() === app || app.classList.contains('is-fs');
 function paintFs() {

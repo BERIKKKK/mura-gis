@@ -319,11 +319,11 @@ function flyTo(r) {
 }
 function routeMenu(r, oe) {
   globalThis.MuraCtx?.openMenu(oe.clientX, oe.clientY, esc(r.name), [
-    { label: 'Өңдеу', icon: '<path d="M4 20h4L19 9l-4-4L4 16z"/>', run: () => openDialog(r) },
+    { label: 'Өңдеу', icon: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>', run: () => openDialog(r) },
     { label: 'Картадан көрсету', icon: IC.pick || '', run: () => flyTo(r) },
     { label: 'GPX ретінде сақтау', icon: IC.imp || '', run: () => exportGpx([r], r.name) },
     'sep',
-    { label: 'Өшіру', icon: '<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/>', run: () => removeRoute(r) },
+    { label: 'Өшіру', icon: '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', run: () => removeRoute(r) },
   ]);
 }
 

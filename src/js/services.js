@@ -18,11 +18,11 @@
   var KEY = 'mura.service';
   var SERVICES = [
     { id: 'marks', label: 'Белгі қою', tip: 'Белгі қою: ескерткіштер мен өзге нысандар — тізім, импорт, экспорт (1)',
-      icon: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>' },
+      icon: '<path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/>' },
     { id: 'routes', label: 'Маршруттар', tip: 'Маршруттар: маршрут сызу, тізім, жол табу, GPX/KML импорты (2)',
-      icon: '<circle cx="5.5" cy="18.5" r="2"/><circle cx="18.5" cy="5.5" r="2"/><path d="M7.3 17.2C11 15 9 10.5 12.5 9.5S16 7.5 16.9 7"/>' },
+      icon: '<path d="M9 5h8.5a1 1 0 010 7h-11a1 1 0 000 7H15"/><circle cx="18" cy="19" r="3"/><circle cx="6" cy="5" r="3"/>' },
     { id: 'zone', label: 'Қорғау аймағы', tip: 'Қорғау аймағы: шекара, есеп, сақталған аймақтар (3)',
-      icon: '<path d="M12 3l7.5 4.3v9.4L12 21l-7.5-4.3V7.3z"/><path d="M12 7.5l3.9 2.25v4.5L12 16.5l-3.9-2.25v-4.5z"/>' },
+      icon: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>' },
   ];
   var svg = function (p) { return '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; };
   var store = {
@@ -45,7 +45,7 @@
     imp.type = 'button'; imp.className = 'qa-tbtn'; imp.id = 'mkImportBtn';
     imp.setAttribute('data-prio', '3'); imp.setAttribute('aria-label', 'Импорт');
     imp.setAttribute('data-tip', 'Импорттау: KML, KMZ, GPX, GeoJSON → «Импортталғандар» (сәйкестендіру үшін)');
-    imp.innerHTML = svg('<path d="M12 3v12"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/>') + '<span class="qa-tl">Импорт</span>';
+    imp.innerHTML = svg('<path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/>') + '<span class="qa-tl">Импорт</span>';
     imp.addEventListener('click', function () { var b = $('mkImport'); if (b) b.click(); });
     gMarks.appendChild(imp);
   }

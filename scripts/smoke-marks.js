@@ -333,9 +333,9 @@ async function run(win) {
     M.setTab('places'); await wait(300);
     // Өзге нысандар сүзгісі картаға: түрі «Қыстау» → «0/1», тазарту → «1»
     const pk = document.getElementById('plFKind'); pk.value = 'qystau'; pk.dispatchEvent(new Event('change')); await wait(100);
-    eq(document.getElementById('plTabN').textContent + ' ' + document.getElementById('plFReset').hidden, '0/1 false', 'өзге нысандар картада сүзілді');
+    eq(document.getElementById('plCount').textContent + ' ' + document.getElementById('plFReset').hidden, '0/1 false', 'өзге нысандар картада сүзілді');
     document.getElementById('plFReset').click(); await wait(100);
-    eq(document.getElementById('plTabN').textContent, '1', 'өзге нысандар сүзгісі тазартылды');
+    eq(document.getElementById('plCount').textContent, '1', 'өзге нысандар сүзгісі тазартылды');
     // Екінші қатардағы «Өзге нысандар» батырмасы: санауыш, қойындыны ашу/жабу, «Ескерткіштер» батырмасымен ауысу
     const plB = document.getElementById('plListBtn');
     eq(plB.getAttribute('aria-expanded') + ' ' + document.getElementById('plCount').textContent, 'true 1', '«Өзге нысандар» батырмасы');
@@ -346,7 +346,7 @@ async function run(win) {
     plB.click(); await wait(100);
     eq(document.getElementById('mkPanel').hidden, true, 'қайта басқанда панель жабылды');
     plB.click(); await wait(300);
-    out.placesTab = document.querySelectorAll('#plList .pl-card').length + ' карточка / таб ' + document.getElementById('plTabN').textContent + ' / белгі ' + document.querySelectorAll('.pl-pin').length;
+    out.placesTab = document.querySelectorAll('#plList .pl-card').length + ' карточка / таб ' + document.getElementById('plCount').textContent + ' / белгі ' + document.querySelectorAll('.pl-pin').length;
     const pg = P.geojson(P.items, 'x');
     eq(pg.features[0].properties.kind_kk + ' ' + pg.features[0].properties.mura_layer, 'Құдық places', 'GeoJSON өрістері');
     eq(P.isMuraPlaces(pg) + ' ' + P.isMuraPlaces(M.geojson(M.filtered(), 'x')), 'true false', 'файл түрін тану');

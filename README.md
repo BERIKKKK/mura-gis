@@ -66,7 +66,7 @@ npm run dist:win  # Windows орнатқышы → dist/
 - `src/index.html` — басты бет; `src/css/` — стильдер (`base.css` — негізгі, `maptool.css` — карта интерфейсінің қабығы, `desktop.css` — жұмыс үстелі, `marks.css` — белгілер);
 - `src/qorgau/` — «Қорғау аймағы» қызметі (есеп, сызба, DOCX/GeoJSON экспорты, интерфейс);
 - `src/marks/` — «Ескерткіштер» қызметі; `src/routes/` — «Маршруттар» (`graph.js` — желі және жол іздеу, `tracks.js` — GPX/KML/GeoJSON); `src/js/` — қызметтер жолағы (`services.js`), бастапқы терезе мен баптаулар (`project.js`), GeoPackage импорты (`gpkg-import.js`), карта қабаттары, оң жақ мәзір, жұмыс үстелі қабығы т.б.;
-- `src/vendor/` — Leaflet, fflate (офлайн жұмыс үшін жергілікті көшірмелер).
+- `src/vendor/` — Leaflet, fflate, Lucide иконкаларының лицензиясы (офлайн жұмыс үшін жергілікті көшірмелер).
 
 Архитектуралық қағидалар — [`CLAUDE.md`](CLAUDE.md), даму жоспары — [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -80,4 +80,4 @@ GitHub Actions (`.github/workflows/release.yml`) Windows-та құрастыра
 
 ## Лицензиялар
 
-Leaflet — BSD-2-Clause (`src/vendor/leaflet/LICENSE`), fflate — MIT (`src/vendor/LICENSE-fflate`). Карта деректері: © OpenStreetMap авторлары, OpenTopoMap (CC-BY-SA), Esri; Генштаб тайлдары — [nakarte.me](https://nakarte.me) (AtloMaps).
+Leaflet — BSD-2-Clause (`src/vendor/leaflet/LICENSE`), fflate — MIT (`src/vendor/LICENSE-fflate`). Интерфейс иконкалары — [Lucide](https://lucide.dev) (ISC; `src/vendor/lucide/LICENSE`, қолданылған иконкалар тізімі — `src/vendor/lucide/README.md`); ескерткіштің 5 шартты белгісі — жобаның өз белгілері. Карта деректері: © OpenStreetMap авторлары, OpenTopoMap (CC-BY-SA), Esri; Генштаб тайлдары — [nakarte.me](https://nakarte.me) (AtloMaps).

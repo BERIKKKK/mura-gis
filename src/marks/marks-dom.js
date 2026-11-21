@@ -15,15 +15,16 @@
     return '<svg class="qa-ic" viewBox="0 0 24 24" width="' + (s || 18) + '" height="' + (s || 18) + '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
   };
   var IC = {
-    flag: '<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/><circle cx="6" cy="21" r=".6"/>',
+    flag: '<path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/>',
     // «Белгілер» панелі — «Қорғау аймақтары» панелімен (қалта + белгі) бір үлгіде: екеуі де жазбалар жинағы
-    list: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M10.5 17.5v-7h5l-1.2 1.8 1.2 1.7h-5"/>',
-    // «Өзге нысандар»: картадағы шаршы белгісі сияқты
-    place: '<rect x="5" y="5" width="14" height="14" rx="2.5"/><path d="M9 12h6M12 9v6"/>',
-    close: '<path d="M6 6l12 12M18 6L6 18"/>',
-    search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
+    list: '<path d="M10 18v-7"/><path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M3 22h18"/><path d="M6 18v-7"/>',
+    // «Өзге нысандар» (Lucide: map-pinned)
+    place: '<path d="M18 8c0 3.613-3.869 7.429-5.393 8.795a1 1 0 01-1.214 0C9.87 15.429 6 11.613 6 8a6 6 0 0112 0"/><path d="M4.474 15h-.197a1 1 0 00-.969.753l-1.097 4.35a1.5 1.5 0 001.444 1.898L20.344 22a1.5 1.5 0 001.446-1.897l-1.098-4.35a1 1 0 00-.969-.753h-.197"/><circle cx="12" cy="8" r="2"/>',
+    close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
   };
   window.MuraMarks.icon = ic;
+  window.MuraMarks.IC = IC;
 
   /* ---------- Құралдар жолағы: ең басында — «Белгілер» тобы, одан кейін қорғау аймағының құралдары ---------- */
   var grp = document.createElement('div');
@@ -67,11 +68,10 @@
   d.setAttribute('aria-labelledby', 'mkPanelT');
   d.hidden = true;
   d.innerHTML =
-    '<header class="qa-dh"><h2 id="mkPanelT">' + ic(IC.flag) + 'Ескерткіштер</h2><button type="button" class="qa-ib" data-mkclose aria-label="Жабу" title="Жабу">' + ic(IC.close) + '</button></header>' +
+    // «Өзге нысандар» — қойынды емес: құралдар жолағындағы өз батырмасымен ашылады (тақырып пен белгі ауысады, қойындылар жасырылады)
+    '<header class="qa-dh"><h2 id="mkPanelT"><span id="mkPanelIc">' + ic(IC.flag) + '</span><span id="mkPanelTT">Ескерткіштер</span></h2><button type="button" class="qa-ib" data-mkclose aria-label="Жабу" title="Жабу">' + ic(IC.close) + '</button></header>' +
     '<div class="mk-tabs" role="tablist">' +
       '<button type="button" role="tab" id="mkTabMarksB" data-mktab="marks" aria-selected="true">Ескерткіштер <span class="mk-tabn" id="mkTabN">0</span></button>' +
-      // Өзге нысандар — ескерткіштердің жанында (Android мәзіріндегідей: «Ескерткіштердің» астында), бөлек қабат (marks/places.js)
-      '<button type="button" role="tab" id="mkTabPlacesB" data-mktab="places" aria-selected="false" title="Елді мекен, қыстау, жайлау, тұрақ, құдық т.б.">Өзге нысандар <span class="mk-tabn" id="plTabN">0</span></button>' +
       '<button type="button" role="tab" id="mkTabImpB" data-mktab="imp" aria-selected="false" title="KML, KMZ, GPX файлдарынан импортталған, әлі сәйкестендірілмеген нүктелер">Импортталғандар <span class="mk-tabn" id="mkTabI">0</span></button>' +
     '</div>' +
     '<div class="qa-db" id="mkTabMarks">' +

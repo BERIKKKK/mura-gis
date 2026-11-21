@@ -738,7 +738,7 @@ async function importAsPlaces(file, pts) {
   return true;
 }
 
-/* ---------- Қойындылар: Ескерткіштер | Өзге нысандар | Импортталғандар ---------- */
+/* ---------- Қойындылар: Ескерткіштер | Импортталғандар; «Өзге нысандар» — сол панель, бірақ қойындысыз (өз батырмасынан) ---------- */
 function setTab(t) {
   tab = t === 'imp' || t === 'places' ? t : 'marks';
   if (!open) openPanel();
@@ -746,7 +746,9 @@ function setTab(t) {
   $('mkTabPlaces').hidden = tab !== 'places';
   $('mkTabImp').hidden = tab !== 'imp';
   $('mkTabMarksB').setAttribute('aria-selected', tab === 'marks' ? 'true' : 'false');
-  $('mkTabPlacesB').setAttribute('aria-selected', tab === 'places' ? 'true' : 'false');
+  panelEl.querySelector('.mk-tabs').hidden = tab === 'places';
+  $('mkPanelTT').textContent = tab === 'places' ? tx('Өзге нысандар', 'Прочие объекты') : tx('Ескерткіштер', 'Памятники');
+  $('mkPanelIc').innerHTML = MM.icon(tab === 'places' ? MM.IC.place : MM.IC.flag);
   $('mkTabImpB').setAttribute('aria-selected', tab === 'imp' ? 'true' : 'false');
   paintTabBtns();
   for (const id of ['mkGeo', 'mkDocx', 'mkPdf']) $(id).hidden = tab !== 'marks';
@@ -769,11 +771,11 @@ function impMenu(id) {
     const oe = ev.originalEvent;
     L.DomEvent.preventDefault(oe);
     globalThis.MuraCtx?.openMenu(oe.clientX, oe.clientY, esc(x.name || '(атаусыз)'), [
-      { label: 'Сәйкестендіру', hint: 'белгі ретінде мәліметтерін толтыру', icon: '<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/>', run: () => identify(x) },
-      { label: tx('Өзге нысан ретінде', 'Как прочий объект'), hint: tx('елді мекен, қыстау, құдық т.б.', 'населённый пункт, зимовка, колодец и др.'), icon: '<rect x="5" y="5" width="14" height="14" rx="3"/>', run: () => globalThis.__places?.identifyAsPlace(x) },
-      { label: 'Координатаны көшіру', hint: x.lat.toFixed(7) + ', ' + x.lon.toFixed(7), icon: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', run: () => (globalThis.mura?.clipWrite ? globalThis.mura.clipWrite(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7)) : navigator.clipboard.writeText(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7))) },
+      { label: 'Сәйкестендіру', hint: 'белгі ретінде мәліметтерін толтыру', icon: '<path d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"/>', run: () => identify(x) },
+      { label: tx('Өзге нысан ретінде', 'Как прочий объект'), hint: tx('елді мекен, қыстау, құдық т.б.', 'населённый пункт, зимовка, колодец и др.'), icon: '<path d="M18 8c0 3.613-3.869 7.429-5.393 8.795a1 1 0 01-1.214 0C9.87 15.429 6 11.613 6 8a6 6 0 0112 0"/><path d="M4.474 15h-.197a1 1 0 00-.969.753l-1.097 4.35a1.5 1.5 0 001.444 1.898L20.344 22a1.5 1.5 0 001.446-1.897l-1.098-4.35a1 1 0 00-.969-.753h-.197"/><circle cx="12" cy="8" r="2"/>', run: () => globalThis.__places?.identifyAsPlace(x) },
+      { label: 'Координатаны көшіру', hint: x.lat.toFixed(7) + ', ' + x.lon.toFixed(7), icon: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>', run: () => (globalThis.mura?.clipWrite ? globalThis.mura.clipWrite(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7)) : navigator.clipboard.writeText(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7))) },
       'sep',
-      { label: 'Импорттан өшіру', icon: '<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/>', run: () => removeImport(x) },
+      { label: 'Импорттан өшіру', icon: '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', run: () => removeImport(x) },
     ]);
   };
 }

@@ -2,7 +2,7 @@
    көктеу, тұрақ, құдық, бұлақ т.б.). Жасалуы — «Белгі қою» функциясымен бірдей: картаны басқанда алдымен белгі түрі
    сұралады — «Ескерткіш белгісі» (өрістері өзгеріссіз, marks.js) не «Өзге нысандар» (тек түрі, атауы, координатасы).
    Сақтау — жобаның places қабаты (main/places.js, mura://app/places), ескерткіштерден бөлек: ескерткіштер тізіміне,
-   құжаттарына, қорғау аймағына әсер етпейді. Тізім — «Ескерткіштер» панеліндегі «Өзге нысандар» қойындысы.
+   құжаттарына, қорғау аймағына әсер етпейді. Тізім — құралдар жолағындағы «Өзге нысандар» батырмасы ашатын панель.
    Пішімі Android-пен ортақ (android/core: Place, PlaceGeoJson): GeoJSON экспорты/импорты id-ді және барлық өрісті сақтайды.
    Бұл модуль marks.js-тен кейін жүктеледі; сыртқа — globalThis.__places. */
 import { parseOne } from '../qorgau/app.js';
@@ -24,23 +24,25 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* жеке режим */ } },
 };
 
-/** Түрлер: кодтар Android-пен ортақ (main/places.js KINDS); түсі мен таңбасы — Android картасындағыдай (SymbolIcons.PLACE_STYLE). */
+/** Түрлер: кодтар Android-пен ортақ (main/places.js KINDS); түсі — Android картасындағыдай (SymbolIcons.PLACE_STYLE).
+    Таңбасы (i) — Lucide иконкалары (https://lucide.dev, ISC лицензиясы; тізімі — src/vendor/lucide/README.md):
+    house, snowflake, sun, leaf, sprout, tent, circle-dot, droplet, circle-small. */
 export const KINDS = [
-  { v: 'settlement', kk: 'Елді мекен', ru: 'Населённый пункт', c: '#6D4C9F', g: 'Е' },
-  { v: 'qystau', kk: 'Қыстау', ru: 'Зимовка (қыстау)', c: '#8D6E63', g: 'Қ' },
-  { v: 'zhailau', kk: 'Жайлау', ru: 'Летнее пастбище (жайлау)', c: '#2E7D32', g: 'Ж' },
-  { v: 'kuzeu', kk: 'Күзеу', ru: 'Осеннее стойбище (күзеу)', c: '#E66C00', g: 'Кз' },
-  { v: 'kokteu', kk: 'Көктеу', ru: 'Весеннее стойбище (көктеу)', c: '#7CB342', g: 'Кк' },
-  { v: 'turaq', kk: 'Тұрақ', ru: 'Стоянка', c: '#546E7A', g: 'Т' },
-  { v: 'well', kk: 'Құдық', ru: 'Колодец', c: '#1565C0', g: '◎' },
-  { v: 'spring', kk: 'Бұлақ', ru: 'Родник', c: '#0097A7', g: 'Б' },
-  { v: 'other', kk: 'Басқа', ru: 'Другое', c: '#757575', g: '•' },
+  { v: 'settlement', kk: 'Елді мекен', ru: 'Населённый пункт', c: '#6D4C9F', i: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>' },
+  { v: 'qystau', kk: 'Қыстау', ru: 'Зимовка (қыстау)', c: '#8D6E63', i: '<path d="m10 20-1.25-2.5L6 18"/><path d="M10 4 8.75 6.5 6 6"/><path d="m14 20 1.25-2.5L18 18"/><path d="m14 4 1.25 2.5L18 6"/><path d="m17 21-3-6h-4"/><path d="m17 3-3 6 1.5 3"/><path d="M2 12h6.5L10 9"/><path d="m20 10-1.5 2 1.5 2"/><path d="M22 12h-6.5L14 15"/><path d="m4 10 1.5 2L4 14"/><path d="m7 21 3-6-1.5-3"/><path d="m7 3 3 6h4"/>' },
+  { v: 'zhailau', kk: 'Жайлау', ru: 'Летнее пастбище (жайлау)', c: '#2E7D32', i: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>' },
+  { v: 'kuzeu', kk: 'Күзеу', ru: 'Осеннее стойбище (күзеу)', c: '#E66C00', i: '<path d="M11 20a10 10 0 0010-10 25.9 25.9 0 00-1.04-7.281 1 1 0 00-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0011 20"/><path d="M2 21a5 5 0 012.911-4.544C7.613 15.212 8.351 15.24 11 13"/>' },
+  { v: 'kokteu', kk: 'Көктеу', ru: 'Весеннее стойбище (көктеу)', c: '#7CB342', i: '<path d="M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3"/><path d="M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4"/><path d="M5 21h14"/>' },
+  { v: 'turaq', kk: 'Тұрақ', ru: 'Стоянка', c: '#546E7A', i: '<path d="M3.5 21 14 3"/><path d="M20.5 21 10 3"/><path d="M15.5 21 12 15l-3.5 6"/><path d="M2 21h20"/>' },
+  { v: 'well', kk: 'Құдық', ru: 'Колодец', c: '#1565C0', i: '<circle cx="12" cy="12" r="1"/><circle cx="12" cy="12" r="10"/>' },
+  { v: 'spring', kk: 'Бұлақ', ru: 'Родник', c: '#0097A7', i: '<path d="M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z"/>' },
+  { v: 'other', kk: 'Басқа', ru: 'Другое', c: '#757575', i: '<circle cx="12" cy="12" r="6"/>' },
 ];
 export const kindOf = v => KINDS.find(k => k.v === v) || KINDS[KINDS.length - 1];
 const kindLabel = (v, l = UI) => kindOf(v)[l === 'ru' ? 'ru' : 'kk'];
 /** Интерфейс тіліндегі атау; бос болса — екінші тілдегісі, ол да бос болса — түрінің атауы. */
 export const titleOf = (p, l = UI) => (l === 'ru' ? p.name_ru || p.name : p.name || p.name_ru) || kindLabel(p.kind, l);
-const badge = (v, cls = '') => { const k = kindOf(v); return '<span class="pl-badge' + cls + (k.g.length > 1 ? ' is-2' : '') + '" style="--c:' + k.c + '">' + esc(k.g) + '</span>'; };
+const badge = (v, cls = '') => { const k = kindOf(v); return '<span class="pl-badge' + cls + '" style="--c:' + k.c + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + k.i + '</svg></span>'; };
 
 let items = [];
 let sorted = null;
@@ -76,13 +78,13 @@ function menuFor(id) {
     L.DomEvent.preventDefault(oe);
     const c = p.lat.toFixed(7) + ', ' + p.lon.toFixed(7);
     globalThis.MuraCtx?.openMenu(oe.clientX, oe.clientY, esc(titleOf(p)) + '<small>' + esc(kindLabel(p.kind)) + '</small>', [
-      { label: tx('Өңдеу', 'Изменить'), icon: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>', run: () => openDialog(p) },
-      { label: tx('Координатаны көшіру', 'Копировать координаты'), hint: c, icon: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+      { label: tx('Өңдеу', 'Изменить'), icon: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>', run: () => openDialog(p) },
+      { label: tx('Координатаны көшіру', 'Копировать координаты'), hint: c, icon: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
         run: () => (globalThis.mura?.clipWrite ? globalThis.mura.clipWrite(c) : navigator.clipboard.writeText(c)) },
-      { label: tx('Осы нысанға жол табу', 'Найти путь к этому объекту'), icon: '<circle cx="6" cy="18" r="2.2"/><path d="M8 17.5c4.5-.5 2-5.5 6.5-6"/><circle cx="18" cy="7" r="2.2"/>',
+      { label: tx('Осы нысанға жол табу', 'Найти путь к этому объекту'), icon: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
         run: () => globalThis.MuraRoutes?.findPath?.('to', { placeId: p.id, lat: p.lat, lon: p.lon, label: titleOf(p) }) },
       'sep',
-      { label: tx('Өшіру', 'Удалить'), icon: '<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/>', run: () => removePlace(p) },
+      { label: tx('Өшіру', 'Удалить'), icon: '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>', run: () => removePlace(p) },
     ]);
   };
 }
@@ -119,7 +121,6 @@ function draw() {
   }
   view.setData(data);
   const n = data.length === items.length ? items.length : data.length + '/' + items.length;
-  $('plTabN').textContent = n;
   $('plCount').textContent = n;
   $('plListBtn').classList.toggle('is-filtered', data.length !== items.length);
 }
