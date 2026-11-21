@@ -229,7 +229,7 @@ function frame(title, body, foot) {
     dlg.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); if (dlg.querySelector('.gi-map')) closeMap(); else close(); } });
   }
   dlg.innerHTML = '<div class="mura-dlg gi-dlg" role="dialog" aria-modal="true" aria-labelledby="giT">' +
-    '<div class="gi-head"><h3 id="giT">' + title + '</h3><button type="button" class="mura-start-x" data-gi-x aria-label="' + tx('Жабу', 'Закрыть') + '" title="' + tx('Жабу (Esc)', 'Закрыть (Esc)') + '"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>' +
+    '<div class="gi-head"><h3 id="giT">' + title + '</h3><button type="button" class="mura-start-x" data-gi-x aria-label="' + tx('Жабу', 'Закрыть') + '" title="' + tx('Жабу (Esc)', 'Закрыть (Esc)') + '"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>' +
     '<div class="gi-body">' + body + '</div><div class="gi-foot">' + foot + '</div></div>';
   dlg.querySelector('[data-gi-x]').addEventListener('click', close);
 }

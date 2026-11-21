@@ -2,6 +2,7 @@ package io.github.berikkkk.muragis.mobile.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -61,7 +62,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -78,14 +81,12 @@ import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.map.MapController
 import io.github.berikkkk.muragis.mobile.map.SymbolIcons
 
-/** Өзге нысанның белгісі (картадағымен бірдей: түсі мен қысқа таңбасы түріне қарай). */
+/** Өзге нысанның белгісі — картадағы суреттің дәл өзі (SymbolIcons.place: түсі мен Lucide таңбасы түріне қарай). */
 @Composable
 fun PlaceBadge(kind: PlaceKind, size: Dp = 28.dp) {
-    val (fill, label) = SymbolIcons.PLACE_STYLE.getValue(kind)
-    Box(Modifier.size(size).clip(RoundedCornerShape(size * 0.28f)).background(Color.White).padding(size * 0.11f)
-        .clip(RoundedCornerShape(size * 0.2f)).background(Color(fill)), contentAlignment = Alignment.Center) {
-        Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = (size.value * if (label.length >= 2) 0.36f else 0.48f).sp, maxLines = 1)
-    }
+    val px = with(LocalDensity.current) { size.roundToPx() }.coerceAtLeast(1)
+    val bmp = remember(kind, px) { SymbolIcons.place(kind, px).asImageBitmap() }
+    Image(bmp, null, Modifier.size(size))
 }
 
 /**

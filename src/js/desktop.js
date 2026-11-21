@@ -48,7 +48,7 @@
   fin.setAttribute('data-prio', '0'); fin.setAttribute('aria-label', 'Аяқтау');
   fin.setAttribute('data-tip', 'Аяқтау: шекара дайын — мәліметтерді толтырып, сақтау');
   fin.disabled = true;
-  fin.innerHTML = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8 12.3l2.7 2.7L16.2 9.4"/></svg><span class="qa-tl">Аяқтау</span>';
+  fin.innerHTML = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m16 9-5.5 5.5L8 12"/></svg><span class="qa-tl">Аяқтау</span>';
   gBorder.appendChild(fin);
   // «Мәліметтер» және «Қорғау аймақтары» (бұрынғы «Сақталған аймақтар») — қорғау аймағының деректер тобына, «Экспорттың» алдына
   [['qaOpenSaved', 'Қорғау аймақтары: сақталған жазбалар, біріктіру', 'Қорғау аймақтары', '3']].forEach(function (p) {
@@ -78,7 +78,7 @@
     cb.type = 'button'; cb.className = 'qa-tbtn mura-clear'; cb.id = 'qaClearBtn';
     cb.setAttribute('data-prio', '4'); cb.setAttribute('aria-label', 'Тазалау');
     cb.setAttribute('data-tip', 'Тазалау: нүктелер мен енгізілген деректерді өшіру');
-    cb.innerHTML = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v6M14 11v6"/></svg><span class="qa-tl">Тазалау</span>';
+    cb.innerHTML = '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span class="qa-tl">Тазалау</span>';
     cb.addEventListener('click', function () { rs.click(); });
     gData.appendChild(cb);
     rs.classList.add('mura-gone');

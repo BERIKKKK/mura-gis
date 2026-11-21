@@ -114,36 +114,67 @@ object SymbolIcons {
     }
 
     /**
-     * Өзге нысандардың белгісі: түріне қарай түс пен қысқа таңба (жұмыс үстеліндегі src/marks/places.js-пен бірдей).
+     * Өзге нысандардың белгісі: түріне қарай түс және ақ таңба (жұмыс үстеліндегі src/marks/places.js KINDS-пен бірдей).
      * Пішіні — дөңгеленген шаршы: ескерткіш белгілерінен (SVG пішіндер) бірден ажыратылады.
+     * Таңбалар — Lucide иконкалары (https://lucide.dev, ISC лицензиясы; src/vendor/lucide/LICENSE): 24×24 тордағы SVG path
+     * деректері өзгеріссіз (тек <circle> → path, ал арка жалаушалары PathParser үшін бос орынмен ажыратылған).
      */
-    val PLACE_STYLE: Map<PlaceKind, Pair<Int, String>> = mapOf(
-        PlaceKind.SETTLEMENT to (Color.rgb(109, 76, 159) to "Е"),
-        PlaceKind.QYSTAU to (Color.rgb(141, 110, 99) to "Қ"),
-        PlaceKind.ZHAILAU to (Color.rgb(46, 125, 50) to "Ж"),
-        PlaceKind.KUZEU to (Color.rgb(230, 108, 0) to "Кз"),
-        PlaceKind.KOKTEU to (Color.rgb(124, 179, 66) to "Кк"),
-        PlaceKind.TURAQ to (Color.rgb(84, 110, 122) to "Т"),
-        PlaceKind.WELL to (Color.rgb(21, 101, 192) to "◎"),
-        PlaceKind.SPRING to (Color.rgb(0, 151, 167) to "Б"),
-        PlaceKind.OTHER to (Color.rgb(117, 117, 117) to "•"),
+    class PlaceStyle(val fill: Int, val paths: List<String>)
+
+    private fun circle(cx: Float, cy: Float, r: Float) = "M${cx - r} ${cy}a$r $r 0 1 0 ${2 * r} 0a$r $r 0 1 0 ${-2 * r} 0z"
+
+    val PLACE_STYLE: Map<PlaceKind, PlaceStyle> = mapOf(
+        // Lucide: house
+        PlaceKind.SETTLEMENT to PlaceStyle(Color.rgb(109, 76, 159), listOf(
+            "M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8",
+            "M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z")),
+        // Lucide: snowflake
+        PlaceKind.QYSTAU to PlaceStyle(Color.rgb(141, 110, 99), listOf(
+            "m10 20-1.25-2.5L6 18", "M10 4 8.75 6.5 6 6", "m14 20 1.25-2.5L18 18", "m14 4 1.25 2.5L18 6", "m17 21-3-6h-4", "m17 3-3 6 1.5 3",
+            "M2 12h6.5L10 9", "m20 10-1.5 2 1.5 2", "M22 12h-6.5L14 15", "m4 10 1.5 2L4 14", "m7 21 3-6-1.5-3", "m7 3 3 6h4")),
+        // Lucide: sun
+        PlaceKind.ZHAILAU to PlaceStyle(Color.rgb(46, 125, 50), listOf(
+            circle(12f, 12f, 4f), "M12 2v2", "M12 20v2", "m4.93 4.93 1.41 1.41", "m17.66 17.66 1.41 1.41", "M2 12h2", "M20 12h2",
+            "m6.34 17.66-1.41 1.41", "m19.07 4.93-1.41 1.41")),
+        // Lucide: leaf
+        PlaceKind.KUZEU to PlaceStyle(Color.rgb(230, 108, 0), listOf(
+            "M11 20a10 10 0 0 0 10-10 25.9 25.9 0 0 0-1.04-7.281 1 1 0 0 0-1.755-.325C15.833 5.5 13 5.5 9.8 6.1A7 7 0 0 0 11 20",
+            "M2 21a5 5 0 0 1 2.911-4.544C7.613 15.212 8.351 15.24 11 13")),
+        // Lucide: sprout
+        PlaceKind.KOKTEU to PlaceStyle(Color.rgb(124, 179, 66), listOf(
+            "M14 9.536V7a4 4 0 0 1 4-4h1.5a.5.5 0 0 1 .5.5V5a4 4 0 0 1-4 4 4 4 0 0 0-4 4c0 2 1 3 1 5a5 5 0 0 1-1 3",
+            "M4 9a5 5 0 0 1 8 4 5 5 0 0 1-8-4", "M5 21h14")),
+        // Lucide: tent
+        PlaceKind.TURAQ to PlaceStyle(Color.rgb(84, 110, 122), listOf("M3.5 21 14 3", "M20.5 21 10 3", "M15.5 21 12 15l-3.5 6", "M2 21h20")),
+        // Lucide: circle-dot
+        PlaceKind.WELL to PlaceStyle(Color.rgb(21, 101, 192), listOf(circle(12f, 12f, 1f), circle(12f, 12f, 10f))),
+        // Lucide: droplet
+        PlaceKind.SPRING to PlaceStyle(Color.rgb(0, 151, 167), listOf(
+            "M12 22a7 7 0 0 0 7-7c0-2-1-3.9-3-5.5s-3.5-4-4-6.5c-.5 2.5-2 4.9-4 6.5C6 11.1 5 13 5 15a7 7 0 0 0 7 7z")),
+        // Lucide: circle-small
+        PlaceKind.OTHER to PlaceStyle(Color.rgb(117, 117, 117), listOf(circle(12f, 12f, 6f))),
     )
 
     fun placeIconName(k: PlaceKind) = "pl-" + k.code
 
+    /** Карта мен тізімдегі белгі (бір сурет): ақ жиек, түрдің түсі, ортасында ақ таңба (сызық қалыңдығы 2.4 — жұмыс үстеліндегідей). */
     fun place(k: PlaceKind, sizePx: Int): Bitmap {
-        val (fill, label) = PLACE_STYLE.getValue(k)
+        val st = PLACE_STYLE.getValue(k)
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)
         val p = Paint(Paint.ANTI_ALIAS_FLAG)
         val s = sizePx.toFloat()
         p.color = Color.WHITE; cv.drawRoundRect(RectF(0f, 0f, s, s), s * 0.28f, s * 0.28f, p)
         val inset = s * 0.11f
-        p.color = fill; cv.drawRoundRect(RectF(inset, inset, s - inset, s - inset), s * 0.2f, s * 0.2f, p)
-        p.color = Color.WHITE; p.textAlign = Paint.Align.CENTER; p.isFakeBoldText = true
-        p.textSize = s * if (label.length >= 2) 0.36f else 0.48f
-        val fm = p.fontMetrics
-        cv.drawText(label, s / 2, s / 2 - (fm.ascent + fm.descent) / 2, p)
+        p.color = st.fill; cv.drawRoundRect(RectF(inset, inset, s - inset, s - inset), s * 0.2f, s * 0.2f, p)
+        val g = s * 0.58f
+        cv.save()
+        cv.translate((s - g) / 2, (s - g) / 2)
+        cv.scale(g / 24f, g / 24f)
+        p.style = Paint.Style.STROKE; p.color = Color.WHITE; p.strokeWidth = 2.4f
+        p.strokeCap = Paint.Cap.ROUND; p.strokeJoin = Paint.Join.ROUND
+        for (d in st.paths) runCatching { PathParser.createPathFromPathData(d) }.getOrNull()?.let { cv.drawPath(it, p) }
+        cv.restore()
         return bmp
     }
 

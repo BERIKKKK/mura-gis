@@ -71,5 +71,6 @@ MBTiles, ZIP, GeoPackage тайлдары. Карталар санаттарға
 ## Лицензиялар
 
 MapLibre Native — BSD-2-Clause; AndroidX, Kotlin, kotlinx — Apache 2.0. Ескерткіш белгілері — жұмыс үстеліндегі `src/marks/symbols`.
+Өзге нысандар белгілерінің таңбалары — [Lucide](https://lucide.dev) (ISC; `src/vendor/lucide/LICENSE`), интерфейс иконкалары — Material Icons (Apache 2.0).
 Карта деректерінің атрибуциясы картада көрсетіледі. Офлайн пакеттер: OpenStreetMap (ODbL 1.0, Geofabrik), Copernicus DEM GLO‑30,
 Copernicus Sentinel‑2 (еркін лицензия), Noto Sans қаріптері (SIL OFL 1.1).

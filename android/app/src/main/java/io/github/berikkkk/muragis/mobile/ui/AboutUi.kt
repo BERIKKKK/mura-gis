@@ -51,6 +51,7 @@ private val LIBRARIES = listOf(
     OpenItem("MapLibre Native", "BSD-2-Clause", "https://github.com/maplibre/maplibre-native"),
     OpenItem("Jetpack Compose, AndroidX", "Apache 2.0", "https://developer.android.com/jetpack/androidx"),
     OpenItem("Material Icons", "Apache 2.0", "https://fonts.google.com/icons"),
+    OpenItem("Lucide Icons", "ISC", "https://lucide.dev"),
     OpenItem("Kotlin, kotlinx.coroutines, kotlinx.serialization", "Apache 2.0", "https://kotlinlang.org"),
     OpenItem("Noto Sans", "SIL OFL 1.1", "https://notofonts.github.io"),
     OpenItem("Planetiler", "Apache 2.0", "https://github.com/onthegomap/planetiler"),
