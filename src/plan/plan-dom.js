@@ -24,6 +24,7 @@
     circle: '<circle cx="12" cy="12" r="9"/>',
     ellipse: '<ellipse cx="12" cy="12" rx="10" ry="6"/>',
     free: '<path d="M4 8 10 3l9 4-2 10-8 4-6-6z"/>',
+    rect: '<rect width="18" height="12" x="3" y="6" rx="1"/>',
     edit: '<path d="M5 3a2 2 0 0 0-2 2"/><path d="M19 3a2 2 0 0 1 2 2"/><path d="M21 19a2 2 0 0 1-2 2"/><path d="M5 21a2 2 0 0 1-2-2"/><path d="M9 3h1"/><path d="M9 21h1"/><path d="M14 3h1"/><path d="M14 21h1"/><path d="M3 9v1"/><path d="M21 9v1"/><path d="M3 14v1"/><path d="M21 14v1"/>',
     crosshair: '<line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/>',
   };

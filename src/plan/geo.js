@@ -28,11 +28,18 @@ export function ellipseXY(cx, cy, a, b, az = 0, n = 72) {
   return out;
 }
 
+/** Тіктөртбұрыш жазықтықта: L — ұзындығы (az бағытында), W — ені (main/plan-geom.js-пен бірдей). */
+export function rectXY(cx, cy, L, W, az = 0) {
+  const t = az * DEG, u = [Math.sin(t), Math.cos(t)], v = [Math.cos(t), -Math.sin(t)];
+  return [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([a, b]) => [cx + a * L / 2 * u[0] + b * W / 2 * v[0], cy + a * L / 2 * u[1] + b * W / 2 * v[1]]);
+}
+
 /** Нысанның контуры жазықтықта [[x, y]…] (контуры жоқ болса — null). */
 export function contourXY(o, P) {
   const c = P.fwd(+o.lat, +o.lon);
   if (o.shape === 'circle' && o.diam > 0) return ellipseXY(c[0], c[1], +o.diam, +o.diam);
   if (o.shape === 'ellipse' && o.ax_a > 0 && o.ax_b > 0) return ellipseXY(c[0], c[1], +o.ax_a, +o.ax_b, +o.ax_az || 0);
+  if (o.shape === 'rect' && o.ax_a > 0 && o.ax_b > 0) return rectXY(c[0], c[1], +o.ax_a, +o.ax_b, +o.ax_az || 0);
   if (o.shape === 'free' && Array.isArray(o.pts) && o.pts.length >= 3) return o.pts.map(p => P.fwd(+p[0], +p[1]));
   return null;
 }
@@ -42,7 +49,7 @@ export function contourLL(o) {
   const P = plane(+o.lat, +o.lon), xy = contourXY(o, P);
   return xy ? xy.map(p => P.inv(p[0], p[1])) : null;
 }
-export const hasContour = o => !!(o && (o.shape === 'circle' ? o.diam > 0 : o.shape === 'ellipse' ? o.ax_a > 0 && o.ax_b > 0 : o.shape === 'free' ? Array.isArray(o.pts) && o.pts.length >= 3 : false));
+export const hasContour = o => !!(o && (o.shape === 'circle' ? o.diam > 0 : o.shape === 'ellipse' || o.shape === 'rect' ? o.ax_a > 0 && o.ax_b > 0 : o.shape === 'free' ? Array.isArray(o.pts) && o.pts.length >= 3 : false));
 
 /** Жазықтықтағы екі нүктенің арасы, м. */
 export const dist2 = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);

@@ -6,7 +6,7 @@
      картадағы белгілер басуды картаға өткізеді (.is-pjmap).
    Интерфейс бөліктері — plan/plan-dom.js, есептер — plan/geo.js, бет үлгісі — plan/sheet.js. */
 import { plane, contourLL, hasContour, inverse, dist2, azXY, selfIntersects, fmtNum, fmtDist, parseNum, cmpNum, SCALES } from './geo.js';
-import { renderPage, pdfHtml, objTitle, pointerValues, PAGE } from './sheet.js';
+import { renderPage, pdfHtml, objTitle, pointerValues, KINDS, MATERIALS, SUBTYPES, STATES, materialLabel, subtypeLabel, stateLabel, glyph, isStage2, explOf, PAPERS, paperSize } from './sheet.js';
 import { parseOne } from '../qorgau/app.js';
 
 const $ = id => document.getElementById(id);
@@ -25,13 +25,15 @@ const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* жеке режим */ } },
 };
-const KINDS = [{ v: 'kurgan', kk: 'Қорған', ru: 'Курган' }, { v: 'other', kk: 'Басқа нысан', ru: 'Иной объект' }];
 const SHAPES = [
   { v: '', kk: 'Тек нүкте (контурсыз)', ru: 'Только точка (без контура)' },
   { v: 'circle', kk: 'Шеңбер', ru: 'Окружность' },
   { v: 'ellipse', kk: 'Эллипс', ru: 'Эллипс' },
+  { v: 'rect', kk: 'Тіктөртбұрыш', ru: 'Прямоугольник' },
   { v: 'free', kk: 'Еркін контур', ru: 'Свободный контур' },
 ];
+const optList = (list, val, empty) => (empty ? '<option value="">' + esc(empty) + '</option>' : '') +
+  list.map(k => '<option value="' + k.v + '"' + (k.v === (val || '') ? ' selected' : '') + '>' + esc(UI === 'ru' ? k.ru : k.kk) + '</option>').join('');
 const lbl = (list, v) => { const x = list.find(k => k.v === v) || list[0]; return UI === 'ru' ? x.ru : x.kk; };
 
 function toast(msg, err) {
@@ -90,9 +92,15 @@ function drawLayer() {
   for (const o of markObjects()) {
     const sel = o.id === selId;
     const ll = hasContour(o) ? contourLL(o) : null;
+    const kurgan = !o.kind || o.kind === 'kurgan' || o.kind === 'other';
+    // Контур: қорған — қоңыр, қорымның құрылыстары — сұр, қоршау — толтырусыз; контурсыз қорым нысаны — жоспардағы белгісі
     const shape = ll
-      ? L.polygon(ll, { color: sel ? ST.sel : ST.line, weight: sel ? 3 : 1.5, fillColor: ST.fill, fillOpacity: 0.55, className: 'pj-shape' })
-      : L.circleMarker([o.lat, o.lon], { radius: sel ? 6 : 4.5, color: sel ? ST.sel : '#fff', weight: 2, fillColor: ST.line, fillOpacity: 1, className: 'pj-shape' });
+      ? L.polygon(ll, { color: sel ? ST.sel : ST.line, weight: sel ? 3 : 1.5, fillColor: kurgan ? ST.fill : '#8a8070', fillOpacity: o.kind === 'korshau' ? 0 : 0.55,
+        dashArray: o.kind === 'korshau' ? '6 4' : null, className: 'pj-shape' })
+      : kurgan
+        ? L.circleMarker([o.lat, o.lon], { radius: sel ? 6 : 4.5, color: sel ? ST.sel : '#fff', weight: 2, fillColor: ST.line, fillOpacity: 1, className: 'pj-shape' })
+        : L.marker([o.lat, o.lon], { keyboard: false, icon: L.divIcon({ className: 'pj-shape pj-glyph' + (sel ? ' is-sel' : ''), iconSize: [18, 18], iconAnchor: [9, 9],
+          html: '<svg viewBox="-2.6 -2.6 5.2 5.2" width="18" height="18" aria-hidden="true">' + glyph(o.kind, 0, 0) + '</svg>' }) });
     shape.bindTooltip(esc(o.num), { permanent: true, direction: 'right', offset: [ll ? 0 : 6, 0], className: 'pj-num' + (sel ? ' is-sel' : '') });
     shape.on('click', ev => { if (mode) return; L.DomEvent.stop(ev); select(o.id); });
     shape.on('dblclick', ev => { if (mode) return; L.DomEvent.stop(ev); openObjDialog(o); });
@@ -121,7 +129,10 @@ function fitObjects(ids) {
   if (!pts.length && m) pts.push([m.lat, m.lon]);
   if (!pts.length) return;
   const p = globalThis.QAUI?.pad?.();
-  map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 19, paddingTopLeft: p?.tl, paddingBottomRight: p?.br });
+  // «Жоспар» панелі ашық болса, нысандар оның астына түспейтіндей оң жақ шегініс панельдің енімен есептеледі
+  const br = p?.br ? p.br.slice() : [24, 24];
+  if (open && !globalThis.QAUI?.isMobile?.()) br[0] = Math.max(br[0], panelEl.offsetWidth + 2 * (cssNum('--qa-gap') || 10) + 24);
+  map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 19, paddingTopLeft: p?.tl, paddingBottomRight: br });
 }
 
 /* ======================= Таңдау және көрсету ======================= */
@@ -155,7 +166,10 @@ function render() {
   renderPanel(m, list);
   drawLayer();
   paintVisibility();
+  // QAUI.measure ортақ панельдерді ғана біледі: «Жоспар» панелі ашық болса, оң жақ шегіністі қайта қоямыз
+  // (әйтпесе карта қабаттары батырмасы т.б. панельдің астында қалады)
   globalThis.QAUI?.measure?.();
+  applyRight();
 }
 
 /* ======================= Панель ======================= */
@@ -183,15 +197,21 @@ function closePanel() {
 }
 panelEl.querySelector('[data-pjclose]').addEventListener('click', closePanel);
 new ResizeObserver(() => requestAnimationFrame(applyRight)).observe(panelEl);
+// Терезе не координата панелі өзгергенде QAUI.measure қайта есептейді — содан кейін шегіністі қалпына келтіреміз
+new ResizeObserver(() => requestAnimationFrame(applyRight)).observe($('qaStage'));
 for (const id of ['mkPanel', 'rtPanel']) { const el = $(id); if (el) new MutationObserver(() => { if (!el.hidden) closePanel(); }).observe(el, { attributes: true, attributeFilter: ['hidden'] }); }
 
 function objMeta(o) {
   const parts = [];
   if (o.shape === 'circle') parts.push(tx('шеңбер', 'окружность') + ' Ø ' + fmtNum(o.diam) + ' м');
   else if (o.shape === 'ellipse') parts.push(tx('эллипс', 'эллипс') + ' ' + fmtNum(o.ax_a) + ' × ' + fmtNum(o.ax_b) + ' м');
+  else if (o.shape === 'rect') parts.push(tx('тіктөртбұрыш', 'прямоугольник') + ' ' + fmtNum(o.ax_a) + ' × ' + fmtNum(o.ax_b) + ' м');
   else if (o.shape === 'free') parts.push(tx('еркін контур', 'свободный контур') + (o.diam ? ' Ø ' + fmtNum(o.diam) + ' м' : ''));
   else parts.push(tx('тек нүкте — контур жоқ', 'только точка — контура нет'));
-  parts.push(tx('биіктігі ', 'высота ') + (o.height == null ? '—' : fmtNum(o.height) + ' м'));
+  if (o.height != null || !o.kind || o.kind === 'kurgan') parts.push(tx('биіктігі ', 'высота ') + (o.height == null ? '—' : fmtNum(o.height) + ' м'));
+  if (o.material) parts.push(materialLabel(o.material, UI).toLocaleLowerCase());
+  if (o.subtype) parts.push(subtypeLabel(o.subtype, UI));
+  if (o.state) parts.push(stateLabel(o.state, UI));
   return parts.join(' · ');
 }
 function renderPanel(m, list) {
@@ -373,6 +393,11 @@ function paintHud(ll) {
     if (n === 1) return setHud(tx('Эллипс: үлкен осьтің ұшын басыңыз', 'Эллипс: щёлкните конец большой оси') + (cur ? ' — ' + fmtNum(2 * Math.hypot(cur[0], cur[1]), 1) + ' м, ' + fmtNum(azXY([0, 0], cur), 1) + '°' : ''), '');
     return setHud(tx('Эллипс: кіші осьтің ұшын басыңыз', 'Эллипс: щёлкните конец малой оси'), '');
   }
+  if (mode.shape === 'rect') {
+    if (!n) return setHud(tx('Тіктөртбұрыш: орталығын басыңыз', 'Прямоугольник: щёлкните центр'), '');
+    if (n === 1) return setHud(tx('Тіктөртбұрыш: ұзын қабырғаның ортасын басыңыз', 'Прямоугольник: щёлкните середину длинной стороны') + (cur ? ' — ' + fmtNum(2 * Math.hypot(cur[0], cur[1]), 1) + ' м, ' + fmtNum(azXY([0, 0], cur), 1) + '°' : ''), '');
+    return setHud(tx('Тіктөртбұрыш: қысқа қабырғаның ортасын басыңыз (ені)', 'Прямоугольник: щёлкните середину короткой стороны (ширина)'), '');
+  }
   return setHud(tx('Еркін контур: төбелерді басыңыз', 'Свободный контур: щёлкайте вершины') + ' (' + n + ')',
     tx('Бірінші төбені басу, екі рет басу не Enter — тұйықтау; Backspace — соңғы төбе; Esc — бас тарту', 'Щелчок по первой вершине, двойной щелчок или Enter — замкнуть; Backspace — последняя вершина; Esc — отмена'));
 }
@@ -389,14 +414,14 @@ function rubber(ll) {
   if (mode.shape === 'circle' && cur) {
     const d = 2 * Math.hypot(cur[0], cur[1]);
     L.polygon(contourLL({ shape: 'circle', lat: pts[0][0], lon: pts[0][1], diam: d }), sty).addTo(tempLayer);
-  } else if (mode.shape === 'ellipse') {
+  } else if (mode.shape === 'ellipse' || mode.shape === 'rect') {
     const a = pts[1] ? P.fwd(pts[1][0], pts[1][1]) : cur;
     if (!a) return;
     const A = 2 * Math.hypot(a[0], a[1]), az = azXY([0, 0], a);
     let B = A * 0.6;
     if (pts[1] && cur) { const t = az * Math.PI / 180; B = 2 * Math.abs(cur[0] * Math.cos(t) - cur[1] * Math.sin(t)); }
     L.polyline(llOf([[0, 0], a]), { color: ST.sel, weight: 1.5, interactive: false }).addTo(tempLayer);
-    if (pts[1]) L.polygon(contourLL({ shape: 'ellipse', lat: pts[0][0], lon: pts[0][1], ax_a: Math.max(A, 0.01), ax_b: Math.max(B, 0.01), ax_az: az }), sty).addTo(tempLayer);
+    if (pts[1]) L.polygon(contourLL({ shape: mode.shape, lat: pts[0][0], lon: pts[0][1], ax_a: Math.max(A, 0.01), ax_b: Math.max(B, 0.01), ax_az: az }), sty).addTo(tempLayer);
   } else if (mode.shape === 'free') {
     L.polyline(ll ? pts.concat([[ll.lat, ll.lng]]) : pts, { color: ST.sel, weight: 2, interactive: false }).addTo(tempLayer);
     if (pts.length >= 2 && ll) L.polyline([[ll.lat, ll.lng], pts[0]], { color: ST.sel, weight: 1, dashArray: '3 5', interactive: false }).addTo(tempLayer);
@@ -424,7 +449,7 @@ map.on('click', e => {
   const pts = mode.pts;
   if (mode.shape === 'free' && pts.length >= 3 && near(ll, pts[0], 10)) { finishDraw(); return; }
   pts.push([ll.lat, ll.lng]);
-  if ((mode.shape === 'circle' && pts.length === 2) || (mode.shape === 'ellipse' && pts.length === 3)) { finishDraw(); return; }
+  if ((mode.shape === 'circle' && pts.length === 2) || ((mode.shape === 'ellipse' || mode.shape === 'rect') && pts.length === 3)) { finishDraw(); return; }
   rubber(ll); paintHud(ll);
 });
 map.on('dblclick', e => { if (mode && mode.kind === 'draw' && mode.shape === 'free') { L.DomEvent.stop(e); if (mode.pts.length > 3) mode.pts.pop(); finishDraw(); } });
@@ -443,13 +468,13 @@ function finishDraw() {
   if (m.shape === 'circle') {
     const b = P.fwd(pts[1][0], pts[1][1]);
     Object.assign(d, { shape: 'circle', lat: pts[0][0], lon: pts[0][1], diam: r1(2 * Math.hypot(b[0], b[1])) });
-  } else if (m.shape === 'ellipse') {
+  } else if (m.shape === 'ellipse' || m.shape === 'rect') {
     const a = P.fwd(pts[1][0], pts[1][1]), c = P.fwd(pts[2][0], pts[2][1]);
     let A = 2 * Math.hypot(a[0], a[1]), az = azXY([0, 0], a);
     const t = az * Math.PI / 180;
     let B = 2 * Math.abs(c[0] * Math.cos(t) - c[1] * Math.sin(t));
     if (B > A) { [A, B] = [B, A]; az = (az + 90) % 360; }
-    Object.assign(d, { shape: 'ellipse', lat: pts[0][0], lon: pts[0][1], ax_a: r1(A), ax_b: r1(B), ax_az: r1(az) });
+    Object.assign(d, { shape: m.shape, lat: pts[0][0], lon: pts[0][1], ax_a: r1(A), ax_b: r1(B), ax_az: r1(az) });
   } else {
     if (pts.length < 3) { toast(tx('Еркін контурда кемінде үш төбе болуы керек.', 'В свободном контуре должно быть не менее трёх вершин.'), true); return; }
     if (selfIntersects(pts.map(p => P.fwd(p[0], p[1])))) { toast(tx('Контур өзімен қиылысады — төбелерді қайта қойыңыз (Backspace).', 'Контур самопересекается — переставьте вершины (Backspace).'), true); return; }
@@ -471,6 +496,7 @@ function drawMenu(btn) {
   globalThis.MuraCtx?.openMenu(r.left, r.bottom + 4, esc(objName(o)), [
     { label: tx('Шеңбер', 'Окружность'), hint: tx('орталығы, содан кейін шеті', 'центр, затем край'), icon: IC.circle, run: () => go('circle') },
     { label: tx('Эллипс', 'Эллипс'), hint: tx('орталығы, үлкен осьтің ұшы, кіші осьтің ұшы', 'центр, конец большой оси, конец малой оси'), icon: IC.ellipse, run: () => go('ellipse') },
+    { label: tx('Тіктөртбұрыш', 'Прямоугольник'), hint: tx('кесене, сағана там, қоршау: орталығы, ұзын және қысқа қабырға', 'мавзолей, саганатам, ограда: центр, длинная и короткая сторона'), icon: IC.rect || IC.free, run: () => go('rect') },
     { label: tx('Еркін контур', 'Свободный контур'), hint: tx('кемінде үш төбе, тұйықтау', 'не менее трёх вершин, замкнуть'), icon: IC.free, run: () => go('free') },
     'sep',
     { label: tx('Контурды редакциялау', 'Редактировать контур'), hint: tx('орнын, өлшемін, пішінін картада түзету', 'исправить положение, размер, форму на карте'), icon: IC.edit, disabled: !hasContour(o), run: () => startMode({ kind: 'edit', id: o.id }) },
@@ -495,7 +521,7 @@ function startEdit() {
   const spots = () => {
     const p = P(), c = [+w.lat, +w.lon];
     if (w.shape === 'circle') { const r = w.diam / 2, t = ((w.dim_az ?? 90) * Math.PI) / 180; return [c, p.inv(r * Math.sin(t), r * Math.cos(t))]; }
-    if (w.shape === 'ellipse') {
+    if (w.shape === 'ellipse' || w.shape === 'rect') {
       const t = (w.ax_az || 0) * Math.PI / 180;
       return [c, p.inv(w.ax_a / 2 * Math.sin(t), w.ax_a / 2 * Math.cos(t)), p.inv(w.ax_b / 2 * Math.cos(t), -w.ax_b / 2 * Math.sin(t))];
     }
@@ -519,7 +545,7 @@ function startEdit() {
       } else if (w.shape === 'circle') {
         const xy = P().fwd(q.lat, q.lng);
         w.diam = Math.round(2 * Math.hypot(xy[0], xy[1]) * 10) / 10;
-      } else if (w.shape === 'ellipse') {
+      } else if (w.shape === 'ellipse' || w.shape === 'rect') {
         const xy = P().fwd(q.lat, q.lng), len = Math.round(2 * Math.hypot(xy[0], xy[1]) * 10) / 10;
         if (i === 1) { w.ax_a = Math.max(len, w.ax_b); w.ax_az = Math.round(azXY([0, 0], xy) * 10) / 10; }
         else w.ax_b = Math.min(len, w.ax_a);
@@ -557,7 +583,10 @@ function openObjDialog(o, opts = {}) {
     '<form novalidate>' +
     '<h3>' + svgIc(IC.add) + esc(isNew ? tx('Жаңа нысан', 'Новый объект') : objTitle(v, UI)) + '<small class="pj-dlgsub">' + esc(markName(m)) + '</small></h3>' +
     '<div class="qa-row2"><div class="qa-f"><label for="pjNum">№ <span class="mk-req">*</span></label><input type="text" id="pjNum" name="num" maxlength="12" value="' + esc(v.num) + '"><p class="pj-ferr" data-for="num"></p></div>' +
-      '<div class="qa-f"><label for="pjKind">' + tx('Түрі', 'Тип') + '</label><select id="pjKind" name="kind">' + KINDS.map(k => '<option value="' + k.v + '"' + (k.v === v.kind ? ' selected' : '') + '>' + esc(UI === 'ru' ? k.ru : k.kk) + '</option>').join('') + '</select></div></div>' +
+      '<div class="qa-f"><label for="pjKind">' + tx('Түрі', 'Тип') + '</label><select id="pjKind" name="kind">' + optList(KINDS, v.kind) + '</select></div></div>' +
+    '<div class="qa-row2"><div class="qa-f"><label for="pjMat">' + tx('Материалы', 'Материал') + '</label><select id="pjMat" name="material">' + optList(MATERIALS, v.material, tx('— белгісіз —', '— неизвестен —')) + '</select></div>' +
+      '<div class="qa-f" data-kind="kulpytas"><label for="pjSub">' + tx('Құлпытастың типі', 'Тип кулпытаса') + '</label><select id="pjSub" name="subtype">' + optList(SUBTYPES, v.subtype, tx('— анықталмаған —', '— не определён —')) + '</select></div>' +
+      '<div class="qa-f"><label for="pjState">' + tx('Техникалық жай-күйі', 'Техническое состояние') + '</label><select id="pjState" name="state">' + optList(STATES, v.state, '—') + '</select></div></div>' +
     (I18N.biField ? I18N.biField({ id: 'pjName', name: 'name', label: tx('Атауы (қажет болса)', 'Название (при необходимости)'), kk: v.name, ru: v.name_ru, max: 200 }) : '') +
     '<fieldset class="pj-fs"><legend>' + tx('Тірек нүктесі (WGS 84)', 'Опорная точка (WGS 84)') + '</legend>' +
       '<div class="qa-row2"><div class="qa-f"><label for="pjLat">' + tx('Ендік (N)', 'Широта (N)') + '</label><input type="text" id="pjLat" name="lat" autocomplete="off" spellcheck="false" value="' + esc(v.latText ?? coord(v.lat)) + '"></div>' +
@@ -572,13 +601,13 @@ function openObjDialog(o, opts = {}) {
       '<div class="qa-f"><label for="pjHeight">' + tx('Биіктігі, м', 'Высота, м') + '</label><input type="text" id="pjHeight" name="height" inputmode="decimal" placeholder="' + tx('өлшенбеген', 'не измерена') + '" value="' + esc(num(v.height)) + '"><p class="pj-ferr" data-for="height"></p></div></div>' +
       '<div class="qa-row2" data-sh="circle free"><div class="qa-f"><label for="pjDiam">' + tx('Диаметрі, м', 'Диаметр, м') + '</label><input type="text" id="pjDiam" name="diam" inputmode="decimal" value="' + esc(num(v.diam)) + '"><p class="pj-ferr" data-for="diam"></p></div>' +
         '<div class="qa-f" data-sh="circle"><label for="pjDimAz">' + tx('Диаметр сызығының бағыты, °', 'Направление линии диаметра, °') + '</label><input type="text" id="pjDimAz" name="dim_az" inputmode="decimal" value="' + esc(num(v.dim_az ?? 90)) + '"></div></div>' +
-      '<div class="qa-row2" data-sh="ellipse"><div class="qa-f"><label for="pjAxA">' + tx('Үлкен ось, м', 'Большая ось, м') + '</label><input type="text" id="pjAxA" name="ax_a" inputmode="decimal" value="' + esc(num(v.ax_a)) + '"><p class="pj-ferr" data-for="ax_a"></p></div>' +
-        '<div class="qa-f"><label for="pjAxB">' + tx('Кіші ось, м', 'Малая ось, м') + '</label><input type="text" id="pjAxB" name="ax_b" inputmode="decimal" value="' + esc(num(v.ax_b)) + '"><p class="pj-ferr" data-for="ax_b"></p></div>' +
-        '<div class="qa-f"><label for="pjAxAz">' + tx('Үлкен осьтің азимуты, °', 'Азимут большой оси, °') + '</label><input type="text" id="pjAxAz" name="ax_az" inputmode="decimal" value="' + esc(num(v.ax_az ?? 0)) + '"><p class="pj-ferr" data-for="ax_az"></p></div></div>' +
+      '<div class="qa-row2" data-sh="ellipse rect"><div class="qa-f"><label for="pjAxA" data-ell="' + esc(tx('Үлкен ось, м', 'Большая ось, м')) + '" data-rect="' + esc(tx('Ұзындығы, м', 'Длина, м')) + '">' + tx('Үлкен ось, м', 'Большая ось, м') + '</label><input type="text" id="pjAxA" name="ax_a" inputmode="decimal" value="' + esc(num(v.ax_a)) + '"><p class="pj-ferr" data-for="ax_a"></p></div>' +
+        '<div class="qa-f"><label for="pjAxB" data-ell="' + esc(tx('Кіші ось, м', 'Малая ось, м')) + '" data-rect="' + esc(tx('Ені, м', 'Ширина, м')) + '">' + tx('Кіші ось, м', 'Малая ось, м') + '</label><input type="text" id="pjAxB" name="ax_b" inputmode="decimal" value="' + esc(num(v.ax_b)) + '"><p class="pj-ferr" data-for="ax_b"></p></div>' +
+        '<div class="qa-f"><label for="pjAxAz" data-ell="' + esc(tx('Үлкен осьтің азимуты, °', 'Азимут большой оси, °')) + '" data-rect="' + esc(tx('Ұзын қабырғаның азимуты, °', 'Азимут длинной стороны, °')) + '">' + tx('Үлкен осьтің азимуты, °', 'Азимут большой оси, °') + '</label><input type="text" id="pjAxAz" name="ax_az" inputmode="decimal" value="' + esc(num(v.ax_az ?? 0)) + '"><p class="pj-ferr" data-for="ax_az"></p></div></div>' +
       '<div data-sh="free"><p class="qa-hint" id="pjPtsInfo"></p><p class="pj-ferr" data-for="pts"></p>' +
         '<div class="qa-row2"><div class="qa-f"><label for="pjDimI">' + tx('Өлшем сызығы: 1-нүкте', 'Размерная линия: точка 1') + '</label><select id="pjDimI"></select></div>' +
         '<div class="qa-f"><label for="pjDimJ">' + tx('2-нүкте', 'точка 2') + '</label><select id="pjDimJ"></select></div></div><p class="qa-hint" id="pjDimLen"></p></div>' +
-      '<p class="qa-hint" data-sh="circle ellipse free">' + tx('Шеңбер мен эллипс енгізілген өлшемдерден құрылады. Өлшемді енгізіңіз не контурды картада сызыңыз:', 'Окружность и эллипс строятся по введённым размерам. Введите размеры или начертите контур на карте:') +
+      '<p class="qa-hint" data-sh="circle ellipse rect free">' + tx('Шеңбер, эллипс және тіктөртбұрыш енгізілген өлшемдерден құрылады. Өлшемді енгізіңіз не контурды картада сызыңыз:', 'Окружность, эллипс и прямоугольник строятся по введённым размерам. Введите размеры или начертите контур на карте:') +
         ' <button type="button" class="lnk" id="pjDrawHere">' + svgIc(IC.draw, 15) + ' ' + tx('Картада сызу', 'Начертить на карте') + '</button></p>' +
       '<p class="qa-hint" data-sh="">' + tx('Контуры жоқ нысан жалпы жоспарда нүкте мен нөмір арқылы көрсетіледі; жеке сызба үшін контур қажет.', 'Объект без контура показывается на общем плане точкой и номером; для индивидуального чертежа нужен контур.') + '</p>' +
     '</fieldset>' +
@@ -595,6 +624,8 @@ function openObjDialog(o, opts = {}) {
   let pts = Array.isArray(v.pts) ? v.pts.slice() : null;
   const paintShape = () => {
     const s = F.shape.value;
+    back.querySelectorAll('label[data-rect]').forEach(l => { l.textContent = s === 'rect' ? l.dataset.rect : l.dataset.ell; });
+    back.querySelectorAll('[data-kind]').forEach(el => { el.hidden = F.kind.value !== el.dataset.kind; });
     back.querySelectorAll('[data-sh]').forEach(el => { el.hidden = !el.dataset.sh.split(' ').includes(s) && !(el.dataset.sh === '' && s === ''); });
     const info = back.querySelector('#pjPtsInfo');
     info.textContent = pts && pts.length >= 3 ? tx('Контурдың төбелері: ', 'Вершин контура: ') + pts.length : tx('Контур әлі сызылмаған — «Картада сызу».', 'Контур ещё не начерчен — «Начертить на карте».');
@@ -611,6 +642,7 @@ function openObjDialog(o, opts = {}) {
     else el.textContent = tx('Өлшем сызығы қажет болса, контурдың екі төбесін таңдаңыз (нөмірлері картадағы сызу ретімен).', 'Если нужна размерная линия, выберите две вершины контура (номера — в порядке черчения).');
   };
   F.shape.addEventListener('change', paintShape);
+  F.kind.addEventListener('change', paintShape);
   back.querySelector('#pjDimI').addEventListener('change', paintDimLen);
   back.querySelector('#pjDimJ').addEventListener('change', paintDimLen);
   paintShape();
@@ -623,6 +655,7 @@ function openObjDialog(o, opts = {}) {
       ...v, id: v.id, mark_id: markId, num: F.num.value.trim(), kind: F.kind.value, shape: F.shape.value,
       name: F.name ? F.name.value : v.name, name_ru: F.name_ru ? F.name_ru.value : v.name_ru, note: F.note ? F.note.value : v.note, note_ru: F.note_ru ? F.note_ru.value : v.note_ru,
       lat: ll ? ll.lat : F.lat.value, lon: ll ? ll.lon : F.lon.value, latText: F.lat.value, lonText: F.lon.value,
+      material: F.material.value, subtype: F.kind.value === 'kulpytas' ? F.subtype.value : '', state: F.state.value,
       height: parseNum(F.height.value), diam: parseNum(F.diam.value), ax_a: parseNum(F.ax_a.value), ax_b: parseNum(F.ax_b.value), ax_az: parseNum(F.ax_az.value), dim_az: parseNum(F.dim_az.value),
       pts, dim: di !== '' && dj !== '' && di !== dj ? [+di, +dj] : null,
     };
@@ -663,9 +696,9 @@ function openObjDialog(o, opts = {}) {
     const posErr = (k, req) => { const x = d[k]; if (x === null ? req : !(x > 0)) bad(k, tx('Нөлден үлкен сан енгізіңіз.', 'Введите число больше нуля.')); };
     if (d.shape === 'circle') posErr('diam', true);
     if (d.shape === 'free' && d.diam !== null) posErr('diam', false);
-    if (d.shape === 'ellipse') {
+    if (d.shape === 'ellipse' || d.shape === 'rect') {
       posErr('ax_a', true); posErr('ax_b', true);
-      if (d.ax_a > 0 && d.ax_b > d.ax_a) bad('ax_b', tx('Кіші ось үлкен осьтен ұзын болмауы керек.', 'Малая ось не может быть длиннее большой.'));
+      if (d.shape === 'ellipse' && d.ax_a > 0 && d.ax_b > d.ax_a) bad('ax_b', tx('Кіші ось үлкен осьтен ұзын болмауы керек.', 'Малая ось не может быть длиннее большой.'));
       if (Number.isNaN(d.ax_az)) bad('ax_az', tx('Азимут дұрыс емес.', 'Неверный азимут.'));
     }
     if (d.shape === 'free') {
@@ -687,7 +720,7 @@ function openObjDialog(o, opts = {}) {
       else { const g = back.querySelector('#pjErr'); g.textContent = err.message; g.hidden = false; }
     }
   });
-  if (opts.focus === 'dims') { back.querySelector('#pjDimsFs').scrollIntoView({ block: 'start' }); (F.shape.value === 'ellipse' ? F.ax_a : F.shape.value ? F.diam : F.height).focus(); }
+  if (opts.focus === 'dims') { back.querySelector('#pjDimsFs').scrollIntoView({ block: 'start' }); (F.shape.value === 'ellipse' || F.shape.value === 'rect' ? F.ax_a : F.shape.value ? F.diam : F.height).focus(); }
   else F.num.focus();
 }
 
@@ -821,6 +854,9 @@ function warnings(lang, kind) {
   if (p && p.ptr && lang === 'ru' && !String(p.ptr_name_ru || '').trim()) out.push(tx('Бағыттауыш жазуының орысша нұсқасы жоқ.', 'Нет русского варианта надписи указателя.'));
   if (p && p.ptr && lang === 'kk' && !String(p.ptr_name || '').trim()) out.push(tx('Бағыттауыш жазуының қазақша нұсқасы жоқ.', 'Нет казахского варианта надписи указателя.'));
   const pts = markObjects().filter(o => !hasContour(o));
+  const other = lang === 'ru' ? 'note' : 'note_ru', own = lang === 'ru' ? 'note_ru' : 'note';
+  const noNote = isStage2(markObjects()) && kind !== 'detail' ? markObjects().filter(o => String(o[other] || '').trim() && !String(o[own] || '').trim()) : [];
+  if (noNote.length) out.push(tx('Ескертпенің ' + (lang === 'ru' ? 'орысша' : 'қазақша') + ' нұсқасы жоқ (екінші тілдегісі шығады): ', 'Нет ' + (lang === 'ru' ? 'русского' : 'казахского') + ' варианта примечания (будет выведен другой): ') + noNote.map(o => '№' + o.num).join(', '));
   if (pts.length && kind !== 'detail') out.push(tx('Тек жалпы жоспарда нүкте болып көрсетіледі (контуры жоқ): ', 'Будут показаны на общем плане только точкой (нет контура): ') + pts.map(o => '№' + o.num).join(', '));
   return out;
 }
@@ -843,7 +879,9 @@ function openPreview(o = {}) {
       '<div class="qa-f"><label for="pjPvPage">' + tx('Бет', 'Лист') + '</label><select id="pjPvPage"></select></div>' +
       '<div class="qa-f"><label for="pjPvScale">' + tx('Масштаб', 'Масштаб') + '</label><select id="pjPvScale"></select></div>' +
       '<div class="qa-f"><label for="pjPvLang">' + tx('Құжат тілі', 'Язык документа') + '</label><select id="pjPvLang"><option value="kk">Қазақша</option><option value="ru">Русский</option></select></div>' +
+      '<div id="pjPaper"></div>' +
       '<div class="pj-pvwarn" id="pjPvWarn" role="status"></div>' +
+      '<details class="pj-expl-set" id="pjExplBox" hidden><summary>' + tx('Экспликация баптаулары', 'Настройки экспликации') + '</summary><div id="pjExplSet"></div></details>' +
       '<p class="qa-hint">' + tx('Белгілер мен өлшем жазуларын тінтуірмен сүйреп жылжытуға болады — орны сақталады. Контурлардың орны деректерге сай қалады.', 'Подписи и размерные надписи можно перетаскивать мышью — положение сохраняется. Положение контуров соответствует данным.') + '</p>' +
       '<p class="qa-hint">' + tx('Басып шығарғанда «Нақты өлшем» (100%) режимін таңдаңыз: «Бетке сыйдыру» масштабты өзгертеді.', 'При печати выберите «Фактический размер» (100%): «По размеру страницы» меняет масштаб.') + '</p>' +
       '<div class="pj-side-btns"><button type="button" class="btn btn--primary btn--sm" id="pjPvPdf">' + tx('Осы бетті PDF-ке', 'Этот лист в PDF') + '</button>' +
@@ -852,12 +890,21 @@ function openPreview(o = {}) {
     '</aside></div>';
   document.body.appendChild(back);
   const p = curPlan();
-  prev = { back, kind: o.kind || 'general', id: o.id || '', lang: (p && p.lang) || I18N.docLang() };
+  prev = { back, kind: o.kind || 'general', id: o.id || '', idx: 0, lang: (p && p.lang) || I18N.docLang() };
   prev.onKey = e => { if (e.key === 'Escape' && !dlg) { e.preventDefault(); e.stopPropagation(); closePreview(); } };
   document.addEventListener('keydown', prev.onKey, true);
   back.querySelector('[data-x]').addEventListener('click', closePreview);
   back.querySelector('#pjPvLang').value = prev.lang;
-  back.querySelector('#pjPvPage').addEventListener('change', e => { const v = e.target.value; prev.kind = v === 'general' ? 'general' : 'detail'; prev.id = v === 'general' ? '' : v; paintPreview(); });
+  back.querySelector('#pjPvPage').addEventListener('change', e => {
+    const v = e.target.value;
+    if (v === 'general') { prev.kind = 'general'; prev.id = ''; prev.idx = 0; }
+    else if (v.startsWith('more:')) { prev.kind = 'general'; prev.id = ''; prev.idx = +v.slice(5); }
+    else { prev.kind = 'detail'; prev.id = v; prev.idx = 0; }
+    paintPreview();
+  });
+  back.querySelector('#pjExplSet').addEventListener('change', e => saveExpl(e.target));
+  back.querySelector('#pjPaper').addEventListener('change', () => savePaper(back.querySelector('#pjPaper'), paintPreview));
+  back.querySelector('#pjExplSet').addEventListener('click', e => { const b = e.target.closest('button[data-ex]'); if (b) saveExpl(b); });
   back.querySelector('#pjPvScale').addEventListener('change', async e => {
     const s = +e.target.value;
     try { await savePlan(prev.kind === 'general' ? { scale_general: s } : { scale_detail: s }); } catch (err) { toast(err.message, true); }
@@ -880,21 +927,26 @@ function paintPreview() {
   const b = prev.back, p = curPlan() || {};
   const contour = markObjects().filter(hasContour);
   if (prev.kind === 'detail' && !contour.some(o => o.id === prev.id)) { prev.kind = 'general'; prev.id = ''; }
-  b.querySelector('#pjPvPage').innerHTML = '<option value="general">' + tx('Жалпы жоспар', 'Общий план') + '</option>' +
-    contour.map(o => '<option value="' + esc(o.id) + '">' + esc(objName(o)) + ' — ' + tx('жеке жоспар', 'индивидуальный план') + '</option>').join('');
-  b.querySelector('#pjPvPage').value = prev.kind === 'general' ? 'general' : prev.id;
   const o = prev.kind === 'detail' ? objects.find(x => x.id === prev.id) : null;
   const want = prev.kind === 'general' ? (p.scale_general || 0) : (p.scale_detail || 0);
   const pg = renderPage(ctxFor(prev.lang), prev.kind, o, want, { editor: true });
   lastPage = pg;
+  if (prev.idx > pg.more.length) prev.idx = 0;
+  b.querySelector('#pjPvPage').innerHTML = '<option value="general">' + tx('Жалпы жоспар', 'Общий план') + '</option>' +
+    pg.more.map((_, i) => '<option value="more:' + (i + 1) + '">' + tx('Экспликация', 'Экспликация') + ' — ' + (i + 2) + tx('-бет', '-й лист') + '</option>').join('') +
+    contour.map(o => '<option value="' + esc(o.id) + '">' + esc(objName(o)) + ' — ' + tx('жеке жоспар', 'индивидуальный план') + '</option>').join('');
+  b.querySelector('#pjPvPage').value = prev.kind === 'general' ? (prev.idx ? 'more:' + prev.idx : 'general') : prev.id;
   b.querySelector('#pjPvScale').innerHTML = '<option value="0">' + tx('Автоматты', 'Автоматически') + ' (1:' + pg.auto + ')</option>' +
     SCALES.map(s => '<option value="' + s + '">1:' + s + '</option>').join('');
   b.querySelector('#pjPvScale').value = String(want);
-  b.querySelector('#pjSheet').innerHTML = pg.svg;
+  b.querySelector('#pjSheet').innerHTML = prev.idx ? pg.more[prev.idx - 1] : pg.svg;
+  b.querySelector('#pjPaper').innerHTML = paperHtml(p.paper);
+  paintExplSet();
   const w = warnings(prev.lang, prev.kind);
   const box = b.querySelector('#pjPvWarn');
   box.innerHTML = (!pg.fits ? '<p class="pj-bad">' + tx('Сызба 1:' + pg.scale + ' масштабында бетке сыймайды.', 'Чертёж в масштабе 1:' + pg.scale + ' не помещается на лист.') +
       ' <button type="button" class="lnk" id="pjUseScale">' + tx('1:' + pg.suggest + ' масштабын қолдану', 'Применить масштаб 1:' + pg.suggest) + '</button></p>' : '') +
+    (pg.warn.includes('expl-width') ? '<p class="pj-bad">' + tx('Экспликация бағандарының ені бетке сыймайды — кішірейтілді. Енін азайтыңыз не «авто» қалдырыңыз.', 'Ширина столбцов экспликации не помещается на лист — уменьшена. Уменьшите ширину или оставьте «авто».') + '</p>' : '') +
     (pg.warn.includes('arrow-space') ? '<p>' + tx('Бағыттауышқа орын аз — белгілердің орнын не масштабты өзгертіңіз.', 'Мало места для указателя — измените положение подписей или масштаб.') + '</p>' : '') +
     w.map(x => '<p>' + esc(x) + '</p>').join('');
   b.querySelector('#pjUseScale')?.addEventListener('click', async () => {
@@ -904,15 +956,87 @@ function paintPreview() {
   bindDrag(b.querySelector('#pjSheet svg'));
   placePencil();
 }
+/** Қағаз өлшемі: A5…A0 (тік / жатық) не өз өлшемі (мм) — жоспардың барлық беті (жалпы, жалғасы, жеке) осы өлшемде. */
+function paperHtml(pp) {
+  const z = paperSize(pp), custom = pp && pp.size === 'custom';
+  return '<div class="pj-exgrid pj-paper">' +
+    '<label>' + tx('Қағаз өлшемі', 'Формат листа') + '<select data-pp="size">' +
+      PAPERS.map(x => '<option value="' + x.v + '"' + (!custom && z.name === x.v ? ' selected' : '') + '>' + x.v + ' — ' + x.w + ' × ' + x.h + ' мм</option>').join('') +
+      '<option value="custom"' + (custom ? ' selected' : '') + '>' + tx('Өз өлшемі…', 'Свой размер…') + '</option></select></label>' +
+    '<label>' + tx('Бағдары', 'Ориентация') + '<select data-pp="orient"' + (custom ? ' disabled' : '') + '><option value="portrait"' + (pp && pp.orient === 'landscape' ? '' : ' selected') + '>' + tx('тік', 'книжная') + '</option>' +
+      '<option value="landscape"' + (pp && pp.orient === 'landscape' ? ' selected' : '') + '>' + tx('жатық', 'альбомная') + '</option></select></label>' +
+    (custom ? '<label>' + tx('Ені, мм', 'Ширина, мм') + '<input type="text" inputmode="decimal" data-pp="w" value="' + z.w + '"></label>' +
+      '<label>' + tx('Биіктігі, мм', 'Высота, мм') + '<input type="text" inputmode="decimal" data-pp="h" value="' + z.h + '"></label>' : '') +
+    '</div>' + (z.w * z.h > 420 * 600 ? '<p class="qa-hint">' + tx('Үлкен пішім (A2-ден үлкен) плоттерде басылады; PDF-ті «Нақты өлшем» (100%) режимімен шығарыңыз.', 'Большой формат (больше A2) печатается на плоттере; выводите PDF в режиме «Фактический размер» (100%).') + '</p>' : '');
+}
+/** Қағаз баптауының өзгерісі → жоспарға сақтау; қате болса (өз өлшемі 100–3000 мм емес) — хабар. */
+async function savePaper(root, after) {
+  const g = k => root.querySelector('[data-pp="' + k + '"]');
+  const size = g('size').value;
+  const cur = (curPlan() || {}).paper || {};
+  const z = paperSize(cur);
+  const paper = size === 'custom'
+    ? { size, orient: 'portrait', w: g('w') ? parseNum(g('w').value) : z.w, h: g('h') ? parseNum(g('h').value) : z.h }
+    : { size, orient: g('orient').value };
+  try { await savePlan({ paper }); } catch (err) { toast(err.message, true); }
+  after();
+}
+/** Экспликация баптаулары (docs/PLAN-STAGE2.md, 6.1): бағандар, реті, ені, жол биіктігі, жазу өлшемі, атаулар, орны. */
+const EXPL_NAMES = { material: ['Материалы', 'Материал'], size: ['Өлшемі', 'Размеры'], state: ['Жай-күйі', 'Состояние'], note: ['Ескертпе', 'Примечание'] };
+function paintExplSet() {
+  const box = prev.back.querySelector('#pjExplBox');
+  box.hidden = !isStage2(markObjects());
+  if (box.hidden) return;
+  const e = explOf(curPlan());
+  const num = v => (v ? fmtNum(v, 1) : '');
+  prev.back.querySelector('#pjExplSet').innerHTML =
+    '<p class="qa-hint">' + tx('№ мен «Түрі» бағандары әрдайым көрінеді. Ені бос — автоматты.', 'Столбцы № и «Тип» видны всегда. Пустая ширина — автоматически.') + '</p>' +
+    '<table class="pj-excols"><thead><tr><th></th><th>' + tx('Баған', 'Столбец') + '</th><th>' + tx('Ені, мм', 'Ширина, мм') + '</th><th></th></tr></thead><tbody>' +
+    e.cols.map((c, i) => '<tr><td><input type="checkbox" data-ex="show" data-i="' + i + '"' + (c.show ? ' checked' : '') + ' aria-label="' + esc(tx('Көрсету', 'Показывать')) + '"></td>' +
+      '<td>' + esc(EXPL_NAMES[c.key][UI === 'ru' ? 1 : 0]) + '</td>' +
+      '<td><input type="text" inputmode="decimal" data-ex="width" data-i="' + i + '" value="' + num(c.width) + '" placeholder="' + tx('авто', 'авто') + '"></td>' +
+      '<td><button type="button" class="qa-ib" data-ex="up" data-i="' + i + '"' + (i ? '' : ' disabled') + ' aria-label="' + tx('Жоғары', 'Выше') + '">↑</button><button type="button" class="qa-ib" data-ex="down" data-i="' + i + '"' + (i < e.cols.length - 1 ? '' : ' disabled') + ' aria-label="' + tx('Төмен', 'Ниже') + '">↓</button></td></tr>').join('') +
+    '</tbody></table>' +
+    '<div class="pj-exgrid">' +
+      '<label>' + tx('Жол биіктігі, мм', 'Высота строки, мм') + '<input type="text" inputmode="decimal" data-ex="row_h" value="' + num(e.row_h) + '" placeholder="' + tx('авто', 'авто') + '"></label>' +
+      '<label>' + tx('Жазу өлшемі, мм', 'Размер шрифта, мм') + '<input type="text" inputmode="decimal" data-ex="font" value="' + num(e.font) + '"></label>' +
+      '<label>' + tx('Кестенің орны', 'Размещение таблицы') + '<select data-ex="place"><option value="sheet"' + (e.place === 'sheet' ? ' selected' : '') + '>' + tx('жоспар бетінде басталады', 'начинается на листе плана') + '</option><option value="separate"' + (e.place === 'separate' ? ' selected' : '') + '>' + tx('бөлек бетте', 'на отдельном листе') + '</option></select></label>' +
+      '<label>' + tx('Аймақ биіктігі, мм', 'Высота зоны, мм') + '<input type="text" inputmode="decimal" data-ex="zone_h" value="' + num(e.zone_h) + '"' + (e.place === 'separate' ? ' disabled' : '') + '></label>' +
+    '</div>' +
+    '<label class="qa-check"><input type="checkbox" data-ex="short"' + (e.short ? ' checked' : '') + '> ' + tx('Материалдың қысқа атауы («Күйдір. кірпіш»)', 'Краткое название материала («Жжён. кирпич»)') + '</label>' +
+    '<label class="qa-check"><input type="checkbox" data-ex="subtype"' + (e.subtype ? ' checked' : '') + '> ' + tx('Құлпытастың типін көрсету', 'Показывать тип кулпытаса') + '</label>' +
+    '<button type="button" class="lnk" data-ex="reset">' + tx('Әдепкі күйге қайтару', 'Вернуть по умолчанию') + '</button>';
+}
+/** Баптаудың өзгерісін сақтау (сервер шектейді: жол 4–12 мм, жазу 2,5–4 мм, аймақ 40–120 мм). */
+async function saveExpl(el) {
+  const kind = el.dataset.ex;
+  if (!kind) return;
+  const e = JSON.parse(JSON.stringify(explOf(curPlan())));
+  const i = +el.dataset.i;
+  const val = () => { const v = parseNum(el.value); return v == null || Number.isNaN(v) ? 0 : v; };
+  if (kind === 'show') e.cols[i].show = el.checked;
+  else if (kind === 'width') e.cols[i].width = val();
+  else if (kind === 'up' && i > 0) [e.cols[i - 1], e.cols[i]] = [e.cols[i], e.cols[i - 1]];
+  else if (kind === 'down' && i < e.cols.length - 1) [e.cols[i + 1], e.cols[i]] = [e.cols[i], e.cols[i + 1]];
+  else if (kind === 'row_h' || kind === 'font' || kind === 'zone_h') e[kind] = val();
+  else if (kind === 'place') e.place = el.value;
+  else if (kind === 'short' || kind === 'subtype') e[kind] = el.checked;
+  else if (kind === 'reset') { try { await savePlan({ expl: null }); } catch (err) { toast(err.message, true); } paintPreview(); return; }
+  else return;
+  try { await savePlan({ expl: e }); } catch (err) { toast(err.message, true); }
+  const open = prev.back.querySelector('#pjExplBox').open;
+  paintPreview();
+  prev.back.querySelector('#pjExplBox').open = open;
+}
 /** Қарындаш батырмасы бағыттауыштың үстінде (тек редакторда). */
 function placePencil() {
   if (!prev) return;
   const btn = prev.back.querySelector('#pjPencil'), svg = prev.back.querySelector('#pjSheet svg');
-  const mid = prev.kind === 'general' && lastPage ? lastPage.arrowTip : null;
+  const mid = prev.kind === 'general' && !prev.idx && lastPage ? lastPage.arrowTip : null;
   btn.hidden = !mid || !svg;
   if (btn.hidden) return;
   const r = svg.getBoundingClientRect(), wrap = btn.parentElement.getBoundingClientRect();
-  const k = r.width / PAGE.w;
+  const k = r.width / svg.viewBox.baseVal.width;
   btn.style.left = (r.left - wrap.left + mid[0] * k - 14) + 'px';
   btn.style.top = (r.top - wrap.top + mid[1] * k - 14) + 'px';
 }
@@ -928,7 +1052,7 @@ function bindDrag(svg) {
       if (!o) return;
       const key = kind === 'lbl' ? 'lbl' : 'dimlbl';
       const base = Array.isArray(o[key]) ? o[key].slice() : [0, 0];
-      const k = PAGE.w / svg.getBoundingClientRect().width;
+      const k = svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
       const x0 = e.clientX, y0 = e.clientY;
       let cur = base;
       g.setPointerCapture(e.pointerId);
@@ -961,6 +1085,7 @@ function openPdfDialog() {
     '</div>' +
     (o && !hasContour(o) ? '<p class="qa-hint">' + tx('Таңдалған нысанның контуры жоқ — жеке сызба үшін контур қажет.', 'У выбранного объекта нет контура — для индивидуального чертежа нужен контур.') + '</p>' : '') +
     '<label class="qa-check mura-doclang">' + tx('Құжат тілі', 'Язык документа') + ' <select id="pjPdfLang"><option value="kk">Қазақша</option><option value="ru">Русский</option></select></label>' +
+    '<div id="pjPdfPaper">' + paperHtml(p.paper) + '</div>' +
     '<div class="pj-pvwarn" id="pjPdfWarn"></div>' +
     '<div class="qa-dlg-btns"><button type="button" class="lnk" id="pjPdfPrev">' + tx('Алдын ала қарау', 'Предпросмотр') + '</button><span class="mk-sp"></span>' +
       '<button type="button" class="btn btn--ghost btn--sm" data-x>' + tx('Бас тарту', 'Отмена') + '</button>' +
@@ -969,7 +1094,10 @@ function openPdfDialog() {
   langSel.value = p.lang || I18N.docLang();
   const modeOf = () => form.querySelector('[name=mode]:checked').value;
   const paint = () => { back.querySelector('#pjPdfWarn').innerHTML = warnings(langSel.value, modeOf()).map(x => '<p>' + esc(x) + '</p>').join(''); };
-  form.addEventListener('change', paint);
+  form.addEventListener('change', e => {
+    if (e.target.closest('#pjPdfPaper')) { const box = back.querySelector('#pjPdfPaper'); savePaper(box, () => { box.innerHTML = paperHtml((curPlan() || {}).paper); }); return; }
+    paint();
+  });
   paint();
   back.querySelector('[data-x]').addEventListener('click', closeDialog);
   back.querySelector('#pjPdfPrev').addEventListener('click', () => { const md = modeOf(); closeDialog(); openPreview(md === 'detail' && o ? { kind: 'detail', id: o.id } : { kind: 'general' }); });
@@ -996,10 +1124,11 @@ async function exportPdf(kind, lang, id) {
   if (busy) busy.textContent = tx('PDF жасалуда…', 'Создаётся PDF…');
   try {
     const name = I18N.field(ctx.mark, 'name', lang) || 'plan';
-    const bytes = await globalThis.mura.pdf(pdfHtml(pages.map(x => x.pg.svg), name), { exact: true });
+    const svgs = pages.flatMap(x => [x.pg.svg, ...(x.pg.more || [])]);
+    const bytes = await globalThis.mura.pdf(pdfHtml(svgs, name, pages[0].pg.page), { exact: true });
     const suffix = kind === 'detail' ? '_№' + pages[0].o.num : kind === 'combined' ? (lang === 'ru' ? '_полный' : '_толық') : '';
     download(bytes, 'application/pdf', fileSafe(name) + (lang === 'ru' ? '_план' : '_жоспар') + suffix + '.pdf');
-    toast(tx('PDF дайын: ', 'PDF готов: ') + pages.length + tx(' бет. Басып шығарғанда «Нақты өлшем» (100%) режимін таңдаңыз.', ' стр. При печати выберите «Фактический размер» (100%).'));
+    toast(tx('PDF дайын (' + pages[0].pg.page.name + '): ', 'PDF готов (' + pages[0].pg.page.name + '): ') + svgs.length + tx(' бет. Басып шығарғанда «Нақты өлшем» (100%) режимін таңдаңыз.', ' стр. При печати выберите «Фактический размер» (100%).'));
   } catch (e) { toast(e.message, true); }
   finally { if (busy) busy.textContent = ''; }
 }

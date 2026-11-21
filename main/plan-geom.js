@@ -23,12 +23,19 @@ function ellipse(lat, lon, a, b, az = 0, n = SEG) {
   return out;
 }
 
+/** Тіктөртбұрыш төбелері [[lat, lon]…]: L — ұзындығы (az бағытында), W — ені, орталығы (lat, lon). */
+function rect(lat, lon, L, W, az = 0) {
+  const P = plane(lat, lon), t = az * DEG, u = [Math.sin(t), Math.cos(t)], v = [Math.cos(t), -Math.sin(t)];
+  return [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([a, b]) => P.inv(a * L / 2 * u[0] + b * W / 2 * v[0], a * L / 2 * u[1] + b * W / 2 * v[1]));
+}
+
 /** Нысанның контуры GeoPackage сақинасы ретінде [[lon, lat]…, бірінші нүкте]; контуры жоқ болса — null. */
 function ring(r) {
   let pts = null;
   const lat = Number(r.lat), lon = Number(r.lon);
   if (r.shape === 'circle' && r.diam > 0 && Number.isFinite(lat)) pts = ellipse(lat, lon, +r.diam, +r.diam);
   else if (r.shape === 'ellipse' && r.ax_a > 0 && r.ax_b > 0 && Number.isFinite(lat)) pts = ellipse(lat, lon, +r.ax_a, +r.ax_b, +r.ax_az || 0);
+  else if (r.shape === 'rect' && r.ax_a > 0 && r.ax_b > 0 && Number.isFinite(lat)) pts = rect(lat, lon, +r.ax_a, +r.ax_b, +r.ax_az || 0);
   else if (r.shape === 'free' && Array.isArray(r.pts) && r.pts.length >= 3) pts = r.pts;
   if (!pts) return null;
   const out = pts.map(p => [+p[1], +p[0]]);
@@ -36,4 +43,4 @@ function ring(r) {
   return out;
 }
 
-module.exports = { plane, ellipse, ring };
+module.exports = { plane, ellipse, rect, ring };

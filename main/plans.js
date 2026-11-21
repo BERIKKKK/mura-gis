@@ -17,8 +17,15 @@ const { tx } = require('./lang');
 const { plane } = require('./plan-geom');
 
 const ID = /^[0-9a-f]{16}$/;
-const KINDS = ['kurgan', 'other'];
-const SHAPES = ['', 'circle', 'ellipse', 'free'];
+/** Анықтамалықтар (кодтар тұрақты, жаңасы тек соңына қосылады): 2-кезең — қорым нысандары (docs/PLAN-STAGE2.md). */
+const KINDS = ['kurgan', 'other', 'kesene', 'sagana', 'korshau', 'koitas', 'kulpytas', 'sandyktas', 'ushtas', 'bestas'];
+const SHAPES = ['', 'circle', 'ellipse', 'free', 'rect'];
+const MATERIALS = ['brick_fired', 'brick_raw', 'stone'];
+const SUBTYPES = ['block', 'classic', 'fert', 'anthropo', 'unique'];          // құлпытастың типі (Ажигали)
+const STATES = ['good', 'fair', 'poor', 'emergency'];                        // паспорттың 9-тармағы
+/** Экспликация бағандары: № мен Түрі әрдайым; қалғандары пайдаланушының баптауымен. */
+const EXPL_COLS = ['material', 'size', 'state', 'note'];
+const oneOf = (list, v) => (list.includes(String(v ?? '')) ? String(v) : '');
 const LIMITS = { name: 200, name_ru: 200, note: 3000, note_ru: 3000 };
 const MAX_PTS = 2000;
 const user = () => { try { return os.userInfo().username; } catch (e) { return ''; } };
@@ -79,12 +86,14 @@ function cleanObject(d) {
     return r3(v);
   };
   f.diam = pos('diam', 'Диаметр нөлден үлкен болуы керек.', 'Диаметр должен быть больше нуля.', shape === 'circle');
-  f.ax_a = shape === 'ellipse' ? pos('ax_a', 'Үлкен осьтің ұзындығы нөлден үлкен болуы керек.', 'Длина большой оси должна быть больше нуля.', true) : null;
-  f.ax_b = shape === 'ellipse' ? pos('ax_b', 'Кіші осьтің ұзындығы нөлден үлкен болуы керек.', 'Длина малой оси должна быть больше нуля.', true) : null;
+  // Эллипс: үлкен/кіші ось; тіктөртбұрыш: ұзындығы/ені (сол өрістер), ax_az — үлкен ось не ұзын қабырға азимуты
+  const axial = shape === 'ellipse' || shape === 'rect';
+  f.ax_a = axial ? (shape === 'rect' ? pos('ax_a', 'Ұзындығы нөлден үлкен болуы керек.', 'Длина должна быть больше нуля.', true) : pos('ax_a', 'Үлкен осьтің ұзындығы нөлден үлкен болуы керек.', 'Длина большой оси должна быть больше нуля.', true)) : null;
+  f.ax_b = axial ? (shape === 'rect' ? pos('ax_b', 'Ені нөлден үлкен болуы керек.', 'Ширина должна быть больше нуля.', true) : pos('ax_b', 'Кіші осьтің ұзындығы нөлден үлкен болуы керек.', 'Длина малой оси должна быть больше нуля.', true)) : null;
   if (shape === 'ellipse' && f.ax_b > f.ax_a) throw fieldError('ax_b', 'Кіші ось үлкен осьтен ұзын болмауы керек.', 'Малая ось не может быть длиннее большой.');
   const az = num(d.ax_az);
-  if (shape === 'ellipse' && az !== null && !Number.isFinite(az)) throw fieldError('ax_az', 'Азимут дұрыс емес.', 'Неверный азимут.');
-  f.ax_az = shape === 'ellipse' ? r3(normAz(az || 0)) : null;
+  if (axial && az !== null && !Number.isFinite(az)) throw fieldError('ax_az', 'Азимут дұрыс емес.', 'Неверный азимут.');
+  f.ax_az = axial ? r3(normAz(az || 0)) : null;
 
   f.pts = null; f.dim = null;
   if (shape === 'free') {
@@ -103,9 +112,51 @@ function cleanObject(d) {
   }
   const da = num(d.dim_az);
   f.dim_az = shape === 'circle' && Number.isFinite(da) ? r3(normAz(da)) : null;
+  f.material = oneOf(MATERIALS, d.material);
+  f.subtype = f.kind === 'kulpytas' ? oneOf(SUBTYPES, d.subtype) : '';
+  f.state = oneOf(STATES, d.state);
   f.lbl = pair(d.lbl);
   f.dimlbl = pair(d.dimlbl);
   return f;
+}
+
+/** Экспликация баптаулары (docs/PLAN-STAGE2.md, 6.1); жоқ не қате мән — әдепкісі. */
+function cleanExpl(e) {
+  e = e && typeof e === 'object' ? e : {};
+  const lim = (v, a, b, def) => { const x = num(v); return Number.isFinite(x) && x >= a && x <= b ? Math.round(x * 10) / 10 : def; };
+  const seen = new Set(), cols = [];
+  for (const c of Array.isArray(e.cols) ? e.cols : []) {
+    const key = String(c && c.key || '');
+    if (!EXPL_COLS.includes(key) || seen.has(key)) continue;
+    seen.add(key);
+    const w = num(c.width);
+    cols.push({ key, show: c.show !== false, width: Number.isFinite(w) && w >= 5 && w <= 180 ? Math.round(w * 10) / 10 : 0 });
+  }
+  for (const key of EXPL_COLS) if (!seen.has(key)) cols.push({ key, show: key !== 'state', width: 0 });
+  const row = num(e.row_h);
+  return {
+    cols,
+    row_h: Number.isFinite(row) && row >= 4 && row <= 12 ? Math.round(row * 10) / 10 : 0,     // 0 — автоматты
+    font: lim(e.font, 2.5, 4, 2.8),
+    short: !!e.short,
+    subtype: e.subtype !== false,
+    place: e.place === 'separate' ? 'separate' : 'sheet',
+    zone_h: lim(e.zone_h, 40, 400, 70),          // үлкен қағазда аймақ үлкенірек бола алады
+  };
+}
+
+/** Қағаз өлшемі: стандарт пішім (A5…A0) және бағдары не өз өлшемі (100–3000 мм); әдепкі — A4 тік (src/plan/sheet.js paperSize). */
+const PAPER_SIZES = ['A5', 'A4', 'A3', 'A2', 'A1', 'A0'];
+function cleanPaper(pp) {
+  pp = pp && typeof pp === 'object' ? pp : {};
+  const orient = pp.orient === 'landscape' ? 'landscape' : 'portrait';
+  if (pp.size === 'custom') {
+    const w = num(pp.w), h = num(pp.h);
+    const ok = v => Number.isFinite(v) && v >= 100 && v <= 3000;
+    if (!ok(w) || !ok(h)) throw fieldError('paper', 'Қағаздың ені мен биіктігі 100–3000 мм аралығында болуы керек.', 'Ширина и высота листа должны быть от 100 до 3000 мм.');
+    return { size: 'custom', orient, w: Math.round(w), h: Math.round(h) };
+  }
+  return { size: PAPER_SIZES.includes(pp.size) ? pp.size : 'A4', orient };
 }
 
 /** Жоспар баптауларын тексеру. */
@@ -134,6 +185,8 @@ function cleanPlan(d) {
   const dm = ptr ? num(d.ptr_dist_man) : null;
   if (dm !== null && (!Number.isFinite(dm) || dm < 0)) throw fieldError('ptr_dist_man', 'Қашықтық теріс болмауы керек.', 'Расстояние не может быть отрицательным.');
   f.ptr_dist_man = dm === null ? null : dm;
+  f.expl = cleanExpl(d.expl);
+  f.paper = cleanPaper(d.paper);
   return f;
 }
 
@@ -207,4 +260,4 @@ class PlansStore {
   }
 }
 
-module.exports = { PlansStore, cleanObject, cleanPlan, selfIntersects, KINDS };
+module.exports = { PlansStore, cleanObject, cleanPlan, cleanExpl, selfIntersects, KINDS, MATERIALS, SUBTYPES, STATES };

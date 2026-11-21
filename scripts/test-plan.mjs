@@ -3,7 +3,7 @@
    №1 қорғанның белгісі (1 | 0,7 / 13), дәл солтүстіктегі елді мекенге жебе жоғары қарайды, 22,6 км жазуы.
    Іске қосу: node scripts/test-plan.mjs */
 import { SCALES, plane, inverse, fmtDist, fmtNum, fmtMeasure, parseNum, scaleBarStep, toMm, selfIntersects, cmpNum } from '../src/plan/geo.js';
-import { renderPage, autoScale, fitsAt, objTitle } from '../src/plan/sheet.js';
+import { renderPage, autoScale, fitsAt, objTitle, explRow, isStage2, paperSize, pdfHtml } from '../src/plan/sheet.js';
 
 let fails = 0, n = 0;
 const ok = (c, msg) => { n++; if (!c) { fails++; console.error('✗ ' + msg); } else console.log('✓ ' + msg); };
@@ -94,6 +94,74 @@ ctx = { mark, objects: [k18], plan: null, lang: 'ru', names: { title: ['Моги
 pg = renderPage(ctx, 'general', null, 0);
 ok(pg.svg.includes('План памятника') && pg.svg.includes('Могильник Салтак-III'), 'орысша: «План памятника»');
 ok(objTitle(k18, 'ru') === 'Курган №1' && objTitle(k18, 'kk') === '№1 қорған', 'нысан атауы: «№1 қорған» / «Курган №1»');
+
+/* ---------- 2-кезең: қорым экспликациясы (docs/PLAN-STAGE2.md) ---------- */
+const qo = (n, kind, x, y, extra = {}) => ({ id: String(n).padStart(16, '0'), num: String(n), kind, shape: '', height: null, diam: null, ...at(x, y), ...extra });
+const tbl = svg => (svg.match(/<g class="pj-expl"[\s\S]*?<\/g>/) || [''])[0];
+/** Экспликацияның нөмірі num жолындағы ұяшықтардың мәтіндері. */
+const rowText = (svg, num) => {
+  const ts = [...tbl(svg).matchAll(/<text x="[\d.]+" y="([\d.]+)"[^>]*>([^<]*)<\/text>/g)];
+  const y = (ts.find(m => m[2] === num) || [])[1];
+  return ts.filter(m => m[1] === y).map(m => m[2]);
+};
+// ТЗ: №4 шикі кірпіштен салынған сағана там
+const k4 = qo(4, 'sagana', 10, 0, { shape: 'rect', ax_a: 6, ax_b: 4, ax_az: 0, material: 'brick_raw' });
+ctx = { mark, objects: [k13, qo(2, 'kulpytas', -8, 6), qo(3, 'kesene', -15, -10, { shape: 'rect', ax_a: 7, ax_b: 7, material: 'brick_fired' }), k4], plan: null, lang: 'kk', names };
+ok(isStage2(ctx.objects) && !isStage2([k13]), 'қорым режимі тек 2-кезеңнің түрі не материалы болса қосылады');
+pg = renderPage(ctx, 'general', null, 0);
+ok(rowText(pg.svg, '4').join('|') === '4|Сағана там|Шикі кірпіш|6 × 4|—', '№4 экспликацияда: «Сағана там», «Шикі кірпіш» бөлек бағандарда (' + rowText(pg.svg, '4').join('|') + ')');
+ok(/fill="url\(#pj-m-brick_raw\)" stroke="#111" stroke-width="1.05"/.test(pg.svg), '№4 сызбада: шикі кірпіш штрихы, сағананың қос сызығы');
+const leg = (pg.svg.match(/<g class="pj-legend">[\s\S]*?<\/g><\/g>/) || [''])[0];
+ok(leg.includes('шикі кірпіш') && leg.includes('url(#pj-m-brick_raw)') && leg.includes('сағана там'), 'шартты белгі түсіндірмеде де бар');
+ok(leg.includes('кесене') && leg.includes('құлпытас') && !leg.includes('қойтас') && !leg.includes('табиғи тас'), 'шартты белгілерде тек сызбада бар түрлер мен материалдар');
+ok(rowText(pg.svg, '2')[2] === '—', 'материалы белгісіз құлпытас — «—»');
+ok(!renderPage({ mark, objects: [k13], plan: null, lang: 'kk', names }, 'general', null, 500).svg.includes('pj-legend'), '1-кезеңнің беті өзгерген жоқ (шартты белгілер мен экспликациясыз)');
+// Бетке сыймайтын экспликация: келесі бетте жалғасады, масштаб сақталады
+const many = [k4];
+for (let i = 5; i <= 70; i++) many.push(qo(i, i % 3 ? 'kulpytas' : 'koitas', (i % 10) * 4 - 20, Math.floor(i / 10) * 4 - 14));
+ctx = { mark, objects: many, plan: null, lang: 'kk', names };
+pg = renderPage(ctx, 'general', null, 1000);
+ok(pg.scale === 1000 && pg.more.length >= 1 && pg.more[0].includes('Экспликация (жалғасы)') && tbl(pg.more[0]).includes('>Материалы<'),
+  'экспликация келесі бетте жалғасады, тақырып жолы қайталанады, масштаб 1:1000 сақталды (' + (pg.more.length + 1) + ' бет)');
+const enums = [pg.svg, ...pg.more].flatMap(sv => [...tbl(sv).matchAll(/text-anchor="middle">(\d+)</g)].map(m => +m[1]));
+ok(enums.length === many.length && enums.every((v, i) => i === 0 || v > enums[i - 1]), 'барлық нысан экспликацияда бір рет, нөмір ретімен (' + enums.length + ')');
+// Орысша
+ctx = { mark, objects: [k4], plan: null, lang: 'ru', names: { title: ['Могильник'] } };
+pg = renderPage(ctx, 'general', null, 0);
+ok(rowText(pg.svg, '4')[1] === 'Саганатам' && /^Сырцовый( кирпич)?$/.test(rowText(pg.svg, '4')[2]) && pg.svg.includes('Условные обозначения'), 'орысша: «Саганатам», «Сырцовый кирпич»');
+// Баптаулар: құлпытас типі, жай-күй бағаны, бөлек бет, жол биіктігі, тым кең баған
+const kt = qo(7, 'kulpytas', 0, 3, { subtype: 'classic', state: 'poor' });
+ok(explRow(kt, 'kk').kind === 'Құлпытас (классикалық)' && explRow(kt, 'kk', { subtype: false, cols: [] }).kind === 'Құлпытас', 'құлпытас типі «Түрі» бағанында (баптаумен өшіріледі)');
+const E = { cols: [{ key: 'material', show: true, width: 0 }, { key: 'size', show: false, width: 0 }, { key: 'state', show: true, width: 0 }, { key: 'note', show: true, width: 0 }],
+  row_h: 8, font: 3, place: 'separate', zone_h: 70, subtype: true };
+ctx = { mark, objects: [k4, kt], plan: { expl: E }, lang: 'kk', names };
+pg = renderPage(ctx, 'general', null, 0);
+ok(!tbl(pg.svg) && pg.more.length === 1 && /<text[^>]*>Экспликация<\/text>/.test(pg.more[0]), 'кесте бөлек бетте');
+ok(tbl(pg.more[0]).includes('>Жай-күйі<') && !tbl(pg.more[0]).includes('>Өлшемі, м<') && rowText(pg.more[0], '7').includes('қанағаттанарлықсыз'), 'жай-күй бағаны қосылды, өлшем бағаны өшірілді');
+const ry = [...tbl(pg.more[0]).matchAll(/<line x1="[\d.]+" y1="([\d.]+)" x2="[\d.]+" y2="[\d.]+" stroke="#111" stroke-width="0.1"/g)].map(m => +m[1]);
+ok(ry.length === 2 && near(ry[1] - ry[0], 8, 0.01), 'жол биіктігі 8 мм');
+ctx.plan.expl = { ...E, place: 'sheet', cols: E.cols.map(c => ({ ...c, width: 90 })) };
+ok(renderPage(ctx, 'general', null, 0).warn.includes('expl-width'), 'бағандардың ені беттен асса — ескерту');
+// Тіктөртбұрыштың жеке жоспары
+pg = renderPage({ mark, objects: [k4], plan: null, lang: 'kk', names }, 'detail', k4, 100);
+ok(pg.svg.includes('>6 м<') && pg.svg.includes('>4 м<') && pg.svg.includes('6 × 4 м') && pg.svg.includes('Материалы: шикі кірпіш'), 'тіктөртбұрыштың жеке жоспары: ұзындығы, ені, материалы');
+
+/* ---------- Қағаз өлшемі ---------- */
+const z = (pp) => { const s = paperSize(pp); return s.w + '×' + s.h + ' ' + s.name; };
+ok(z(null) === '210×297 A4' && z({ size: 'A3' }) === '297×420 A3' && z({ size: 'A0', orient: 'landscape' }) === '1189×841 A0' && z({ size: 'custom', w: 500, h: 700 }) === '500×700 500×700',
+  'қағаз: әдепкі A4, A3, A0 жатық, өз өлшемі');
+ok(z({ size: 'custom', w: 20, h: 700 }) === '210×297 A4', 'өз өлшемі шектен тыс болса — A4');
+const pair = [o1, o2], ctxP = pp => ({ mark, objects: pair, plan: { paper: pp }, lang: 'kk', names });
+pg = renderPage(ctxP({ size: 'A3' }), 'general', null, 500);
+const c3 = nums(pg.svg);
+ok(pg.svg.includes('viewBox="0 0 297 420"') && pg.svg.includes('width="297mm"') && pg.page.name === 'A3', 'A3 беті: 297 × 420 мм');
+ok(c3.length === 2 && near(Math.hypot(c3[1][0] - c3[0][0], c3[1][1] - c3[0][1]), 60, 0.01), 'A3-те де 30 м → 1:500-де 60 мм (масштаб қағазға тәуелсіз)');
+const far2 = { ...o2, ...at(600, 450) };
+const aA4 = autoScale({ ...ctxP(null), objects: [o1, far2] }, 'general', null), aA1 = autoScale({ ...ctxP({ size: 'A1' }), objects: [o1, far2] }, 'general', null);
+ok(aA1 < aA4, 'үлкен қағазда автоматты масштаб ірірек: A4 — 1:' + aA4 + ', A1 — 1:' + aA1);
+pg = renderPage(ctxP({ size: 'A4', orient: 'landscape' }), 'general', null, 500);
+ok(pg.svg.includes('viewBox="0 0 297 210"') && /<rect x="7" y="7" width="283" height="196"/.test(pg.svg), 'A4 жатық: рамка бетке сай');
+ok(pdfHtml(['<svg/>'], 't', { w: 297, h: 420 }).includes('@page{size:297mm 420mm;margin:0}') && pdfHtml(['<svg/>'], 't').includes('@page{size:210mm 297mm'), 'PDF беті қағаз өлшемінде');
 
 console.log('\n' + (n - fails) + '/' + n + ' өтті');
 if (fails) process.exit(1);
