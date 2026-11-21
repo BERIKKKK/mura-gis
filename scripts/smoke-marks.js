@@ -63,6 +63,9 @@ async function run(win) {
     const map = MuraMarks.map, c = map.getCenter();
     map.fire('click', { latlng: c, containerPoint: map.latLngToContainerPoint(c), originalEvent: new MouseEvent('click') });
     await wait(200);
+    // Алдымен белгі түрі сұралады: «Ескерткіш белгісі» не «Өзге нысандар» (marks/places.js)
+    out.chooser = [...document.querySelectorAll('.pl-choose .pl-opt b')].map(b => b.textContent).join(' | ');
+    document.querySelector('.pl-choose [data-k="mark"]').click(); await wait(200);
     out.dialog = !!document.querySelector('.mk-dlg'); out.ptsAfterMarkClick = __qa.state.pts.length - pts0;
     document.getElementById('mkName').value = 'Тест-ІХ обасы';
     document.getElementById('mkName').dispatchEvent(new Event('input'));
@@ -208,7 +211,10 @@ async function run(win) {
     const kmz = ff.zipSync({ 'doc.kml': ff.strToU8(kml.replace('Қорған-ІІІ', 'Қорған-ІV')) });
     const dt = new DataTransfer();
     dt.items.add(new File([kml], 'barlau.kml')); dt.items.add(new File([kmz], 'barlau.kmz')); dt.items.add(new File([gpx], 'jol.gpx'));
+    // Әр файлға «қайда импорттау керек?» сұралады — әдепкісі: ескерткіштерге («Импортталғандар»)
+    const autoMarks = setInterval(() => document.querySelector('form.pl-choose')?.requestSubmit(), 100);
     const inp = document.getElementById('mkGeoFile'); inp.files = dt.files; inp.dispatchEvent(new Event('change')); await wait(2500);
+    clearInterval(autoMarks);
     out.imported = M.imports.length + ': ' + M.imports.map(x => x.name + '@' + x.file).join(', ');
     out.impDesc = (M.imports.find(x => x.name === 'Қорған-ІІІ') || {}).desc + ' / ' + (M.imports.find(x => x.name === 'Қоршау') || {}).desc;
     out.impTab = document.getElementById('mkTabImpB').getAttribute('aria-selected') + ' / cards ' + document.querySelectorAll('#mkImpList .mk-impcard').length + ' / map ' + document.querySelectorAll('.mk-imp:not(.mk-imp--inline)').length;
@@ -310,6 +316,55 @@ async function run(win) {
     eq(document.getElementById('mkZoneSel').value, zD, 'байланысқан аймақ көрсетіледі');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 
+    // Өзге нысандар: белгі қою → «Өзге нысандар» → түрі, атауы → сақтау (ескерткіштерге түспейді); GeoJSON; импорт; маршрут А/Б
+    const P = window.__places, nMarks = M.items.length;
+    eq(!!P, true, 'places.js жүктелді');
+    M.setMarking(true); await wait(50);
+    const pc = map.getCenter();
+    map.fire('click', { latlng: pc, containerPoint: map.latLngToContainerPoint(pc), originalEvent: new MouseEvent('click') }); await wait(200);
+    document.querySelector('.pl-choose [data-k="place"]').click(); await wait(200);
+    const pform = document.querySelector('.pl-dlg');
+    pform.elements.name.value = 'Ақбұлақ'; pform.querySelector('input[name="kind"][value="well"]').click();
+    pform.requestSubmit(); await wait(700);
+    M.setMarking(false);
+    const pA = P.items.find(x => x.name === 'Ақбұлақ');
+    eq(pA && pA.kind + ' ' + /^[0-9a-f]{16}$/.test(pA.id) + ' ' + pA.lat.toFixed(4), 'well true ' + pc.lat.toFixed(4), 'өзге нысан сақталды');
+    eq(M.items.length, nMarks, 'ескерткіштерге түспеді');
+    M.setTab('places'); await wait(300);
+    out.placesTab = document.querySelectorAll('#plList .pl-card').length + ' карточка / таб ' + document.getElementById('plTabN').textContent + ' / белгі ' + document.querySelectorAll('.pl-pin').length;
+    const pg = P.geojson(P.items, 'x');
+    eq(pg.features[0].properties.kind_kk + ' ' + pg.features[0].properties.mura_layer, 'Құдық places', 'GeoJSON өрістері');
+    eq(P.isMuraPlaces(pg) + ' ' + P.isMuraPlaces(M.geojson(M.filtered(), 'x')), 'true false', 'файл түрін тану');
+    // Android экспорты (name_kk + name_ru) → бірден өзге нысандарға
+    const andr = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [57.3, 50.2] },
+      properties: { id: '0123456789abcdef', name: 'Жаңа қыстау', name_kk: 'Жаңа қыстау', name_ru: 'Новая зимовка', kind: 'qystau', kind_kk: 'Қыстау', updated_at: '2026-01-01T00:00:00.000Z', mura_layer: 'places' } }] };
+    const dt2 = new DataTransfer(); dt2.items.add(new File([JSON.stringify(andr)], 'android.geojson'));
+    inp.files = dt2.files; inp.dispatchEvent(new Event('change')); await wait(900);
+    const pB = P.items.find(x => x.id === '0123456789abcdef');
+    eq(pB && pB.name + ' / ' + pB.name_ru + ' / ' + pB.kind, 'Жаңа қыстау / Новая зимовка / qystau', 'Android файлы');
+    // Бөтен GeoJSON нүктесі: «Өзге нысандарға», түрі — Құдық
+    const foreign = { type: 'FeatureCollection', features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [57.4, 50.3] }, properties: { name: 'Құдық-2' } }] };
+    const autoPlaces = setInterval(() => {
+      const f = document.querySelector('form.pl-choose');
+      if (!f) return;
+      f.querySelector('input[value="places"]').checked = true; f.querySelector('#plImpKind').value = 'well'; f.requestSubmit();
+    }, 100);
+    const dt3 = new DataTransfer(); dt3.items.add(new File([JSON.stringify(foreign)], 'wells.geojson'));
+    inp.files = dt3.files; inp.dispatchEvent(new Event('change')); await wait(1200); clearInterval(autoPlaces);
+    const pC = P.items.find(x => x.name === 'Құдық-2');
+    eq(pC && pC.kind, 'well', 'бөтен нүкте → өзге нысан');
+    eq(M.items.length, nMarks, 'импорт ескерткіштерге түспеді');
+    // Импортталған нүкте → «Өзге нысан ретінде»
+    const x1 = M.imports.find(x => x.name === 'WP2'), nImp = M.imports.length;
+    P.identifyAsPlace(x1); await wait(300);
+    document.querySelector('.pl-dlg').requestSubmit(); await wait(900);
+    eq(P.items.some(x => x.name === 'WP2') + ' ' + (nImp - M.imports.length), 'true 1', 'импортталған нүкте → өзге нысан');
+    // Маршрут құру: А/Б тізімінде өзге нысандар
+    MuraRoutes.openPanel('find'); await wait(300);
+    out.routeEnds = [...document.querySelectorAll('#rtTo optgroup')].map(g => g.label + ' ' + g.children.length).join(' | ');
+    eq([...document.querySelectorAll('#rtTo option')].some(o => o.value === 'pl:' + pA.id), true, 'А/Б тізімінде өзге нысан');
+    MuraRoutes.closePanel(); M.setTab('marks');
+
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());
@@ -334,7 +389,18 @@ async function run(win) {
   await js("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); __marks.setTab('imp'); const b = L.latLngBounds(__marks.imports.map(x => [x.lat, x.lon])); MuraMarks.map.fitBounds(b.pad(0.3)); 0");
   await new Promise(res => setTimeout(res, 2500));
   fs.writeFileSync(shot.replace(/.png$/, '-imp.png'), (await win.webContents.capturePage()).toPNG());
+  // Өзге нысандар: қойынды және белгі түрін таңдау терезесі
+  await js("__marks.setTab('places'); MuraMarks.map.fitBounds(L.latLngBounds(__places.items.map(x => [x.lat, x.lon])).pad(0.3)); 0");
+  await new Promise(res => setTimeout(res, 2500));
+  fs.writeFileSync(shot.replace(/.png$/, '-places.png'), (await win.webContents.capturePage()).toPNG());
+  await js("__marks.closePanel(); __places.choose(MuraMarks.map.getCenter() && { lat: MuraMarks.map.getCenter().lat, lon: MuraMarks.map.getCenter().lng }, () => {}); 0");
+  await new Promise(res => setTimeout(res, 500));
+  fs.writeFileSync(shot.replace(/.png$/, '-choose.png'), (await win.webContents.capturePage()).toPNG());
+  await js("document.querySelector('.pl-choose [data-k=\"place\"]').click(); 0");
+  await new Promise(res => setTimeout(res, 500));
+  fs.writeFileSync(shot.replace(/.png$/, '-place-dlg.png'), (await win.webContents.capturePage()).toPNG());
   r.files = tmp;
+  r.storePlaces = countRows('places') + ' өзге нысан (GeoPackage)';
   r.storeFile = countRows('marks') + ' белгі (GeoPackage)';
   console.log(JSON.stringify(r, null, 1));
   const real = errors.filter(e => !/tile|Failed to load resource/i.test(e));

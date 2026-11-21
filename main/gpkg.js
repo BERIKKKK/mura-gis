@@ -4,6 +4,7 @@
      zones    — қорғау аймақтарының шекаралары (POLYGON);
      routes   — маршруттар (LINESTRING);
      imports  — KML/KMZ/GPX-тен импортталған, әлі белгіге айналмаған нүктелер (POINT);
+     places   — өзге нысандар: елді мекен, қыстау, жайлау, құдық т.б. (POINT; main/places.js);
      mura_project — жоба баптаулары (кілт → мән: атауы, облыс, аудан…), кеңістіктік емес кесте.
    Әр жазбаның толық мәліметі props (JSON) бағанында сақталады, ал негізгі атрибуттар мен геометрия — бөлек
    бағандарда: QGIS-те өзгертілсе, бағдарлама келесі оқығанда сол мәндерді алады.
@@ -130,6 +131,15 @@ const LAYERS = {
     set: (r, c, v) => { r[c] = v; },
     toGeom: r => encodeGeom('LineString', (r.pts || []).map(p => [+p[1], +p[0]])),
     fromGeom: (r, g) => { if (g && g.type === 'LineString') r.pts = g.coords.map(p => [Math.round(p[1] * 1e7) / 1e7, Math.round(p[0] * 1e7) / 1e7]); },
+  },
+  // Өзге нысандар — ескерткіштерден бөлек (Android-пен ортақ пішім: android/core MuraProject.places)
+  places: {
+    title: 'Өзге нысандар / Прочие объекты', desc: 'Елді мекен, қыстау, құдық т.б. / Населённые пункты, зимовки, колодцы и др. (Mura GIS)', geom: 'POINT',
+    cols: ['name', 'name_ru', 'kind', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    get: (r, c) => r[c],
+    set: (r, c, v) => { r[c] = v; },
+    toGeom: r => encodeGeom('Point', [+r.lon, +r.lat]),
+    fromGeom: (r, g) => { if (g && g.type === 'Point') { r.lon = r8(g.coords[0]); r.lat = r8(g.coords[1]); } },
   },
   imports: {
     title: 'Импортталған нүктелер / Импортированные точки', desc: 'KML, KMZ, GPX файлдарынан импортталған нүктелер / Точки из KML, KMZ, GPX (Mura GIS)', geom: 'POINT',

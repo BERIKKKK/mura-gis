@@ -117,6 +117,34 @@ class PlacesTest {
         }
     }
 
+    /** Android жобасын жұмыс үстелі ашады (main/gpkg.js + PlacesStore.clean) және керісінше. */
+    @Test fun desktopCompatibility() {
+        if (!TestUtil.nodeAvailable) { println("SKIP: node жоқ"); return }
+        val s = store()
+        val p = s.savePlace(well)
+        val f = TestUtil.tmp("places-for-desktop.gpkg")
+        JdbcSqlDb(f.path).use { MuraProject.export(it, emptyList(), emptyList(), Lang.KK, "Тест", listOf(p)) }
+        val o = kotlinx.serialization.json.Json.parseToJsonElement(TestUtil.desktop("read-gpkg", f.path)).let { it as kotlinx.serialization.json.JsonObject }
+        val d = (o["places"] as kotlinx.serialization.json.JsonArray).single() as kotlinx.serialization.json.JsonObject
+        fun str(k: String) = (d[k] as kotlinx.serialization.json.JsonPrimitive).content
+        assertEquals(p.id, str("id"))
+        assertEquals("Ақбұлақ құдығы", str("name"))
+        assertEquals("Колодец Акбулак", str("name_ru"))
+        assertEquals("well", str("kind"))
+        assertEquals(p.lat, str("lat").toDouble(), 1e-9)
+        assertTrue((o["placesValid"] as kotlinx.serialization.json.JsonArray).all { (it as kotlinx.serialization.json.JsonPrimitive).content == "true" })
+
+        val f2 = TestUtil.tmp("places-from-desktop.gpkg")
+        TestUtil.desktop("write-gpkg", f2.path)
+        JdbcSqlDb(f2.path).use { db ->
+            val back = MuraProject.readPlaces(db, Lang.KK).single()
+            assertEquals("bbbbbbbbbbbbbbbb", back.place.id)
+            assertEquals(Localized("Ақбұлақ", "Акбулак"), back.place.name)
+            assertEquals(PlaceKind.SPRING, back.place.kind)
+            assertEquals(1, s.importPlaces(listOf(back)).added)
+        }
+    }
+
     /** places қабаты жоқ ескі жоба — бос тізім. */
     @Test fun oldProjectWithoutPlaces() {
         val f = TestUtil.tmp("old.gpkg")

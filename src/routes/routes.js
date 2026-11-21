@@ -22,6 +22,9 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* жеке режим */ } },
 };
 const marks = () => (globalThis.__marks && globalThis.__marks.items) || [];
+/** Өзге нысандар (marks/places.js) — маршрут құрудың басы/соңы бола алады (желіде түйін емес — қарапайым нүкте). */
+const places = () => (globalThis.__places && globalThis.__places.items) || [];
+const placeTitle = p => (globalThis.__places ? globalThis.__places.titleOf(p) : p.name || p.name_ru || '');
 const tx = (kk, ru) => (globalThis.MuraI18n && globalThis.MuraI18n.ru ? ru : kk);
 const km = m => (m / 1000).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' км';
 const fmtTime = s => { const m = Math.max(1, Math.round(s / 60)); return m < 60 ? m + ' мин' : Math.floor(m / 60) + tx(' сағ', ' ч') + (m % 60 ? ' ' + (m % 60) + ' мин' : ''); };
@@ -512,6 +515,7 @@ function fillEnds() {
   const seen = new Set();
   const named = nodes.filter(n => !seen.has(n.name) && seen.add(n.name)).sort((a, b) => cmpKk(a.name, b.name));
   const ms = marks().slice().sort((a, b) => cmpKk(a.name, b.name));
+  const pls = places().slice().sort((a, b) => cmpKk(placeTitle(a), placeTitle(b)));
   const onNet = new Set(network().markNode.keys());
   for (const k of ['from', 'to']) {
     const sel = $(k === 'from' ? 'rtFrom' : 'rtTo'), cur = sel.value;
@@ -519,7 +523,8 @@ function fillEnds() {
     sel.innerHTML = '<option value="">— таңдаңыз —</option>' +
       (p ? '<option value="p">📍 ' + tx('Картадағы нүкте: ', 'Точка на карте: ') + p.lat.toFixed(5) + ', ' + p.lon.toFixed(5) + '</option>' : '') +
       (named.length ? '<optgroup label="Желідегі пункттер">' + named.map(n => '<option value="n:' + esc(n.name) + '">' + esc(n.name) + '</option>').join('') + '</optgroup>' : '') +
-      (ms.length ? '<optgroup label="Ескерткіштер">' + ms.map(m => '<option value="m:' + esc(m.id) + '">' + esc(m.name) + (onNet.has(m.id) ? '' : tx(' (желіден тыс)', ' (вне сети)')) + '</option>').join('') + '</optgroup>' : '');
+      (ms.length ? '<optgroup label="Ескерткіштер">' + ms.map(m => '<option value="m:' + esc(m.id) + '">' + esc(m.name) + (onNet.has(m.id) ? '' : tx(' (желіден тыс)', ' (вне сети)')) + '</option>').join('') + '</optgroup>' : '') +
+      (pls.length ? '<optgroup label="Өзге нысандар">' + pls.map(p => '<option value="pl:' + esc(p.id) + '">' + esc(placeTitle(p)) + '</option>').join('') + '</optgroup>' : '');
     sel.value = [...sel.options].some(o => o.value === cur) ? cur : '';
   }
 }
@@ -528,6 +533,7 @@ function endOf(k) {
   if (!v) return null;
   if (v === 'p') return picked[k] ? { lat: picked[k].lat, lon: picked[k].lon, label: tx('Картадағы нүкте', 'Точка на карте') } : null;
   if (v.startsWith('m:')) { const m = marks().find(x => x.id === v.slice(2)); return m ? { markId: m.id, lat: m.lat, lon: m.lon, label: m.name } : null; }
+  if (v.startsWith('pl:')) { const p = places().find(x => x.id === v.slice(3)); return p ? { lat: p.lat, lon: p.lon, label: placeTitle(p) } : null; }
   if (v.startsWith('n:')) { const n = network().nodes.find(x => x.name === v.slice(2) && !x.markId); return n ? { node: n.id, lat: n.lat, lon: n.lon, label: n.name } : null; }
   return null;
 }
@@ -628,6 +634,7 @@ function findWith(k, end) {
   globalThis.MuraSvc?.set?.('routes');
   if (!open || tab !== 'find') openPanel('find');
   if (end.markId) { fillEnds(); $(k === 'from' ? 'rtFrom' : 'rtTo').value = 'm:' + end.markId; }
+  else if (end.placeId) { fillEnds(); $(k === 'from' ? 'rtFrom' : 'rtTo').value = 'pl:' + end.placeId; }
   else { picked[k] = { lat: end.lat, lon: end.lon }; fillEnds(); $(k === 'from' ? 'rtFrom' : 'rtTo').value = 'p'; }
   if (endOf('from') && endOf('to')) runFind();
   else toast(k === 'from' ? tx('Енді «Қайда» нүктесін таңдаңыз.', 'Теперь выберите пункт «Куда».') : tx('Енді «Қайдан» нүктесін таңдаңыз.', 'Теперь выберите пункт «Откуда».'));

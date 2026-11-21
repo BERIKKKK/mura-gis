@@ -2,7 +2,7 @@
    Интерфейс src/ ішінен mura://app/ мекенжайымен беріледі (тұрақты origin: localStorage, fetch, CORS дұрыс жұмыс істейді).
    Барлық деректер — ашық жобада: бір GeoPackage (.gpkg) файлы (main/gpkg.js, main/projects.js). Жоба ашылмаса, бет
    бастапқы терезені көрсетеді (жаңа жоба / соңғы жобалар / файлдан ашу — src/js/project.js).
-   mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js); mura://app/routes — маршруттар (main/routes.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
+   mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js); mura://app/routes — маршруттар (main/routes.js); mura://app/places — өзге нысандар (main/places.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
 const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, clipboard } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -10,6 +10,7 @@ const { pathToFileURL } = require('node:url');
 const { Store } = require('./store');
 const { MarksStore } = require('./marks');
 const { RoutesStore } = require('./routes');
+const { PlacesStore } = require('./places');
 const { Projects } = require('./projects');
 const { noTable } = require('./gpkg');
 const { find: findRegion } = require('./regions');
@@ -33,6 +34,7 @@ let win = null;
 let store = null;
 let marks = null;
 let routes = null;
+let places = null;
 let projects = null;
 
 /** Ашық жобаның қабаттарына қоймаларды байлау (жоба жоқ болса — бос тізім, жазу қате береді). */
@@ -42,6 +44,7 @@ function bindStores() {
   store = new Store(t('zones'));
   marks = new MarksStore(t('marks'), t('imports'));
   routes = new RoutesStore(t('routes'));
+  places = new PlacesStore(t('places'));
   if (p) { p.setAutosave(autosave()); p.onChange = sendDirty; }
   if (win) win.setTitle(p ? (projects.info().current.name + ' — Mura GIS') : 'Mura GIS');
   buildMenu();
@@ -452,6 +455,7 @@ app.whenReady().then(() => {
     if (u.pathname === '/api') return store.handle(req);
     if (u.pathname === '/marks') return marks.handle(req);
     if (u.pathname === '/routes') return routes.handle(req);
+    if (u.pathname === '/places') return places.handle(req);
     return serveFile(u.pathname);
   });
 
