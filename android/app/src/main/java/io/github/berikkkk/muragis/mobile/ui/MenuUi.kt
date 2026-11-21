@@ -75,7 +75,7 @@ fun MenuScreen(vm: MainViewModel, page: MenuPage, controller: MapController, act
         Surface(color = Chrome.bg, contentColor = Chrome.fg, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (page != MenuPage.ROOT) RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) { vm.openMenu(MenuPage.ROOT) }
+                    if (page != MenuPage.ROOT) RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) { vm.openMenu(page.parent) }
                     Spacer(Modifier.weight(1f))
                     RoundIcon(Icons.Filled.Close, stringResource(R.string.menu_close)) { vm.closeMenu() }
                 }
@@ -89,6 +89,7 @@ fun MenuScreen(vm: MainViewModel, page: MenuPage, controller: MapController, act
                         InterfaceSettings(vm)
                         SettingsContent(vm, act)
                     }
+                    MenuPage.ABOUT -> AboutPage(vm)
                 }
             }
         }

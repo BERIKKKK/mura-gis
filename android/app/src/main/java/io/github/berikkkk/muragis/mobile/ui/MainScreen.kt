@@ -5,6 +5,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,6 +53,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -117,6 +122,8 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         })
     }
     var mapReady by remember { mutableStateOf(false) }
+    /** Zoom батырмасы соңғы басылған уақыт — масштаб сызғышы содан кейін біраз көрінеді. */
+    var scaleAt by remember { mutableLongStateOf(0L) }
     DisposableEffect(Unit) {
         controller.attach {
             mapReady = true
@@ -172,7 +179,7 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     // «Артқа»: мәзір беті → мәзір → парақ → таңдау режимі → таңдалған нысан
     BackHandler(enabled = menu != null || sheet != null || pick != null || selected != null || selectedRoute != null) {
         when {
-            menu != null -> if (menu != MenuPage.ROOT) vm.openMenu(MenuPage.ROOT) else vm.closeMenu()
+            menu != null -> if (menu != MenuPage.ROOT) vm.openMenu(menu!!.parent) else vm.closeMenu()
             sheet != null -> if (sheet == Sheet.TrackStop) vm.resumeTrack() else vm.openSheet(null)
             pick != null -> when (pick) {
                 Pick.EDITOR -> vm.cancelEditorPick()
@@ -217,7 +224,8 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
                 edit != null -> RoutesPane(vm, controller)
                 pick != null -> PickBar(vm, pick!!, controller, act)
                 !layersOpen -> {
-                    SideButtons(prefs.zoomLeft, onZoom = { controller.zoomBy(it) }, onMark = { vm.setPick(Pick.MONUMENT) })
+                    SideButtons(prefs.zoomLeft, onZoom = { controller.zoomBy(it); scaleAt = android.os.SystemClock.elapsedRealtime() }, onMark = { vm.setPick(Pick.MONUMENT) })
+                    ScaleBar(controller, onLeft = !prefs.zoomLeft, shownAt = scaleAt)
                     Dock(
                         top = prefs.barTop, online = online, offlineTitle = base?.takeIf { it.isOffline }?.title, attribution = base?.attribution.orEmpty(),
                         loc = if (prefs.showLocation && act.hasLocation()) loc else null, gpsOn = prefs.showLocation && act.hasLocation(),
@@ -306,6 +314,44 @@ private fun BoxScope.SideButtons(left: Boolean, onZoom: (Double) -> Unit, onMark
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Filled.AddLocationAlt, stringResource(R.string.place_mark), tint = Chrome.onAccent) }
     }
+}
+
+/**
+ * Масштаб сызғышы (тік): zoom батырмасы басылғанда ғана көрінеді, ~2,5 с кейін сөнеді. Zoom батырмаларына қарама-қарсы
+ * жақта — батырмалар оңда болса, сызғыш солда, және керісінше. Ұзындығы — 1, 2, 5 × 10ⁿ метрдің бірі (~110 dp-ге жуық).
+ */
+@Composable
+private fun BoxScope.ScaleBar(controller: MapController, onLeft: Boolean, shownAt: Long) {
+    var visible by remember { mutableStateOf(false) }
+    var mpd by remember { mutableStateOf(0.0) }
+    LaunchedEffect(shownAt) {
+        if (shownAt == 0L) return@LaunchedEffect
+        visible = true
+        while (android.os.SystemClock.elapsedRealtime() - shownAt < 2500) { mpd = controller.metersPerDp(); delay(40) }
+        visible = false
+    }
+    val (meters, lenDp) = niceScale(mpd)
+    AnimatedVisibility(visible && meters > 0, enter = fadeIn(), exit = fadeOut(),
+        modifier = Modifier.align(if (onLeft) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 20.dp)) {
+        val label = @Composable {
+            Text(if (meters < 1000) "${meters.toInt()} м" else "${(meters / 1000).toInt()} км", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                style = TextStyle(shadow = Shadow(Color(0xCC000000), blurRadius = 6f)))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (!onLeft) label()
+            Box(Modifier.width(3.dp).height(lenDp.dp).shadow(2.dp, RoundedCornerShape(2.dp)).clip(RoundedCornerShape(2.dp)).background(Color.White))
+            if (onLeft) label()
+        }
+    }
+}
+
+/** Сызғыштың «әдемі» ұзындығы: метр және оған сай dp (ең көбі ~110 dp). */
+private fun niceScale(metersPerDp: Double): Pair<Double, Float> {
+    if (metersPerDp <= 0 || metersPerDp.isNaN()) return 0.0 to 0f
+    val max = metersPerDp * 110
+    val p = Math.pow(10.0, Math.floor(Math.log10(max)))
+    val m = listOf(5.0, 2.0, 1.0).map { it * p }.first { it <= max }
+    return m to (m / metersPerDp).toFloat()
 }
 
 @Composable

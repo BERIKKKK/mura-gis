@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -87,9 +90,8 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
             Text(stringResource(R.string.routing_engine_note), style = MaterialTheme.typography.bodySmall)
 
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
-            Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.about_text), style = MaterialTheme.typography.bodySmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
-            Text(stringResource(R.string.about_licenses), style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
+            OptionRow(stringResource(R.string.about_title), BuildConfig.VERSION_NAME, Modifier.padding(bottom = 24.dp),
+                trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }) { vm.openMenu(MenuPage.ABOUT) }
         }
     }
     restore?.let { f ->

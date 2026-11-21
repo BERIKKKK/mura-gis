@@ -324,6 +324,13 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
     fun center(): Pair<Double, Double>? = map?.cameraPosition?.target?.let { it.latitude to it.longitude }
     fun zoom(): Double = map?.cameraPosition?.zoom ?: 0.0
 
+    /** Картаның ортасындағы масштаб: 1 dp неше метр (MapLibre: әлем ені 512·2^zoom dp, Web Mercator). */
+    fun metersPerDp(): Double {
+        val c = map?.cameraPosition ?: return 0.0
+        val lat = c.target?.latitude ?: return 0.0
+        return 40_075_016.686 * cos(Math.toRadians(lat)) / (512.0 * Math.pow(2.0, c.zoom))
+    }
+
     /** Экрандағы тіктөртбұрыштың (пиксельмен) географиялық шекарасы — жүктелетін аумақты таңдау үшін. */
     fun boundsOfScreenRect(left: Float, top: Float, right: Float, bottom: Float): Bounds? {
         val m = map ?: return null

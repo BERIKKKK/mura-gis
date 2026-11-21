@@ -68,6 +68,9 @@ fun PlanSheet(vm: MainViewModel, act: MainActivity) {
     }
     open?.let { isA -> PointChooser(vm, act, isA, q, { q = it }) { open = null } }
 
+    ChromeLabel(stringResource(R.string.plan_network))
+    Segmented(listOf(true to stringResource(R.string.plan_net_roads), false to stringResource(R.string.plan_net_saved)), p.roads) { vm.setPlanRoads(it) }
+
     ChromeLabel(stringResource(R.string.f_vehicle))
     Segmented(listOf(Vehicle.CAR to stringResource(R.string.seg_car), Vehicle.OFFROAD to stringResource(R.string.seg_4x4), Vehicle.FOOT to stringResource(R.string.seg_foot)),
         p.vehicle) { vm.setPlanOptions(it, p.wet) }
@@ -92,13 +95,17 @@ fun PlanSheet(vm: MainViewModel, act: MainActivity) {
         }
         is RouteNetwork.Result.Failed -> {
             Column(Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Chrome.bg2).padding(14.dp)) {
-                Text(stringResource(if (r.error == RouteNetwork.Result.Error.NO_NETWORK) R.string.plan_err_no_network else R.string.plan_err_not_connected),
-                    color = Chrome.warn, fontSize = 14.sp)
+                Text(stringResource(when {
+                    r.error == RouteNetwork.Result.Error.NO_GRAPH -> R.string.plan_err_no_graph
+                    r.error == RouteNetwork.Result.Error.NO_NETWORK -> R.string.plan_err_no_network
+                    p.roads -> R.string.plan_err_roads_not_connected
+                    else -> R.string.plan_err_not_connected
+                }), color = Chrome.warn, fontSize = 14.sp)
             }
             BigButton(stringResource(R.string.plan_clear), Modifier.fillMaxWidth().padding(top = 8.dp)) { vm.clearPlan() }
         }
     }
-    Text(stringResource(R.string.plan_network_note), color = Chrome.dim, fontSize = 12.5.sp, modifier = Modifier.padding(top = 12.dp))
+    Text(stringResource(if (p.roads) R.string.plan_roads_note else R.string.plan_network_note), color = Chrome.dim, fontSize = 12.5.sp, modifier = Modifier.padding(top = 12.dp))
 }
 
 @Composable
@@ -158,6 +165,8 @@ private fun ChooserItem(icon: androidx.compose.ui.graphics.vector.ImageVector, t
     }
 }
 
+private const val MAX_LEGS = 8
+
 @Composable
 private fun PlanResult(vm: MainViewModel, r: RouteNetwork.Result.Ok) {
     val prefs by vm.prefs.collectAsState()
@@ -167,9 +176,12 @@ private fun PlanResult(vm: MainViewModel, r: RouteNetwork.Result.Ok) {
             Spacer(Modifier.width(12.dp))
             Text(stringResource(R.string.plan_time, fmtHours(r.timeSeconds)), color = Chrome.dim, fontSize = 15.sp)
         }
-        r.legs.forEach { l ->
+        // OSM бойынша аяқ көп болуы мүмкін — тек алғашқылары, қалғаны санымен
+        r.legs.take(MAX_LEGS).forEach { l ->
             Text("• " + l.route.name.display(prefs.dataLang).ifBlank { "—" } + " — " + fmtLength(l.len), fontSize = 13.5.sp, maxLines = 2)
         }
+        if (r.legs.size > MAX_LEGS) Text(stringResource(R.string.plan_more_legs, r.legs.size - MAX_LEGS, fmtLength(r.legs.drop(MAX_LEGS).sumOf { it.len })),
+            color = Chrome.dim, fontSize = 13.sp)
         val off = (r.offStart?.len ?: 0.0) + (r.offEnd?.len ?: 0.0)
         if (off > 1) Text(stringResource(R.string.plan_off_network, fmtLength(off)), color = Chrome.warn, fontSize = 13.sp)
     }

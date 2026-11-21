@@ -9,6 +9,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 JAVA=${JAVA:-java}
 BOUNDS=54.364,49.426,56.301,51.041          # Қобда ауданы (OSM relation 3397458) шекарасының тіктөртбұрышы
 OSM_DATE=2026-11-20                         # Geofabrik үзіндісінің күні (Last-Modified)
+BASE_ID=kobda-base-2026-11-21                # негізгі пакет (жол графымен); граф өзгерсе — жаңа id
 PKG="$HERE/build/install/packager/bin/packager"
 
 mkdir -p "$WORK"/{src/dem,src/glyphs,out,dist,tmp}
@@ -52,12 +53,15 @@ done
 # 5. Sentinel-2 мозаикасы (z8–14, JPEG; шеттері — мөлдір PNG) -------------------------------------
 "$PKG" s2 --scenes s2scenes.txt --cache s2-cache --bounds $BOUNDS --out out/kobda-s2.mbtiles --minzoom 8 --maxzoom 14 --gain 1.1 --quality 0.8 --threads 48
 
+# 5а. Офлайн маршрутқа арналған жол графы (OSM highway=*) — негізгі пакетке қосылады ----------------
+"$PKG" roads --pbf src/kazakhstan-latest.osm.pbf --bounds $BOUNDS --out out/kobda-roads.bin
+
 # 6. Стильдер және пакеттер -----------------------------------------------------------------------
 node "$HERE/maps/styles.mjs" out
-"$PKG" assemble --in out/kobda-base-vt.mbtiles --out dist/mura-kobda-base-$OSM_DATE.mbtiles --id kobda-base-$OSM_DATE \
-  --style out/style-base.json --glyphs src/glyphs --sprite \
+"$PKG" assemble --in out/kobda-base-vt.mbtiles --out dist/mura-$BASE_ID.mbtiles --id $BASE_ID \
+  --style out/style-base.json --glyphs src/glyphs --sprite --roads out/kobda-roads.bin \
   --meta "name=Қобда ауданы — негізгі карта" --meta "attribution=© OpenStreetMap contributors" \
-  --meta "description=OpenStreetMap (Geofabrik, $OSM_DATE), ODbL 1.0"
+  --meta "description=OpenStreetMap (Geofabrik, $OSM_DATE), ODbL 1.0; офлайн маршрутқа арналған жол графы"
 "$PKG" assemble --in out/kobda-topo-vt.mbtiles --out dist/mura-kobda-topo-$OSM_DATE.mbtiles --id kobda-topo-$OSM_DATE \
   --style out/style-topo.json --glyphs src/glyphs --sprite --hillshade out/kobda-hillshade.mbtiles \
   --meta "name=Қобда ауданы — топокарта" --meta "attribution=© OpenStreetMap contributors · Copernicus DEM GLO-30" \

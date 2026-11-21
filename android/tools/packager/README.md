@@ -15,6 +15,10 @@ Android қолданбасынан тыс жұмыс істейтін JVM құр
 | `mura_tiles(tileset, z, x, y, data)` | Қосымша растр жиындары (топокартада — `hillshade`, жер бедерінің көлеңкесі) |
 | `metadata` | MBTiles өрістері + `mura:package` (пакет id) |
 
+Негізгі пакетте `mura_resources` ішінде офлайн маршрутқа арналған жол графы да бар: `roads/graph.bin.000`, `.001`…
+(≤ 1 МБ бөліктер — Android SQLite курсоры 2 МБ-тан үлкен BLOB оқымайды). Пішімі — `core/routing/RoadGraph`
+(түйіндер, қабырғалар, сыныбы, бір бағыттылығы, жабыны, геометриясы, атаулары; little-endian).
+
 Стильдегі сілтемелер `mura://tiles/…`, `mura://set/<жиын>/…`, `mura://glyphs/…`, `mura://sprite` құрылғыда жергілікті
 сервер мекенжайына ауыстырылады (`core/packages/MapPackage.resolveStyle`). Жазулар `name_kk` / `name_ru` өрістерінен —
 интерфейс тіліне қарай.
@@ -39,13 +43,16 @@ Android қолданбасынан тыс жұмыс істейтін JVM құр
 ```
 packager dem       --dem <қалта> --bounds w,s,e,n --contours out.geojson --hillshade out.mbtiles [--interval 10 --index 50]
 packager s2        --scenes <тізім> --bounds w,s,e,n --out out.mbtiles [--cache s2-cache --minzoom 8 --maxzoom 14 --gain 1.1]
-packager assemble  --in tiles.mbtiles --out пакет.mbtiles --id <id> [--style style.json --glyphs <қалта> --sprite --hillshade hs.mbtiles --meta k=v]
+packager roads     --pbf osm.pbf --bounds w,s,e,n --out graph.bin      (жол графы: OSM highway=* → түйіндер, қабырғалар, A* үшін)
+packager assemble  --in tiles.mbtiles --out пакет.mbtiles --id <id> [--style style.json --glyphs <қалта> --sprite --hillshade hs.mbtiles --roads graph.bin --meta k=v]
 packager sha256    <файл>
 ```
 
 * `dem` — Copernicus DEM тайлдарынан тор, горизонтальдар (marching squares, Дуглас–Пекер), Horn көлеңкесі.
 * `s2` — Sentinel‑2 COG файлдарын HTTP Range арқылы блоктап оқиды (бүкіл сахна жүктелмейді), UTM → Web Mercator,
   басымдық ретімен мозаика; төменгі масштабтар 2×2 орташалаумен.
+* `roads` — OSM PBF-ті (сыртқы кітапханасыз) оқып, аумақтағы `highway=*` жолдарынан граф құрады: тораптарда бөлінеді,
+  `oneway`, `access`, `surface`, `tracktype` ескеріледі, 500 м-ден қысқа оқшау үзінділер алынады (`core/routing/RoadGraphBuilder`).
 * Векторлық тайлдар — [Planetiler](https://github.com/onthegomap/planetiler) v0.10.2, схемасы [`maps/schema.yml`](maps/schema.yml);
   стильдер — [`maps/styles.mjs`](maps/styles.mjs).
 
