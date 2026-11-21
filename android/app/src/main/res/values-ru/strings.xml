@@ -107,8 +107,8 @@
     <string name="v_foot">Пешком</string>
     <string name="s_all">Круглый год</string>
     <string name="s_dry">Только в сухой сезон</string>
-    <string name="download_area">Скачать область</string>
-    <string name="import_map">Импорт карты</string>
+    <string name="download_area">Загрузить территорию</string>
+    <string name="import_map">Импортировать карту</string>
     <string name="import_map_title">Импорт карты</string>
     <string name="add_source">Добавить источник</string>
     <string name="downloads">Загрузки</string>
@@ -361,4 +361,34 @@
     <string name="place_on_map">Указать на карте</string>
     <string name="pick_editor_hint">Местоположение памятника: сдвиньте карту и наведите прицел на новое место или возьмите координаты GPS. Введённые данные сохранятся.</string>
     <string name="none_dash">—</string>
+    <!-- Панель «Слои карты»: категории, состояния, офлайн-пакеты -->
+    <string name="cat_basic">Базовые карты</string>
+    <string name="cat_topo">Топографические карты</string>
+    <string name="cat_satellite">Спутниковые снимки</string>
+    <string name="cat_historic">Исторические карты</string>
+    <string name="cat_user">Пользовательские карты</string>
+    <string name="state_online">Онлайн</string>
+    <string name="state_online_off">Онлайн · сейчас нет интернета</string>
+    <string name="state_downloaded">Загружено</string>
+    <string name="state_local">Локальный файл</string>
+    <string name="state_active">Выбранная карта</string>
+    <string name="hist_gsh_meta">1970–1980-е гг. · территория СССР, 1:100 000–1:200 000 · nakarte.me (AtloMaps)</string>
+    <string name="hist_gsh1m_meta">1970–1980-е гг. · территория СССР, 1:1 000 000 · nakarte.me</string>
+    <string name="regions_hint">Выберите готовую территорию, затем загрузите нужный вид карты. Карты бесплатные и работают без интернета.</string>
+    <string name="region_maps">%1$d карт(ы) · %2$s</string>
+    <string name="free_space">Свободно на устройстве: %1$s</string>
+    <string name="pkg_size">Размер: %1$s</string>
+    <string name="pkg_date">Дата данных: %1$s</string>
+    <string name="pkg_source">Источник: %1$s</string>
+    <string name="pkg_coverage">Территория: %1$s</string>
+    <string name="pkg_download">Загрузить</string>
+    <string name="pkg_open">Открыть карту</string>
+    <string name="custom_area">Выбрать территорию из своего источника</string>
+    <string name="err_no_space">Недостаточно места на устройстве</string>
+    <string name="st_waiting_network">ожидание связи</string>
+    <string name="job_bytes">%1$s · %2$d%% · %3$s / %4$s</string>
+    <string name="err_verify">Загруженный файл не прошёл проверку — загрузите заново</string>
+    <string name="not_downloaded_here">Карта этой территории не загружена</string>
+    <string name="import_options">Параметры импорта: папка, TMS, EPSG:3395</string>
+    <string name="map_details">О карте</string>
 </resources>

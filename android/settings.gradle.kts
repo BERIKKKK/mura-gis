@@ -28,3 +28,6 @@ rootProject.name = "mura-gis-android"
 include(":core")
 val coreOnly = providers.gradleProperty("coreOnly").orNull == "true"
 if (!coreOnly) include(":app")
+// Офлайн карта пакеттерін дайындау құралы (Android-тан тыс, JVM): tools/packager/README.md
+include(":packager")
+project(":packager").projectDir = file("tools/packager")

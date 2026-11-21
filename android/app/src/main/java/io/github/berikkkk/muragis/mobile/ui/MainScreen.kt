@@ -194,11 +194,23 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         }
     }
 
+    val outsideOffline by vm.outsideOffline.collectAsState()
+    // Векторлық офлайн карталардағы жазулар интерфейс тілінде
+    val ruUi = uiLang() == io.github.berikkkk.muragis.core.model.Lang.RU
+    LaunchedEffect(ruUi) { vm.setUiLang(ruUi) }
+
     Scaffold { pad ->
         Box(Modifier.fillMaxSize().padding(pad)) {
             AndroidView(factory = { mapView }, modifier = Modifier.fillMaxSize())
             if (pick != null) Crosshair()
             if (busy) LinearProgressIndicator(Modifier.align(Alignment.TopCenter).fillMaxWidth())
+            // Жүктелген (офлайн) картаның шегінен шыққанда
+            if (outsideOffline && edit == null && menu == null && sheet != Sheet.Layers) Text(
+                stringResource(R.string.not_downloaded_here), color = Chrome.fg, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp, start = 16.dp, end = 16.dp)
+                    .shadow(6.dp, RoundedCornerShape(14.dp)).clip(RoundedCornerShape(14.dp)).background(Chrome.bg)
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+            )
 
             val layersOpen = sheet == Sheet.Layers
             when {

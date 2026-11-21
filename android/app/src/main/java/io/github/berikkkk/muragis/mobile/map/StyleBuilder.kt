@@ -10,7 +10,8 @@ data class RasterSpec(val layer: MapLayer, val tiles: List<String>, val tms: Boo
 
 /**
  * MapLibre стилі (JSON). Карта негізі (растр) мен деректер қабаттары (ескерткіштер, маршруттар, GPS) бір-бірінен тәуелсіз:
- * негізгі картаны ауыстырғанда деректер қабаттары сол күйі қалады. Шрифт (glyphs) қажет емес — жазулар суретте.
+ * негізгі картаны ауыстырғанда деректер қабаттары сол күйі қалады. Растр негізде шрифт (glyphs) қажет емес — жазулар суретте;
+ * векторлық офлайн пакетте қаріптер мен белгішелер пакеттің өзінен (жергілікті серверден) оқылады.
  */
 object StyleBuilder {
     const val SRC_MON = "monuments"
@@ -44,16 +45,34 @@ object StyleBuilder {
 
     private fun arr(vararg v: Any): JSONArray = JSONArray(v.toList())
 
-    fun build(base: RasterSpec?, overlays: List<RasterSpec>, cluster: Boolean): String {
+    /**
+     * [vectorBase] — офлайн векторлық пакеттің дайын стилі (сілтемелері жергілікті серверге ауыстырылған): оның көздері мен
+     * қабаттары «pk-» белгісімен ең астына қойылады, қаріптер (glyphs) мен белгішелер (sprite) пакеттен оқылады.
+     */
+    fun build(base: RasterSpec?, overlays: List<RasterSpec>, cluster: Boolean, vectorBase: String? = null): String {
         val sources = JSONObject()
         val layers = JSONArray()
-        layers.put(JSONObject().put("id", "bg").put("type", "background").put("paint", JSONObject().put("background-color", "#EFEBE3")))
+        val root = JSONObject().put("version", 8).put("name", "Mura GIS")
+        val vb = vectorBase?.let { runCatching { JSONObject(it) }.getOrNull() }
+        if (vb != null) {
+            vb.optString("glyphs").takeIf { it.isNotBlank() }?.let { root.put("glyphs", it) }
+            vb.optString("sprite").takeIf { it.isNotBlank() }?.let { root.put("sprite", it) }
+            val src = vb.optJSONObject("sources") ?: JSONObject()
+            for (k in src.keys()) sources.put("pk-$k", src.getJSONObject(k))
+            val ls = vb.optJSONArray("layers") ?: JSONArray()
+            for (i in 0 until ls.length()) {
+                val l = JSONObject(ls.getJSONObject(i).toString())
+                l.put("id", "pk-" + l.getString("id"))
+                l.optString("source").takeIf { it.isNotBlank() }?.let { l.put("source", "pk-$it") }
+                layers.put(l)
+            }
+        } else layers.put(JSONObject().put("id", "bg").put("type", "background").put("paint", JSONObject().put("background-color", "#EFEBE3")))
         fun addRaster(id: String, r: RasterSpec) {
             sources.put(id, raster(r))
             layers.put(JSONObject().put("id", id).put("type", "raster").put("source", id)
                 .put("paint", JSONObject().put("raster-opacity", r.opacity).put("raster-fade-duration", if (r.layer.isOffline) 0 else 150)))
         }
-        base?.let { addRaster("base", it) }
+        if (vb == null) base?.let { addRaster("base", it) }
         overlays.forEach { addRaster("ov-" + it.layer.id, it) }
 
         sources.put(SRC_ROUTES, geo()).put(SRC_EDIT, geo()).put(SRC_EDIT_PTS, geo()).put(SRC_MON, geo(cluster)).put(SRC_SEL, geo()).put(SRC_LOC, geo())
@@ -120,7 +139,7 @@ object StyleBuilder {
         layers.put(JSONObject().put("id", "loc-dot").put("type", "circle").put("source", SRC_LOC)
             .put("paint", JSONObject().put("circle-radius", 7).put("circle-color", "#1E6FD9").put("circle-stroke-color", "#FFFFFF").put("circle-stroke-width", 2.5)))
 
-        return JSONObject().put("version", 8).put("name", "Mura GIS").put("sources", sources).put("layers", layers).toString()
+        return root.put("sources", sources).put("layers", layers).toString()
     }
 
     fun onlineSpec(layer: MapLayer, src: TileSource) = RasterSpec(layer, src.templates(), src.isTmsTemplate, src.minZoom, src.maxZoom, src.attribution, layer.opacity)

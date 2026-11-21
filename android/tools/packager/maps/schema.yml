@@ -1,0 +1,354 @@
+# Mura GIS офлайн векторлық картасы — Planetiler (generate-custom) схемасы.
+# Дереккөз: Geofabrik OpenStreetMap үзіндісі (ODbL 1.0). Горизонтальдар — Copernicus DEM GLO-30-дан (packager dem).
+# Негізгі карта: --contours_path=<бос.geojson>; топокарта: --contours_path=<kobda-contours.geojson>.
+schema_name: Mura GIS offline
+schema_description: Mura GIS offline basemap / topographic map from Geofabrik OpenStreetMap extracts
+attribution: '© OpenStreetMap contributors'
+args:
+  osm_path: kazakhstan-latest.osm.pbf
+  contours_path: empty.geojson
+  minzoom: 4
+  maxzoom: 14
+sources:
+  osm:
+    type: osm
+    local_path: '${ args.osm_path }'
+  contours:
+    type: geojson
+    local_path: '${ args.contours_path }'
+
+definitions:
+  names: &names
+    - key: name_kk
+      value:
+        coalesce:
+          - tag_value: 'name:kk'
+          - tag_value: name
+    - key: name_ru
+      value:
+        coalesce:
+          - tag_value: 'name:ru'
+          - tag_value: name
+
+layers:
+  - id: water
+    features:
+      - source: osm
+        geometry: polygon
+        min_zoom: 6
+        include_when:
+          natural: water
+          waterway: riverbank
+          landuse: [reservoir, basin]
+          water: __any__
+        attributes:
+          - key: intermittent
+            value: 1
+            include_when:
+              intermittent: 'yes'
+              seasonal: __any__
+    tile_post_process:
+      merge_polygons:
+        min_area: 2
+
+  - id: water_name
+    features:
+      - source: osm
+        geometry: polygon_point_on_surface
+        min_zoom: 11
+        include_when:
+          natural: water
+          landuse: reservoir
+        exclude_when:
+          name: ''
+        attributes: *names
+
+  - id: waterway
+    features:
+      - source: osm
+        geometry: line
+        include_when:
+          waterway: [river, stream, canal, ditch, drain, brook]
+        min_zoom:
+          default_value: 12
+          overrides:
+            7:
+              waterway: river
+            10:
+              waterway: canal
+            11:
+              waterway: stream
+        attributes:
+          - key: class
+            tag_value: waterway
+          - key: intermittent
+            value: 1
+            include_when:
+              intermittent: 'yes'
+              seasonal: __any__
+          - key: name_kk
+            min_zoom: 10
+            value:
+              coalesce:
+                - tag_value: 'name:kk'
+                - tag_value: name
+          - key: name_ru
+            min_zoom: 10
+            value:
+              coalesce:
+                - tag_value: 'name:ru'
+                - tag_value: name
+
+  - id: landuse
+    features:
+      - source: osm
+        geometry: polygon
+        include_when:
+          landuse: [residential, farmland, farmyard, cemetery, forest, meadow, grass, industrial, allotments, orchard, quarry]
+          natural: [wood, wetland, scrub, grassland, sand, heath, bare_rock]
+          leisure: [park]
+          amenity: [grave_yard]
+        min_zoom:
+          default_value: 11
+          overrides:
+            9:
+              landuse: residential
+            10:
+              natural: [wood, wetland]
+              landuse: forest
+        attributes:
+          - key: class
+            value:
+              residential:
+                landuse: residential
+              farmland:
+                landuse: [farmland, farmyard, allotments, orchard]
+              cemetery:
+                landuse: cemetery
+                amenity: grave_yard
+              wood:
+                landuse: forest
+                natural: [wood, scrub]
+              wetland:
+                natural: wetland
+              grass:
+                landuse: [meadow, grass]
+                natural: [grassland, heath]
+                leisure: park
+              industrial:
+                landuse: [industrial, quarry]
+              sand:
+                natural: [sand, bare_rock]
+              other: otherwise
+    tile_post_process:
+      merge_polygons:
+        min_area: 2
+
+  - id: building
+    features:
+      - source: osm
+        geometry: polygon
+        min_zoom: 14
+        include_when:
+          building: __any__
+
+  - id: transportation
+    features:
+      - source: osm
+        geometry: line
+        include_when:
+          highway: [motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link, tertiary, tertiary_link,
+                    unclassified, residential, living_street, service, track, path, footway]
+          railway: [rail, narrow_gauge]
+        min_zoom:
+          default_value: 13
+          overrides:
+            5:
+              highway: [motorway, trunk]
+            6:
+              highway: primary
+            7:
+              railway: rail
+            8:
+              highway: secondary
+            9:
+              highway: tertiary
+            10:
+              highway: unclassified
+            11:
+              highway: [track, residential, living_street]
+              railway: narrow_gauge
+        attributes:
+          - key: class
+            value:
+              major:
+                highway: [motorway, motorway_link, trunk, trunk_link, primary, primary_link]
+              secondary:
+                highway: [secondary, secondary_link]
+              tertiary:
+                highway: [tertiary, tertiary_link]
+              minor:
+                highway: [unclassified, residential, living_street, service]
+              track:
+                highway: track
+              path:
+                highway: [path, footway]
+              rail:
+                railway: [rail, narrow_gauge]
+          - key: ref
+            tag_value: ref
+            min_zoom: 8
+          - key: unpaved
+            value: 1
+            include_when:
+              surface: [unpaved, dirt, ground, gravel, compacted, sand, earth, grass, fine_gravel]
+          - key: name_kk
+            min_zoom: 12
+            value:
+              coalesce:
+                - tag_value: 'name:kk'
+                - tag_value: name
+          - key: name_ru
+            min_zoom: 12
+            value:
+              coalesce:
+                - tag_value: 'name:ru'
+                - tag_value: name
+    tile_post_process:
+      merge_line_strings:
+        min_length: 1
+        tolerance: 0.5
+        buffer: 4
+
+  - id: boundary
+    features:
+      - source: osm
+        geometry: polygon
+        include_when:
+          __all__:
+            boundary: administrative
+            admin_level: ['2', '4', '6']
+        min_zoom:
+          default_value: 7
+          overrides:
+            0:
+              admin_level: '2'
+            4:
+              admin_level: '4'
+        attributes:
+          - key: admin_level
+            tag_value: admin_level
+            type: integer
+
+  - id: place
+    features:
+      - source: osm
+        geometry: point
+        include_when:
+          place: [city, town, village, hamlet, isolated_dwelling, locality, farm]
+        exclude_when:
+          name: ''
+        min_zoom:
+          default_value: 12
+          overrides:
+            4:
+              place: city
+            7:
+              place: town
+            9:
+              place: village
+            11:
+              place: hamlet
+        attributes:
+          - key: class
+            tag_value: place
+          - key: name_kk
+            value:
+              coalesce:
+                - tag_value: 'name:kk'
+                - tag_value: name
+          - key: name_ru
+            value:
+              coalesce:
+                - tag_value: 'name:ru'
+                - tag_value: name
+
+  - id: poi
+    features:
+      - source: osm
+        geometry: centroid
+        include_when:
+          natural: [peak, spring, hill]
+          man_made: [water_well, tower, mast, water_tower]
+          amenity: [place_of_worship, drinking_water]
+          historic: __any__
+          tourism: [attraction, viewpoint]
+          railway: [station, halt]
+          landuse: cemetery
+        min_zoom:
+          default_value: 13
+          overrides:
+            11:
+              natural: [peak, hill]
+              railway: station
+            12:
+              historic: __any__
+              amenity: place_of_worship
+              natural: spring
+        attributes:
+          - key: class
+            value:
+              peak:
+                natural: [peak, hill]
+              spring:
+                natural: spring
+                amenity: drinking_water
+              well:
+                man_made: water_well
+              tower:
+                man_made: [tower, mast, water_tower]
+              worship:
+                amenity: place_of_worship
+              station:
+                railway: [station, halt]
+              cemetery:
+                landuse: cemetery
+              historic:
+                historic: __any__
+              attraction:
+                tourism: [attraction, viewpoint]
+          - key: ele
+            tag_value: ele
+            type: integer
+          - key: name_kk
+            value:
+              coalesce:
+                - tag_value: 'name:kk'
+                - tag_value: name
+          - key: name_ru
+            value:
+              coalesce:
+                - tag_value: 'name:ru'
+                - tag_value: name
+
+  - id: contour
+    features:
+      - source: contours
+        geometry: line
+        min_zoom:
+          default_value: 12
+          overrides:
+            9:
+              idx: 1
+        attributes:
+          - key: ele
+            tag_value: ele
+            type: integer
+          - key: idx
+            tag_value: idx
+            type: integer
+    tile_post_process:
+      merge_line_strings:
+        min_length: 0
+        tolerance: 0.5
+        buffer: 4
