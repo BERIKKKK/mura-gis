@@ -9,6 +9,7 @@ import io.github.berikkkk.muragis.core.db.LayerStore
 import io.github.berikkkk.muragis.core.db.LocalStore
 import io.github.berikkkk.muragis.core.db.MapLayer
 import io.github.berikkkk.muragis.core.packages.Catalog
+import io.github.berikkkk.muragis.core.routing.RoadGraph
 import io.github.berikkkk.muragis.core.server.LocalTileServer
 import io.github.berikkkk.muragis.core.server.TileProvider
 import io.github.berikkkk.muragis.core.sources.OfflinePolicy
@@ -78,6 +79,16 @@ class AppGraph(val context: Context) {
     }
 
     fun policyOf(l: MapLayer): OfflinePolicy = sourceOf(l)?.policy ?: OfflinePolicy.denied("not_online")
+
+    /** Файл жолы → оның жол графы (жоқ болса null); әр файл бір рет оқылады. */
+    private val roadCache = HashMap<String, RoadGraph?>()
+
+    /** Жүктелген карта пакеттеріндегі офлайн жол графтары (офлайн «Маршрут құру» үшін). */
+    @Synchronized
+    fun roadGraphs(ls: List<MapLayer> = layers.layers()): List<RoadGraph> =
+        ls.filter { it.kind == LayerKind.DOWNLOADED && it.path.isNotEmpty() && File(it.path).isFile }.mapNotNull { l ->
+            roadCache.getOrPut(l.path) { runCatching { AndroidSqlDb.openReadOnly(File(l.path)).use { RoadGraph.fromPackage(it) } }.getOrNull() }
+        }
 
     /** Сақтық көшірмеден қалпына келтіру: дерекқорды жауып, файлды ауыстырып, қайта ашу. */
     @Synchronized

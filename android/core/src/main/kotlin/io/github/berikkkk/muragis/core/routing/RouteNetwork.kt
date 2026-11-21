@@ -45,7 +45,8 @@ class RouteNetwork private constructor(val nodes: List<Node>, val edges: List<Ed
             val totalLen: Double get() = len + (offStart?.len ?: 0.0) + (offEnd?.len ?: 0.0)
         }
 
-        enum class Error { NO_NETWORK, NOT_CONNECTED }
+        /** NO_GRAPH — офлайн жол графы бұл жерді қамтымайды (не нүкте жолдан тым алыс). */
+        enum class Error { NO_NETWORK, NOT_CONNECTED, NO_GRAPH }
         data class Failed(val error: Error) : Result
     }
 

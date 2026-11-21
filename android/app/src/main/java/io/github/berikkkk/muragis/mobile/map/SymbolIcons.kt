@@ -113,6 +113,29 @@ object SymbolIcons {
     }
 
     /** Маршрут нүктесінің нөмірі (өңдеу режимінде). */
+    /**
+     * Орынның бағыт көрсеткіші (навигация үшбұрышы): ұшы жоғары (солтүстікке) қарайды, картада [icon-rotate] арқылы
+     * қозғалыс бағытына бұрылады. Ақ жиекті көк үшбұрыш — кез келген карта түсінде көрінеді.
+     */
+    fun arrow(sizePx: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val s = sizePx.toFloat()
+        val path = Path().apply {
+            moveTo(s * 0.5f, s * 0.08f)
+            lineTo(s * 0.86f, s * 0.90f)
+            lineTo(s * 0.5f, s * 0.70f)
+            lineTo(s * 0.14f, s * 0.90f)
+            close()
+        }
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.style = Paint.Style.STROKE; p.strokeJoin = Paint.Join.ROUND; p.strokeWidth = s * 0.10f; p.color = Color.WHITE
+        cv.drawPath(path, p)
+        p.style = Paint.Style.FILL; p.color = Color.rgb(30, 111, 217)
+        cv.drawPath(path, p)
+        return bmp
+    }
+
     fun vertex(label: String, sizePx: Int, fill: Int, ring: Int): Bitmap {
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)

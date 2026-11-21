@@ -46,6 +46,8 @@ import io.github.berikkkk.muragis.core.model.Status
 import io.github.berikkkk.muragis.core.model.ValidationException
 import io.github.berikkkk.muragis.core.sources.SourcePolicy
 import io.github.berikkkk.muragis.core.tiles.TileMath
+import io.github.berikkkk.muragis.core.update.AppUpdate
+import io.github.berikkkk.muragis.mobile.BuildConfig
 import io.github.berikkkk.muragis.mobile.MuraApp
 import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.data.AndroidSqlDb
@@ -54,6 +56,7 @@ import io.github.berikkkk.muragis.mobile.data.TrackRec
 import io.github.berikkkk.muragis.mobile.map.RasterSpec
 import io.github.berikkkk.muragis.mobile.map.StyleBuilder
 import io.github.berikkkk.muragis.mobile.util.Connectivity
+import io.github.berikkkk.muragis.mobile.util.HeadingSensor
 import io.github.berikkkk.muragis.mobile.util.LocationTracker
 import io.github.berikkkk.muragis.mobile.work.DownloadWorker
 import io.github.berikkkk.muragis.mobile.work.ImportMapWorker
@@ -66,14 +69,32 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
 
 /** Толық экранды мәзірдің беттері. */
-enum class MenuPage { ROOT, MONUMENTS, ROUTES, COORDS, SETTINGS }
+enum class MenuPage {
+    ROOT, MONUMENTS, ROUTES, COORDS, SETTINGS, ABOUT;
+
+    /** «Артқа» апаратын бет. */
+    val parent get() = if (this == ABOUT) SETTINGS else ROOT
+}
+
+/** Жаңартуды тексеру күйі. */
+sealed interface UpdateState {
+    data object Idle : UpdateState
+    data object Checking : UpdateState
+    data object UpToDate : UpdateState
+    data object Error : UpdateState
+    data class Available(val release: AppUpdate.Release) : UpdateState
+}
 
 /** Картаның үстіндегі төменгі парақтар (бір мезгілде біреуі). */
 sealed interface Sheet {
@@ -96,6 +117,8 @@ data class RoutePlan(
     val b: PlanPoint? = null,
     val vehicle: Vehicle = Vehicle.OFFROAD,
     val wet: Boolean = false,
+    /** true — OSM жол графы бойынша (жүктелген пакеттен), false — сақталған маршруттар мен тректер желісі бойынша. */
+    val roads: Boolean = true,
     val result: RouteNetwork.Result? = null,
     val busy: Boolean = false,
 )
@@ -135,6 +158,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val g = (app as MuraApp).graph
     val connectivity = Connectivity(app)
     val location = LocationTracker(app)
+    val heading = HeadingSensor(app)
     val prefs: StateFlow<Prefs> = g.settings.prefs
     val online: StateFlow<Boolean> = connectivity.online
 
@@ -144,6 +168,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _pin = MutableStateFlow<InputPin?>(null); val pin: StateFlow<InputPin?> = _pin
     /** «Дәлдеу»: камера GPS нүктесіне ереді; картаны саусақпен жылжытқанда өшеді. */
     private val _follow = MutableStateFlow(false); val follow: StateFlow<Boolean> = _follow
+    /** Еру соңғы рет саусақпен өшірілген сәт (elapsedRealtime) — трек жазу кезінде біраз уақыттан кейін ерудің қайта қосылуы үшін. */
+    private val _followOffAt = MutableStateFlow(0L); val followOffAt: StateFlow<Long> = _followOffAt
+    /** Навигация режимі (компас батырмасы): карта қозғалыс бағытымен бұрылады (әйтпесе солтүстік жоғарыда). */
+    private val _headingUp = MutableStateFlow(false); val headingUp: StateFlow<Boolean> = _headingUp
     val track: StateFlow<TrackRec?> = g.recorder.state
     private val _monuments = MutableStateFlow<List<Monument>>(emptyList()); val monuments: StateFlow<List<Monument>> = _monuments
     private val _routes = MutableStateFlow<List<Route>>(emptyList()); val routes: StateFlow<List<Route>> = _routes
@@ -166,6 +194,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val filteredMonuments: StateFlow<List<Monument>> = combine(_monuments, _filter, prefs) { list, f, p ->
         Sorting.sortMonuments(list.filter { f.matches(it) }, p.dataLang)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Жүктелген пакеттердің ішінде офлайн жол графы бар ма («Маршрут құру» әдепкі режимі). */
+    val hasRoads: StateFlow<Boolean> = _layers.map { ls -> g.roadGraphs(ls).isNotEmpty() }.flowOn(Dispatchers.IO)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** Интернет жоқ кезде офлайн қабатқа автоматты ауысу ескерілген нақты негізгі карта. */
     val effectiveBase: StateFlow<MapLayer?> = combine(_layers, online, prefs) { ls, on, p -> pickBase(ls, on, p) }
@@ -195,6 +227,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         reloadAll()
         restoreDraft()
+        // Жазу жүріп тұрған кезде процесс жабылып қалған болса — жазу қызметін қайта қосамыз
+        if (g.recorder.state.value?.running == true) runCatching { TrackService.start(app) }
         observeImports()
         viewModelScope.launch {
             // Жүктеу күйін жаңартып тұру (WorkManager прогресі дерекқорға жазылады)
@@ -220,11 +254,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun refreshJobs() = io { _jobs.value = g.layers.jobs(); _layers.value = g.layers.layers() }
 
+    /* ======================= Жаңарту (GitHub релиздері) ======================= */
+    private val _update = MutableStateFlow<UpdateState>(UpdateState.Idle); val update: StateFlow<UpdateState> = _update
+
+    fun checkUpdate() {
+        if (_update.value == UpdateState.Checking) return
+        _update.value = UpdateState.Checking
+        viewModelScope.launch(Dispatchers.IO) {
+            _update.value = try {
+                val c = URL(AppUpdate.RELEASES_API).openConnection() as HttpURLConnection
+                try {
+                    c.connectTimeout = 15_000; c.readTimeout = 20_000
+                    c.setRequestProperty("User-Agent", "MuraGIS-Android/${BuildConfig.VERSION_NAME}")
+                    c.setRequestProperty("Accept", "application/vnd.github+json")
+                    if (c.responseCode != 200) UpdateState.Error
+                    else AppUpdate.newer(c.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }, BuildConfig.VERSION_CODE)
+                        ?.let { UpdateState.Available(it) } ?: UpdateState.UpToDate
+                } finally { c.disconnect() }
+            } catch (e: Exception) { UpdateState.Error }
+        }
+    }
+
     /* ======================= Навигация: мәзір және парақтар ======================= */
     fun openMenu(p: MenuPage = MenuPage.ROOT) { _menu.value = p; _sheet.value = null }
     fun closeMenu() { _menu.value = null }
     fun openSheet(s: Sheet?) { _sheet.value = s }
-    fun setFollow(on: Boolean) { _follow.value = on }
+    fun setFollow(on: Boolean) {
+        if (!on && _follow.value) _followOffAt.value = android.os.SystemClock.elapsedRealtime()
+        _follow.value = on
+    }
+
+    /** Компас батырмасы: солтүстік жоғарыда ↔ навигация режимі (карта қозғалыс бағытымен бұрылады, орынға ереді). */
+    fun toggleHeadingUp(): Boolean {
+        if (_headingUp.value) { _headingUp.value = false; heading.setActive(false); msg(R.string.msg_north_up); return false }
+        if (!heading.available) { msg(R.string.err_no_compass); return false }
+        _headingUp.value = true
+        heading.setActive(true)
+        msg(R.string.msg_heading_up)
+        return true
+    }
 
     /* ======================= Ескерткіштер ======================= */
     fun setFilter(f: MonumentFilter) { _filter.value = f }
@@ -383,8 +451,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Маршрут құру парағын ашу. [to] берілсе — Б нүктесі (мыс. ескерткіш карточкасынан «Осы жерге маршрут»). */
     fun openPlan(to: PlanPoint? = null) {
         val cur = _plan.value
-        _plan.value = if (to != null) RoutePlan(a = cur?.a ?: gpsPoint(), b = to, vehicle = cur?.vehicle ?: Vehicle.OFFROAD, wet = cur?.wet ?: false)
-        else cur ?: RoutePlan(a = gpsPoint())
+        val roads = cur?.roads ?: hasRoads.value
+        _plan.value = if (to != null) RoutePlan(a = cur?.a ?: gpsPoint(), b = to, vehicle = cur?.vehicle ?: Vehicle.OFFROAD, wet = cur?.wet ?: false, roads = roads)
+        else cur ?: RoutePlan(a = gpsPoint(), roads = roads)
         _selectedRoute.value = null
         _menu.value = null
         _sheet.value = Sheet.Plan
@@ -395,6 +464,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setPlanOptions(vehicle: Vehicle, wet: Boolean) {
         val p = _plan.value ?: return
         _plan.value = p.copy(vehicle = vehicle, wet = wet, result = null)
+        if (p.result != null) buildPlan()
+    }
+
+    /** Есептеу желісі: OSM жол графы не сақталған маршруттар. */
+    fun setPlanRoads(roads: Boolean) {
+        val p = _plan.value ?: return
+        if (p.roads == roads) return
+        _plan.value = p.copy(roads = roads, result = null)
         if (p.result != null) buildPlan()
     }
 
@@ -412,7 +489,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _plan.value = p.copy(busy = true, result = null)
         io {
             val r = runCatching {
-                network().findPath(RouteNetwork.End(a.lat, a.lon, a.markId), RouteNetwork.End(b.lat, b.lon, b.markId), RouteNetwork.Options(p.vehicle, p.wet))
+                val from = RouteNetwork.End(a.lat, a.lon, a.markId); val to = RouteNetwork.End(b.lat, b.lon, b.markId)
+                val opts = RouteNetwork.Options(p.vehicle, p.wet)
+                if (p.roads) g.roadGraphs().firstOrNull { it.covers(a.lat, a.lon) && it.covers(b.lat, b.lon) }?.findPath(from, to, opts)
+                    ?: RouteNetwork.Result.Failed(RouteNetwork.Result.Error.NO_GRAPH)
+                else network().findPath(from, to, opts)
             }
             _plan.value = _plan.value?.copy(result = r.getOrNull(), busy = false)
             r.exceptionOrNull()?.let { throw it }
@@ -448,6 +529,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _follow.value = true
         msg(R.string.msg_rec_started)
     }
+
+    /** GPS-ті толық өшіру («Дәлдеу» қайта басылып, растағанда): орын көрсетілмейді, навигация өшеді. */
+    fun stopGps() {
+        updatePrefs { it.copy(showLocation = false) }
+        location.setTracking(false)
+        _follow.value = false
+        if (_headingUp.value) { _headingUp.value = false; heading.setActive(false) }
+        msg(R.string.msg_gps_off)
+    }
+
+    /** «Фонда жазу» терезесін қайта көрсетпеу. */
+    var bgAskOff: Boolean
+        get() = g.settings.bgAskOff
+        set(v) { g.settings.bgAskOff = v }
 
     /** «Тоқтату»: жазу кідіртіледі, шешім парағы ашылады (сақтау / жалғастыру / жою). */
     fun askStopTrack() {
@@ -861,6 +956,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         location.setTracking(false)
+        heading.setActive(false)
         super.onCleared()
     }
 }

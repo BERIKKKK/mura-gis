@@ -16,6 +16,8 @@ import org.json.JSONObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.gestures.MoveGestureDetector
+import org.maplibre.android.gestures.StandardScaleGestureDetector
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -37,8 +39,10 @@ interface MapEvents {
     fun onCameraIdle(lat: Double, lon: Double, zoom: Double)
     /** Өңдеу режимі қосулы ма (нүкте қосу/жылжыту). */
     fun isEditingRoute(): Boolean
-    /** Пайдаланушы картаны саусақпен жылжытты (GPS-ке еру режимін өшіру үшін). */
+    /** Пайдаланушы картаны бір саусақпен жылжытты (GPS-ке еру режимін өшіру үшін). Масштабтау еруді өшірмейді. */
     fun onUserGesture() {}
+    /** Картаның бұрылу бұрышы өзгерді (компас батырмасы үшін), градус. */
+    fun onBearing(bearing: Double) {}
     fun onPinTap() {}
 }
 
@@ -63,10 +67,23 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             m.uiSettings.isTiltGesturesEnabled = false
             m.uiSettings.isLogoEnabled = false
             m.uiSettings.isAttributionEnabled = true
+            m.uiSettings.isCompassEnabled = false // өз компас батырмамыз бар (zoom астында)
             m.setMaxZoomPreference(20.0)
             m.addOnMapClickListener { p -> handleTap(p); true }
             m.addOnMapLongClickListener { p -> events.onMapLongPress(p.latitude, p.longitude); true }
-            m.addOnCameraMoveStartedListener { reason -> if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) events.onUserGesture() }
+            // Еру режимін тек бір саусақпен жылжыту өшіреді: екі саусақпен масштабтау / екі рет басу еруді бұзбайды
+            // (бұрын кез келген қимыл, соның ішінде zoom, еруді өшіретін — карта орынмен бірге қозғалмай қалатын).
+            m.addOnMoveListener(object : MapLibreMap.OnMoveListener {
+                override fun onMoveBegin(d: MoveGestureDetector) { gestures++; if (d.pointersCount <= 1) events.onUserGesture() }
+                override fun onMove(d: MoveGestureDetector) {}
+                override fun onMoveEnd(d: MoveGestureDetector) { gestures = maxOf(0, gestures - 1) }
+            })
+            m.addOnScaleListener(object : MapLibreMap.OnScaleListener {
+                override fun onScaleBegin(d: StandardScaleGestureDetector) { gestures++ }
+                override fun onScale(d: StandardScaleGestureDetector) {}
+                override fun onScaleEnd(d: StandardScaleGestureDetector) { gestures = maxOf(0, gestures - 1) }
+            })
+            m.addOnCameraMoveListener { events.onBearing(m.cameraPosition.bearing) }
             m.addOnCameraIdleListener {
                 val c = m.cameraPosition
                 c.target?.let { t -> events.onCameraIdle(t.latitude, t.longitude, c.zoom) }
@@ -93,6 +110,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             s.addImage("cl-1k", SymbolIcons.cluster("999+", cs))
             ensureVertexImages(editPoints.size)
             val ps = (30 * density).toInt()
+            s.addImage("loc-arrow", SymbolIcons.arrow((30 * density).toInt()))
             s.addImage("plan-a", SymbolIcons.vertex(ctx.getString(io.github.berikkkk.muragis.mobile.R.string.point_a), ps, Color.rgb(35, 36, 31), Color.WHITE))
             s.addImage("plan-b", SymbolIcons.vertex(ctx.getString(io.github.berikkkk.muragis.mobile.R.string.point_b), ps, Color.rgb(34, 81, 201), Color.WHITE))
             data.forEach { (k, v) -> s.getSourceAs<GeoJsonSource>(k)?.setGeoJson(v) }
@@ -160,12 +178,15 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         push(StyleBuilder.SRC_EDIT_PTS, fc(pts))
     }
 
-    fun setLocation(lat: Double?, lon: Double?, accuracy: Float) {
+    /** [direction] — қозғалыс/телефон бағыты (градус, солтүстіктен сағат тілімен); null болса — бағытсыз нүкте. */
+    fun setLocation(lat: Double?, lon: Double?, accuracy: Float, direction: Float? = null) {
         val a = JSONArray()
         if (lat != null && lon != null) {
             // r0 — дәлдік радиусы 0-масштабтағы пиксельмен (256 px тайл, 512 px әлем ені MapLibre-де)
             val metersPerPx0 = 156543.03392 * cos(Math.toRadians(lat)) / 2.0
-            a.put(point(lon, lat, JSONObject().put("r0", accuracy / metersPerPx0)))
+            val props = JSONObject().put("r0", accuracy / metersPerPx0)
+            if (direction != null) props.put("brg", direction.toDouble())
+            a.put(point(lon, lat, props))
         }
         push(StyleBuilder.SRC_LOC, fc(a))
     }
@@ -315,14 +336,58 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         m.animateCamera(CameraUpdateFactory.zoomBy(delta), 250)
     }
 
-    /** Камераны жылжыту, масштабты өзгертпей (GPS-ке еру режимі). */
-    fun follow(lat: Double, lon: Double) {
+    /** Саусақ қимылы жүріп жатыр ма (сол кезде камераны еру анимациясымен бұзбаймыз). */
+    private var gestures = 0
+
+    /**
+     * GPS-ке еру режимі: масштабтау экран ортасына (яғни орынға) қатысты болады — орын ортадан кетпейді.
+     * Режим өшкенде — әдеттегідей саусақтар арасындағы нүктеге қатысты.
+     */
+    fun setFollowFocus(on: Boolean) {
         val m = map ?: return
-        m.animateCamera(CameraUpdateFactory.newLatLng(LatLng(lat, lon)), 400)
+        m.uiSettings.focalPoint = if (on && view.width > 0) PointF(view.width / 2f, (view.height + navTop()) / 2f) else null
     }
+
+    /** Навигация режимі: орын экранның төменгі бөлігінде (алдағы жол көбірек көрінеді) — камераның жоғарғы шегінісі, px. */
+    var navigation = false
+        set(v) {
+            if (field == v) return
+            field = v
+            val m = map ?: return
+            val top = navTop().toDouble()
+            // Режим өшкенде — солтүстік жоғарыға бір анимациямен (екі бөлек анимация бірін-бірі тоқтатады)
+            val b = CameraPosition.Builder(m.cameraPosition).padding(0.0, top, 0.0, 0.0)
+            if (!v) b.bearing(0.0)
+            m.easeCamera(CameraUpdateFactory.newCameraPosition(b.build()), 300)
+            if (m.uiSettings.focalPoint != null) setFollowFocus(true)
+        }
+    private fun navTop(): Float = if (navigation) view.height * 0.35f else 0f
+
+    /**
+     * Камераны орынға жылжыту (масштабты өзгертпей) және, [bearing] берілсе, картаны бұру (навигация режимі).
+     * [lat]/[lon] null болса — тек бұру (еру өшірулі, бірақ карта бағытпен бұрылады).
+     */
+    fun follow(lat: Double?, lon: Double?, bearing: Double? = null) {
+        val m = map ?: return
+        if (gestures > 0) return
+        if (lat != null && lon != null) setFollowFocus(true)
+        val c = m.cameraPosition
+        val b = CameraPosition.Builder(c)
+        if (lat != null && lon != null) b.target(LatLng(lat, lon))
+        if (bearing != null) b.bearing(bearing)
+        m.easeCamera(CameraUpdateFactory.newCameraPosition(b.build()), if (bearing != null) 250 else 500)
+    }
+
 
     fun center(): Pair<Double, Double>? = map?.cameraPosition?.target?.let { it.latitude to it.longitude }
     fun zoom(): Double = map?.cameraPosition?.zoom ?: 0.0
+
+    /** Картаның ортасындағы масштаб: 1 dp неше метр (MapLibre: әлем ені 512·2^zoom dp, Web Mercator). */
+    fun metersPerDp(): Double {
+        val c = map?.cameraPosition ?: return 0.0
+        val lat = c.target?.latitude ?: return 0.0
+        return 40_075_016.686 * cos(Math.toRadians(lat)) / (512.0 * Math.pow(2.0, c.zoom))
+    }
 
     /** Экрандағы тіктөртбұрыштың (пиксельмен) географиялық шекарасы — жүктелетін аумақты таңдау үшін. */
     fun boundsOfScreenRect(left: Float, top: Float, right: Float, bottom: Float): Bounds? {

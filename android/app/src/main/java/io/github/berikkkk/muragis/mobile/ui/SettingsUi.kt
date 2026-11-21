@@ -9,7 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
@@ -41,6 +44,7 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
     val prefs by vm.prefs.collectAsState()
     val backups by vm.backups.collectAsState()
     var restore by remember { mutableStateOf<File?>(null) }
+    var bgGuide by remember { mutableStateOf(false) }
     val current = AppCompatDelegate.getApplicationLocales().toLanguageTags()
 
     Column(Modifier.padding(bottom = 16.dp)) {
@@ -72,6 +76,8 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
                 else { vm.updatePrefs { it.copy(showLocation = false) }; vm.location.setTracking(false) }
             }
             Text(stringResource(R.string.gps_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            OptionRow(stringResource(R.string.bg_title), stringResource(R.string.bg_settings_sub), Modifier.padding(top = 8.dp),
+                trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }) { bgGuide = true }
 
             SectionTitle(stringResource(R.string.backups))
             Text(stringResource(R.string.backups_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
@@ -87,11 +93,11 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
             Text(stringResource(R.string.routing_engine_note), style = MaterialTheme.typography.bodySmall)
 
             HorizontalDivider(Modifier.padding(vertical = 12.dp))
-            Text(stringResource(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE), style = MaterialTheme.typography.bodySmall)
-            Text(stringResource(R.string.about_text), style = MaterialTheme.typography.bodySmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
-            Text(stringResource(R.string.about_licenses), style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 8.dp, bottom = 24.dp))
+            OptionRow(stringResource(R.string.about_title), BuildConfig.VERSION_NAME, Modifier.padding(bottom = 24.dp),
+                trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }) { vm.openMenu(MenuPage.ABOUT) }
         }
     }
+    if (bgGuide) ChromeTheme { BackgroundDialog(vm, act, onClose = { bgGuide = false }) }
     restore?.let { f ->
         ConfirmDialog(stringResource(R.string.confirm_restore, f.name), stringResource(R.string.restore), onConfirm = { vm.restoreBackup(f) }, onDismiss = { restore = null })
     }

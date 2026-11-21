@@ -70,6 +70,11 @@ class Settings(context: Context) {
         get() = sp.getString("trackDraft", null)
         set(v) { sp.edit().putString("trackDraft", v).apply() }
 
+    /** «Фонда жазу» рұқсаттары туралы терезені қайта көрсетпеу. */
+    var bgAskOff: Boolean
+        get() = sp.getBoolean("bgAskOff", false)
+        set(v) { sp.edit().putBoolean("bgAskOff", v).apply() }
+
     var lastBackup: Long
         get() = sp.getLong("lastBackup", 0L)
         set(v) { sp.edit().putLong("lastBackup", v).apply() }

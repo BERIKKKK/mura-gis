@@ -76,17 +76,20 @@ class TrackRecorder(private val settings: Settings) {
         lastSaved = now
         val s = _state.value ?: run { settings.trackDraft = null; return }
         settings.trackDraft = JSONObject()
-            .put("startedAt", s.startedAt).put("activeMs", s.elapsedMs(now)).put("distance", s.distance)
+            .put("startedAt", s.startedAt).put("activeMs", s.elapsedMs(now)).put("distance", s.distance).put("running", s.running)
             .put("pts", JSONArray(s.points.map { JSONArray(listOf(it.lat, it.lon)) })).toString()
     }
 
-    /** Қосымша қайта ашылғанда жоба кідіртілген күйде қайтады — пайдаланушы жалғастырады не сақтайды. */
+    /**
+     * Қосымша қайта ашылғанда: жазу кідіртілген болса — кідіртілген күйде қайтады (пайдаланушы жалғастырады не сақтайды).
+     * Жазу жүріп тұрғанда жүйе процесті жауып тастаса (батарея үнемдеу) — жазу жалғасады: TrackService қайта іске қосылады.
+     */
     private fun restore(): TrackRec? = settings.trackDraft?.let { str ->
         runCatching {
             val o = JSONObject(str)
             val a = o.getJSONArray("pts")
             TrackRec(o.getLong("startedAt"), (0 until a.length()).map { i -> a.getJSONArray(i).let { LatLon(it.getDouble(0), it.getDouble(1)) } },
-                o.optDouble("distance", 0.0), o.optLong("activeMs", 0L), null)
+                o.optDouble("distance", 0.0), o.optLong("activeMs", 0L), if (o.optBoolean("running", false)) SystemClock.elapsedRealtime() else null)
         }.getOrNull()
     }
 

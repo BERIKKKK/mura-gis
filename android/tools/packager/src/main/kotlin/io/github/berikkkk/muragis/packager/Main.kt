@@ -2,6 +2,8 @@ package io.github.berikkkk.muragis.packager
 
 import io.github.berikkkk.muragis.core.geo.Bounds
 import io.github.berikkkk.muragis.core.packages.MapPackage
+import io.github.berikkkk.muragis.core.routing.RoadGraph
+import io.github.berikkkk.muragis.core.routing.RoadGraphBuilder
 import java.io.File
 import java.security.MessageDigest
 import java.util.Locale
@@ -11,15 +13,16 @@ import java.util.Locale
  *
  *  dem       --dem <қалта> --bounds w,s,e,n --contours <out.geojson> --hillshade <out.mbtiles> [--interval 10] [--index 50]
  *  s2        --scenes <тізім.txt> [--cache <қалта>] [--threads 32] --bounds w,s,e,n --out <out.mbtiles> [--minzoom 8] [--maxzoom 14] [--gain 1.0] [--quality 0.8]
+ *  roads     --pbf <osm.pbf> --bounds w,s,e,n --out <graph.bin>   (офлайн маршрутқа арналған жол графы)
  *  assemble  --in <тайлдар.mbtiles> --out <пакет.mbtiles> --id <пакет id> [--style <style.json>] [--glyphs <қалта>]
- *            [--sprite] [--hillshade <hillshade.mbtiles>] [--meta key=value]...
+ *            [--sprite] [--hillshade <hillshade.mbtiles>] [--roads <graph.bin>] [--meta key=value]...
  *  sha256    <файл>
  *
  * Толық реті — tools/packager/README.md және tools/packager/build-kobda.sh.
  */
 fun main(args: Array<String>) {
     Locale.setDefault(Locale.ROOT)
-    if (args.isEmpty()) { println("Commands: dem | s2 | assemble | sha256"); return }
+    if (args.isEmpty()) { println("Commands: dem | s2 | roads | assemble | sha256"); return }
     val opts = HashMap<String, MutableList<String>>()
     var i = 1
     while (i < args.size) {
@@ -71,8 +74,18 @@ fun main(args: Array<String>) {
                 o.meta(mapOf("name" to "sentinel-2", "format" to "jpg", "minzoom" to "$minZ", "maxzoom" to "$maxZ", "bounds" to b.encode()))
             }
         }
+        "roads" -> {
+            val b = bounds()
+            val builder = RoadGraphBuilder()
+            println("OSM roads…")
+            OsmPbf.readRoads(File(req("pbf")), b, builder)
+            val bytes = builder.build(b)
+            val g = RoadGraph.read(bytes)
+            File(req("out")).writeBytes(bytes)
+            println("  graph: ${g.nodeCount} nodes, ${g.edgeCount} edges, ${bytes.size} bytes")
+        }
         "assemble" -> assemble(File(req("in")), File(req("out")), req("id"), opt("style")?.let(::File), opt("glyphs")?.let(::File),
-            opt("sprite") == "true", opt("hillshade")?.let(::File),
+            opt("sprite") == "true", opt("hillshade")?.let(::File), opt("roads")?.let(::File),
             (opts["meta"] ?: emptyList()).associate { it.substringBefore('=') to it.substringAfter('=') })
         "sha256" -> println(sha256(File(args[1])))
         else -> error("Unknown command ${args[0]}")
@@ -89,7 +102,7 @@ fun sha256(f: File): String {
 /** Қаріптің қолданылатын диапазондары: латын, кирилл (қазақ әріптері 0400–04FF ішінде), тыныс белгілері. */
 private val GLYPH_RANGES = listOf("0-255", "256-511", "1024-1279", "1280-1535", "8192-8447")
 
-fun assemble(input: File, out: File, id: String, style: File?, glyphs: File?, sprite: Boolean, hillshade: File?, meta: Map<String, String>) {
+fun assemble(input: File, out: File, id: String, style: File?, glyphs: File?, sprite: Boolean, hillshade: File?, roads: File?, meta: Map<String, String>) {
     out.delete()
     input.copyTo(out)
     JdbcSqlDb(out.path).use { db ->
@@ -106,6 +119,7 @@ fun assemble(input: File, out: File, id: String, style: File?, glyphs: File?, sp
                 val sfx = if (ratio == 2) "@2x" else ""
                 res("sprite$sfx.json", json.toByteArray()); res("sprite$sfx.png", png)
             }
+            roads?.let { f -> RoadGraph.chunks(f.readBytes()).forEach { (name, data) -> res(name, data) } }
             if (hillshade != null) {
                 db.exec("INSERT OR REPLACE INTO ${MapPackage.EXTRA_TILES} SELECT 'hillshade', zoom_level, tile_column, tile_row, tile_data FROM hs.tiles")
             }
