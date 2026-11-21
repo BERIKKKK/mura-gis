@@ -76,3 +76,18 @@
   .pj-side { flex: 0 0 auto; }
   .pj-sheet svg { height: auto; width: 100%; }
 }
+
+/* 2-кезең: картадағы қорым нысандарының белгілері, экспликация баптаулары */
+.pj-glyph { background: rgba(255, 255, 255, .85); border-radius: 4px; box-shadow: 0 0 0 1px rgba(34, 29, 22, .35); }
+.pj-glyph.is-sel { box-shadow: 0 0 0 2px #e8178a; }
+.pj-glyph svg { display: block; }
+.pj-expl-set { margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: #fff; }
+.pj-expl-set > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+.pj-excols { width: 100%; font-size: 12.5px; border-collapse: collapse; margin: 6px 0; }
+.pj-excols th { font-size: 11px; text-align: left; color: var(--soft); font-weight: 600; }
+.pj-excols td { padding: 2px 3px; }
+.pj-excols input[type=text] { width: 64px; padding: 3px 6px; font-size: 12.5px; }
+.pj-excols .qa-ib { padding: 0 4px; font-size: 13px; }
+.pj-exgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 6px 0; font-size: 12px; }
+.pj-exgrid label { display: flex; flex-direction: column; gap: 2px; }
+.pj-exgrid input, .pj-exgrid select { padding: 3px 6px; font-size: 12.5px; width: 100%; }

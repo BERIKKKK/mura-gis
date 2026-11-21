@@ -151,7 +151,7 @@ const LAYERS = {
   // Геометриясы: контуры бар болса — POLYGON (шеңбер мен эллипс енгізілген өлшемдерден қайта құрылады), жоқ болса — тірек нүктесі (POINT).
   plan_objects: {
     title: 'Жоспар нысандары / Объекты плана', desc: 'Ескерткіштің құрамындағы нысандар: қорғандар т.б. / Объекты в составе памятника: курганы и др. (Mura GIS)', geom: 'GEOMETRY',
-    cols: ['mark_id', 'num', 'kind', 'shape', 'name', 'name_ru', 'height', 'diam', 'ax_a', 'ax_b', 'ax_az', 'note', 'note_ru', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    cols: ['mark_id', 'num', 'kind', 'shape', 'name', 'name_ru', 'height', 'diam', 'ax_a', 'ax_b', 'ax_az', 'note', 'note_ru', 'material', 'subtype', 'state', 'created_at', 'created_by', 'updated_at', 'updated_by'],
     get: (r, c) => r[c],
     set: (r, c, v) => { r[c] = PLAN_NUM.has(c) ? numOrNull(v) : v; },
     toGeom: r => {
