@@ -118,7 +118,10 @@ function draw() {
     data = items.filter(p => ids.has(p.id) || keepShown.has(p.id));
   }
   view.setData(data);
-  $('plTabN').textContent = data.length === items.length ? items.length : data.length + '/' + items.length;
+  const n = data.length === items.length ? items.length : data.length + '/' + items.length;
+  $('plTabN').textContent = n;
+  $('plCount').textContent = n;
+  $('plListBtn').classList.toggle('is-filtered', data.length !== items.length);
 }
 function paintVisibility() {
   const on = $('plShow').checked;

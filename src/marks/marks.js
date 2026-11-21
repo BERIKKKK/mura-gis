@@ -33,6 +33,7 @@ const store = {
 };
 
 let items = [];               // барлық белгілер (сақталғандары)
+let tab = 'marks';             // панельдің қойындысы: marks | places | imp
 let sorted = null;            // items құжат ретімен (sortMarks) — items өзгергенде ғана қайта сұрыпталады
 let imports = [];             // импортталған, әлі сәйкестендірілмеген нүктелер (KML, KMZ, GPX)
 const selected = new Set();   // тізімде таңдалған белгілер (топпен өшіру)
@@ -438,7 +439,7 @@ function openPanel() {
   globalThis.QAUI?.closePanel?.();          // қорғау аймағының панельдері жабылады
   globalThis.QAUI?.closePop?.();
   panelEl.hidden = false; open = true;
-  listBtn.setAttribute('aria-expanded', 'true');
+  paintTabBtns();
   applyRight();
   render();
   renderImports();
@@ -447,10 +448,17 @@ function openPanel() {
 function closePanel() {
   if (!open) return;
   panelEl.hidden = true; open = false;
-  listBtn.setAttribute('aria-expanded', 'false');
+  paintTabBtns();
   globalThis.QAUI?.measure?.();
 }
-listBtn.addEventListener('click', () => (open ? closePanel() : openPanel()));
+// «Ескерткіштер» / «Өзге нысандар»: сол қойынды ашық болса — панель жабылады, әйтпесе панель сол қойындымен ашылады
+listBtn.addEventListener('click', () => (open && tab === 'marks' ? closePanel() : setTab('marks')));
+$('plListBtn').addEventListener('click', () => (open && tab === 'places' ? closePanel() : setTab('places')));
+/** Құралдар жолағындағы батырмалардың күйі: қай қойынды ашық. */
+function paintTabBtns() {
+  listBtn.setAttribute('aria-expanded', open && tab !== 'places' ? 'true' : 'false');
+  $('plListBtn').setAttribute('aria-expanded', open && tab === 'places' ? 'true' : 'false');
+}
 panelEl.addEventListener('click', e => { if (e.target.closest('[data-mkclose]')) closePanel(); });
 app.addEventListener('qa:panel', e => { if (e.detail && e.detail.name) closePanel(); });
 new ResizeObserver(() => requestAnimationFrame(applyRight)).observe($('qaStage'));
@@ -731,7 +739,6 @@ async function importAsPlaces(file, pts) {
 }
 
 /* ---------- Қойындылар: Ескерткіштер | Өзге нысандар | Импортталғандар ---------- */
-let tab = 'marks';
 function setTab(t) {
   tab = t === 'imp' || t === 'places' ? t : 'marks';
   if (!open) openPanel();
@@ -741,6 +748,7 @@ function setTab(t) {
   $('mkTabMarksB').setAttribute('aria-selected', tab === 'marks' ? 'true' : 'false');
   $('mkTabPlacesB').setAttribute('aria-selected', tab === 'places' ? 'true' : 'false');
   $('mkTabImpB').setAttribute('aria-selected', tab === 'imp' ? 'true' : 'false');
+  paintTabBtns();
   for (const id of ['mkGeo', 'mkDocx', 'mkPdf']) $(id).hidden = tab !== 'marks';
   $('plGeo').hidden = tab !== 'places';
   if (tab === 'places') globalThis.__places?.render();
