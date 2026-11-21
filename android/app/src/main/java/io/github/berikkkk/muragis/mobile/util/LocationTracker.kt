@@ -40,7 +40,8 @@ class LocationTracker(ctx: Context) {
         for (p in listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER)) {
             runCatching {
                 if (lm.isProviderEnabled(p)) {
-                    lm.requestLocationUpdates(p, 2000L, 2f, listener, Looper.getMainLooper())
+                    // 1 с сайын: картадағы белгі нүктелер арасында тегіс жылжиды, жиірек нүкте — кешігу аз, бұрылыс дәлірек
+                    lm.requestLocationUpdates(p, 1000L, 1f, listener, Looper.getMainLooper())
                     lm.getLastKnownLocation(p)?.let { if (_location.value == null) _location.value = it }
                 }
             }
