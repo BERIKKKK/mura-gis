@@ -268,7 +268,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         m.queryRenderedFeatures(box, StyleBuilder.LYR_CLUSTER).firstOrNull()?.let { f ->
             val src = style?.getSourceAs<GeoJsonSource>(StyleBuilder.SRC_MON) ?: return@let
             val z = runCatching { src.getClusterExpansionZoom(f) }.getOrDefault((m.cameraPosition.zoom + 2).toInt())
-            animate(CameraUpdateFactory.newLatLngZoom(p, z.toDouble() + 0.5), 300)
+            animateCam(CameraUpdateFactory.newLatLngZoom(p, z.toDouble() + 0.5), 300)
             return
         }
         if (!events.isEditingRoute()) {
@@ -350,11 +350,11 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         val m = map ?: return
         val z = zoom ?: m.cameraPosition.zoom
         val u = CameraUpdateFactory.newCameraPosition(CameraPosition.Builder().target(LatLng(lat, lon)).zoom(z).build())
-        if (animate) animate(u, 600) else { m.moveCamera(u); camOffValid = false }
+        if (animate) animateCam(u, 600) else { m.moveCamera(u); camOffValid = false }
     }
 
     /** Бағдарлама анимациясы (жылжу, масштаб): ол біткенше кадр сайынғы еру камераны ұстамайды, анимацияны үзбейді. */
-    private fun animate(u: org.maplibre.android.camera.CameraUpdate, ms: Int) {
+    private fun animateCam(u: org.maplibre.android.camera.CameraUpdate, ms: Int) {
         val m = map ?: return
         apiAnims++
         camOffValid = false
@@ -368,7 +368,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         val m = map ?: return
         if (b.west == b.east && b.south == b.north) { moveTo(b.south, b.west, 15.0); return }
         val lb = LatLngBounds.Builder().include(LatLng(b.north, b.east)).include(LatLng(b.south, b.west)).build()
-        animate(CameraUpdateFactory.newLatLngBounds(lb, (paddingDp * density).toInt()), 600)
+        animateCam(CameraUpdateFactory.newLatLngBounds(lb, (paddingDp * density).toInt()), 600)
     }
 
     /**
@@ -381,12 +381,12 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         if (w <= 0f || h <= 0f) return
         val p = m.projection.toScreenLocation(LatLng(lat, lon))
         val c = m.projection.fromScreenLocation(PointF(w / 2f + (p.x - w / 2f), h / 2f + (p.y - h * fracY)))
-        animate(CameraUpdateFactory.newLatLng(c), 400)
+        animateCam(CameraUpdateFactory.newLatLng(c), 400)
     }
 
     fun zoomBy(delta: Double) {
         val m = map ?: return
-        animate(CameraUpdateFactory.zoomBy(delta), 250)
+        animateCam(CameraUpdateFactory.zoomBy(delta), 250)
     }
 
     /** Саусақ қимылы жүріп жатыр ма (сол кезде камераны еру анимациясымен бұзбаймыз). */
@@ -409,6 +409,8 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         set(v) {
             if (field == v) return
             field = v
+            navExit = !v
+            if (v) navBearing = null // алдыңғы навигацияның ескі бағытына бұрылмау үшін
             if (map?.uiSettings?.focalPoint != null) setFollowFocus(true)
             kick()
         }
@@ -440,6 +442,8 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
 
     private var followOn = false
     private var navBearing: Double? = null
+    /** Навигациядан шығу: солтүстікке және шегініссіз күйге қайту аяқталмады. */
+    private var navExit = false
 
     // Белгінің көрінетін күйі (cur*) және соңғы GPS нүктесі (to*)
     private var curLat: Double? = null
@@ -503,7 +507,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         val free = gestures == 0 && apiAnims == 0 && now >= holdUntil
         if (!free) {
             camOffValid = false
-            if (followOn || navigation || m.cameraPosition.bearing != 0.0) busy = true
+            if (followOn || navigation || navExit) busy = true
         } else {
             val c = m.cameraPosition
             val b = CameraPosition.Builder(c)
@@ -522,18 +526,23 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
                 if (t == null || t.latitude != nl || t.longitude != nn) { b.target(LatLng(nl, nn)); changed = true }
             }
             // Навигацияда — қозғалыс бағыты, әйтпесе — солтүстік жоғарыда (режим өшкенде тегіс қайтады)
-            val tb = if (navigation) navBearing else 0.0
-            if (tb != null) {
-                val d = angleDelta(c.bearing, tb)
-                if (abs(d) > 0.0) {
-                    b.bearing(if (abs(d) < 0.1) tb else { busy = true; norm(c.bearing + d * ease(dt, 0.3)) }); changed = true
+            // (Навигациядан тыс шегініс пен бұрышқа тиіспейміз — мыс. fit() қойған шегініс сақталады.)
+            if (navigation || navExit) {
+                var pending = false
+                val tb = if (navigation) navBearing else 0.0
+                if (tb != null) {
+                    val d = angleDelta(c.bearing, tb)
+                    if (abs(d) > 0.0) {
+                        b.bearing(if (abs(d) < 0.1) tb else { pending = true; norm(c.bearing + d * ease(dt, 0.3)) }); changed = true
+                    }
                 }
+                val pTop = c.padding?.getOrNull(1) ?: 0.0
+                val tp = navTop().toDouble()
+                if (abs(pTop - tp) >= 0.5) {
+                    b.padding(0.0, pTop + (tp - pTop) * ease(dt, 0.15), 0.0, 0.0); pending = true; changed = true
+                } else if (pTop != tp) { b.padding(0.0, tp, 0.0, 0.0); changed = true }
+                if (pending) busy = true else navExit = false
             }
-            val pTop = c.padding?.getOrNull(1) ?: 0.0
-            val tp = navTop().toDouble()
-            if (abs(pTop - tp) >= 0.5) {
-                b.padding(0.0, pTop + (tp - pTop) * ease(dt, 0.15), 0.0, 0.0); busy = true; changed = true
-            } else if (pTop != tp) { b.padding(0.0, tp, 0.0, 0.0); changed = true }
             if (changed) {
                 frameMove = true
                 try { m.moveCamera(CameraUpdateFactory.newCameraPosition(b.build())) } finally { frameMove = false }
