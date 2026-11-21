@@ -68,7 +68,7 @@ async function api(op, data) {
 
 /* ======================= Карта қабаты ======================= */
 const byId = new Map();
-const passThrough = () => mapEl.classList.contains('is-adding') || mapEl.classList.contains('is-ruler');
+const passThrough = () => mapEl.classList.contains('is-adding') || mapEl.classList.contains('is-ruler') || mapEl.classList.contains('is-pjmap');
 const pinIcon = p => L.divIcon({ className: 'pl-pin', iconSize: [22, 22], iconAnchor: [11, 11], tooltipAnchor: [0, -11], html: badge(p.kind) });
 function menuFor(id) {
   return ev => {

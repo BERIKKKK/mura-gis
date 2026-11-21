@@ -5,6 +5,8 @@
      routes   — маршруттар (LINESTRING);
      imports  — KML/KMZ/GPX-тен импортталған, әлі белгіге айналмаған нүктелер (POINT);
      places   — өзге нысандар: елді мекен, қыстау, жайлау, құдық т.б. (POINT; main/places.js);
+     plan_objects — «Жоспар»: ескерткіштің құрамындағы нысандар (POLYGON не POINT; main/plans.js);
+     plans    — «Жоспар» баптаулары және елді мекенге бағыттауыш (LINESTRING; main/plans.js);
      mura_project — жоба баптаулары (кілт → мән: атауы, облыс, аудан…), кеңістіктік емес кесте.
    Әр жазбаның толық мәліметі props (JSON) бағанында сақталады, ал негізгі атрибуттар мен геометрия — бөлек
    бағандарда: QGIS-те өзгертілсе, бағдарлама келесі оқығанда сол мәндерді алады.
@@ -84,6 +86,10 @@ function readWkb(b, o) {
 /* ======================= Қабаттар ======================= */
 const r8 = v => Math.round(v * 1e8) / 1e8;
 const str = v => (v == null ? '' : String(v));
+/** «Жоспар» қабаттарының сандық бағандары: бос мән — «өлшенбеген» (null), 0 — енгізілген нөл. */
+const PLAN_NUM = new Set(['height', 'diam', 'ax_a', 'ax_b', 'ax_az', 'scale_general', 'scale_detail', 'ptr_az', 'ptr_dist', 'ptr_az_man', 'ptr_dist_man']);
+const numOrNull = v => { const s = String(v ?? '').trim(); if (!s) return null; const n = Number(s); return Number.isFinite(n) ? n : null; };
+const { ring: planRing } = require('./plan-geom');
 
 /** Әр қабат: геометрия түрі, атрибут бағандары (жазбадағы өрістің аты), жазба ↔ жол. */
 const LAYERS = {
@@ -140,6 +146,38 @@ const LAYERS = {
     set: (r, c, v) => { r[c] = v; },
     toGeom: r => encodeGeom('Point', [+r.lon, +r.lat]),
     fromGeom: (r, g) => { if (g && g.type === 'Point') { r.lon = r8(g.coords[0]); r.lat = r8(g.coords[1]); } },
+  },
+  // «Жоспар»: ескерткіштің құрамындағы нысандар (қорған т.б.) — mark_id арқылы ескерткішке байланады (main/plans.js).
+  // Геометриясы: контуры бар болса — POLYGON (шеңбер мен эллипс енгізілген өлшемдерден қайта құрылады), жоқ болса — тірек нүктесі (POINT).
+  plan_objects: {
+    title: 'Жоспар нысандары / Объекты плана', desc: 'Ескерткіштің құрамындағы нысандар: қорғандар т.б. / Объекты в составе памятника: курганы и др. (Mura GIS)', geom: 'GEOMETRY',
+    cols: ['mark_id', 'num', 'kind', 'shape', 'name', 'name_ru', 'height', 'diam', 'ax_a', 'ax_b', 'ax_az', 'note', 'note_ru', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    get: (r, c) => r[c],
+    set: (r, c, v) => { r[c] = PLAN_NUM.has(c) ? numOrNull(v) : v; },
+    toGeom: r => {
+      const ring = planRing(r);
+      return ring ? encodeGeom('Polygon', [ring]) : encodeGeom('Point', [+r.lon, +r.lat]);
+    },
+    fromGeom: (r, g) => {
+      if (g && g.type === 'Point') { r.lon = r8(g.coords[0]); r.lat = r8(g.coords[1]); }
+      // Еркін контурды QGIS-те өзгертсе — төбелері геометриядан алынады; шеңбер мен эллипс өлшемдерінен құрылады
+      if (g && g.type === 'Polygon' && r.shape === 'free' && g.coords[0]) {
+        const ring = g.coords[0].slice();
+        const a = ring[0], z = ring[ring.length - 1];
+        if (ring.length > 1 && a[0] === z[0] && a[1] === z[1]) ring.pop();
+        if (ring.length >= 3) r.pts = ring.map(p => [r8(p[1]), r8(p[0])]);
+      }
+    },
+  },
+  // «Жоспар» баптаулары: бір ескерткішке бір жазба (тілі, масштабтары, елді мекенге бағыттауыш); геометриясы — бағыттауыш сызығы
+  plans: {
+    title: 'Жоспарлар / Планы', desc: 'Ескерткіш жоспарларының баптаулары және елді мекенге бағыттауыш / Параметры планов памятников и указатель на населённый пункт (Mura GIS)', geom: 'LINESTRING',
+    cols: ['mark_id', 'lang', 'scale_general', 'scale_detail', 'ptr_name', 'ptr_name_ru', 'ptr_from', 'ptr_az', 'ptr_dist', 'ptr_az_man', 'ptr_dist_man', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    get: (r, c) => r[c],
+    set: (r, c, v) => { r[c] = PLAN_NUM.has(c) ? numOrNull(v) : v; },
+    toGeom: r => (r.ptr && Number.isFinite(+r.ptr.lat) && Number.isFinite(+r.ptr_o_lat)
+      ? encodeGeom('LineString', [[+r.ptr_o_lon, +r.ptr_o_lat], [+r.ptr.lon, +r.ptr.lat]]) : null),
+    fromGeom: () => {},
   },
   imports: {
     title: 'Импортталған нүктелер / Импортированные точки', desc: 'KML, KMZ, GPX файлдарынан импортталған нүктелер / Точки из KML, KMZ, GPX (Mura GIS)', geom: 'POINT',

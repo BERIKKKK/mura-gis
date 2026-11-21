@@ -1,0 +1,78 @@
+/* Mura GIS: «Жоспар» қызметі (plan/*.js). Префикс — pj- («pl-» — өзге нысандардікі). */
+
+/* Құралдар жолағы: таңдалған ескерткіштің атауы батырмада */
+.pj-markbtn .qa-tl { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Карта режимдері: белгілер, маршруттар және нысандар басуды картаға өткізеді (тек редакциялау тұтқалары басылады) */
+.qa-map.is-pjmap, .qa-map.is-pjmap .leaflet-grab { cursor: crosshair; }
+.qa-map.is-pjmap .leaflet-marker-icon:not(.pj-handle), .qa-map.is-pjmap .rt-line, .qa-map.is-pjmap .pj-shape { pointer-events: none; }
+.leaflet-tooltip.pj-num { background: transparent; border: 0; box-shadow: none; padding: 0 2px; font: 700 12px/1 system-ui, sans-serif; color: #221d16;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
+.leaflet-tooltip.pj-num::before { display: none; }
+.leaflet-tooltip.pj-num.is-sel { color: #e8178a; }
+.pj-handle { width: 14px; height: 14px; border-radius: 3px; background: #fff; border: 2px solid #e8178a; box-sizing: border-box; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); cursor: grab; }
+.pj-handle.is-center { border-radius: 50%; background: #e8178a; border-color: #fff; }
+.pj-hud { position: absolute; z-index: 650; left: 50%; top: calc(var(--qa-top) + 4px); transform: translateX(-50%); max-width: min(600px, calc(100% - 120px)); pointer-events: none; }
+.pj-hud b { font-size: 14px; }
+.pj-hud small { display: block; font-weight: 400; color: #444; white-space: normal; }
+
+/* Панель */
+.pj-mark { padding: 10px 12px; border-radius: 12px; background: #fbf3e6; border: 1px solid var(--sand, #e3cfa8); margin-bottom: 10px; }
+.pj-mark .qa-empty { padding: 4px 0; }
+.pj-mtitle { display: flex; align-items: baseline; gap: 10px; }
+.pj-mtitle b { font-size: 15px; flex: 1 1 auto; min-width: 0; }
+.pj-card { align-items: flex-start; cursor: default; }
+.pj-cnum { flex: 0 0 auto; min-width: 28px; height: 28px; padding: 0 6px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center;
+  background: #9c4f1c; color: #fff; font: 700 13px/1 system-ui, sans-serif; box-sizing: border-box; }
+.pj-card.is-current { box-shadow: 0 0 0 2px #e8178a inset; }
+.pj-thumbsec { margin-top: 14px; }
+.pj-thumbsec h3 { font-size: 13px; margin: 0 0 6px; }
+.pj-thumb { border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; cursor: zoom-in; }
+.pj-thumb svg { display: block; width: 100%; height: auto; }
+.pj-thumb .qa-hint { padding: 10px 12px; margin: 0; cursor: default; }
+.pj-drawer .qa-df { flex-wrap: wrap; }
+
+/* Терезелер */
+.qa-dlg.pj-dlg { width: min(600px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 16px 18px 14px; }
+.pj-dlg h3 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 12px; font-size: 16px; }
+.pj-dlgsub { flex-basis: 100%; font-size: 12px; font-weight: 400; color: var(--soft); }
+.pj-fs { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px 6px; margin: 0 0 12px; }
+.pj-fs legend { padding: 0 6px; font-size: 12.5px; font-weight: 700; color: var(--steppe); }
+.pj-fs .qa-row2 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.pj-dlg input.is-bad, .pj-dlg select.is-bad { border-color: var(--terr); box-shadow: 0 0 0 2px rgba(180, 71, 31, .15); }
+.pj-ferr { margin: 3px 0 0; font-size: 12px; font-weight: 600; color: var(--terr); }
+.pj-ferr:empty { display: none; }
+.pj-btnrow { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 2px 0 6px; }
+.pj-btnrow .lnk, .pj-dlg .qa-hint .lnk { display: inline-flex; align-items: center; gap: 4px; font-size: 12.5px; }
+.pj-auto { margin: 4px 0 10px; padding: 8px 10px; border-radius: 8px; background: rgba(31, 95, 153, .08); font-size: 13px; }
+.pj-radios { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.pj-pickrow { display: flex; gap: 8px; margin-bottom: 10px; }
+.pj-pickrow input { flex: 1 1 auto; min-width: 0; }
+.pj-pickrow .btn { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.pj-mlist { max-height: 50vh; overflow: auto; display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.pj-mrow { display: block; width: 100%; text-align: left; border: 1px solid rgba(34, 29, 22, .12); border-radius: 10px; background: rgba(255, 255, 255, .75); padding: 7px 10px; cursor: pointer; font: inherit; color: var(--ink); }
+.pj-mrow:hover, .pj-mrow:focus-visible { border-color: var(--terr); }
+.pj-mrow.is-cur { background: #fbf3e6; border-color: var(--sand, #e3cfa8); }
+.pj-mrow b { display: block; font-size: 13.5px; }
+.pj-mrow small { display: block; font-size: 12px; color: var(--soft); }
+
+/* Алдын ала қарау */
+.pj-prev-back { position: fixed; inset: 0; z-index: 3400; display: flex; align-items: stretch; justify-content: center; padding: 16px; background: rgba(34, 29, 22, .45); }
+.pj-prev { display: flex; gap: 14px; width: 100%; max-width: 1280px; border-radius: 16px; padding: 12px; background: #f7f3ea; box-shadow: 0 10px 40px rgba(0, 0, 0, .35); }
+.pj-sheetwrap { position: relative; flex: 1 1 auto; min-width: 0; overflow: auto; display: flex; justify-content: center; align-items: flex-start; background: #d9d3c6; border-radius: 10px; padding: 12px; }
+.pj-sheet svg { display: block; height: calc(100vh - 80px); width: auto; max-width: 100%; box-shadow: 0 2px 14px rgba(0, 0, 0, .3); background: #fff; }
+.pj-sheet svg [data-drag]:hover { opacity: .7; }
+.pj-pencil { position: absolute; width: 28px; height: 28px; border-radius: 50%; border: 0; background: #e8178a; color: #fff; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .4); cursor: pointer; }
+.pj-pencil:hover { background: #c30f71; }
+.pj-side { flex: 0 0 300px; display: flex; flex-direction: column; gap: 4px; overflow: auto; }
+.pj-side h3 { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; font-size: 16px; }
+.pj-side select { width: 100%; }
+.pj-pvwarn p { margin: 6px 0 0; padding: 6px 8px; border-radius: 8px; background: #fff4e5; font-size: 12.5px; }
+.pj-pvwarn p.pj-bad { background: #fde8e4; color: var(--terr); font-weight: 600; }
+.pj-side-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 12px; }
+@media (max-width: 900px) {
+  .pj-prev { flex-direction: column; }
+  .pj-side { flex: 0 0 auto; }
+  .pj-sheet svg { height: auto; width: 100%; }
+}

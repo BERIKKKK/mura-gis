@@ -2,7 +2,7 @@
    Интерфейс src/ ішінен mura://app/ мекенжайымен беріледі (тұрақты origin: localStorage, fetch, CORS дұрыс жұмыс істейді).
    Барлық деректер — ашық жобада: бір GeoPackage (.gpkg) файлы (main/gpkg.js, main/projects.js). Жоба ашылмаса, бет
    бастапқы терезені көрсетеді (жаңа жоба / соңғы жобалар / файлдан ашу — src/js/project.js).
-   mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js); mura://app/routes — маршруттар (main/routes.js); mura://app/places — өзге нысандар (main/places.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
+   mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js); mura://app/routes — маршруттар (main/routes.js); mura://app/places — өзге нысандар (main/places.js); mura://app/plans — «Жоспар» нысандары мен баптаулары (main/plans.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
 const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, clipboard } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -11,6 +11,7 @@ const { Store } = require('./store');
 const { MarksStore } = require('./marks');
 const { RoutesStore } = require('./routes');
 const { PlacesStore } = require('./places');
+const { PlansStore } = require('./plans');
 const { Projects } = require('./projects');
 const { noTable } = require('./gpkg');
 const { find: findRegion } = require('./regions');
@@ -35,6 +36,7 @@ let store = null;
 let marks = null;
 let routes = null;
 let places = null;
+let plans = null;
 let projects = null;
 
 /** Ашық жобаның қабаттарына қоймаларды байлау (жоба жоқ болса — бос тізім, жазу қате береді). */
@@ -45,6 +47,7 @@ function bindStores() {
   marks = new MarksStore(t('marks'), t('imports'));
   routes = new RoutesStore(t('routes'));
   places = new PlacesStore(t('places'));
+  plans = new PlansStore(t('plan_objects'), t('plans'));
   if (p) { p.setAutosave(autosave()); p.onChange = sendDirty; }
   if (win) win.setTitle(p ? (projects.info().current.name + ' — Mura GIS') : 'Mura GIS');
   buildMenu();
@@ -105,7 +108,7 @@ ipcMain.handle('mura:clip-write', (e, text) => { if (fromApp(e) && typeof text =
 
 /* Ескерткіштер тізімін PDF-ке айналдыру: бет дайын HTML-ді жібереді, ол жасырын терезеде (JavaScript-сіз)
    ашылып, Chromium-ның өз баспа қозғалтқышымен A4 PDF болады. Файлды сақтау — беттің өзінде (жүктеу терезесі). */
-ipcMain.handle('mura:pdf', async (e, html) => {
+ipcMain.handle('mura:pdf', async (e, html, opts) => {
   if (!String(e.senderFrame && e.senderFrame.url || '').startsWith('mura://app/')) throw new Error(tx('Рұқсат жоқ', 'Нет доступа'));
   if (typeof html !== 'string' || html.length > 20e6) throw new Error(tx('Құжат тым үлкен', 'Документ слишком большой'));
   const tmp = path.join(app.getPath('temp'), 'mura-pdf-' + process.pid + '-' + Date.now() + '.html');
@@ -113,6 +116,13 @@ ipcMain.handle('mura:pdf', async (e, html) => {
   const w = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true, spellcheck: false } });
   try {
     await w.loadFile(tmp);
+    // «Жоспар» сызбалары: беттің өрісі мен колонтитулы жоқ, өлшемі — CSS @page (A4), масштабы 1:1 сақталады
+    if (opts && opts.exact) {
+      return await w.webContents.printToPDF({
+        pageSize: 'A4', printBackground: true, preferCSSPageSize: true, scale: 1,
+        margins: { top: 0, bottom: 0, left: 0, right: 0 }, displayHeaderFooter: false,
+      });
+    }
     return await w.webContents.printToPDF({
       pageSize: 'A4', printBackground: true, preferCSSPageSize: true,
       displayHeaderFooter: true, headerTemplate: '<span></span>',
@@ -458,6 +468,7 @@ app.whenReady().then(() => {
     if (u.pathname === '/marks') return marks.handle(req);
     if (u.pathname === '/routes') return routes.handle(req);
     if (u.pathname === '/places') return places.handle(req);
+    if (u.pathname === '/plans') return plans.handle(req);
     return serveFile(u.pathname);
   });
 
