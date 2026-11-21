@@ -44,6 +44,7 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
     val prefs by vm.prefs.collectAsState()
     val backups by vm.backups.collectAsState()
     var restore by remember { mutableStateOf<File?>(null) }
+    var bgGuide by remember { mutableStateOf(false) }
     val current = AppCompatDelegate.getApplicationLocales().toLanguageTags()
 
     Column(Modifier.padding(bottom = 16.dp)) {
@@ -75,6 +76,8 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
                 else { vm.updatePrefs { it.copy(showLocation = false) }; vm.location.setTracking(false) }
             }
             Text(stringResource(R.string.gps_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            OptionRow(stringResource(R.string.bg_title), stringResource(R.string.bg_settings_sub), Modifier.padding(top = 8.dp),
+                trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }) { bgGuide = true }
 
             SectionTitle(stringResource(R.string.backups))
             Text(stringResource(R.string.backups_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
@@ -94,6 +97,7 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
                 trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }) { vm.openMenu(MenuPage.ABOUT) }
         }
     }
+    if (bgGuide) ChromeTheme { BackgroundDialog(vm, act, onClose = { bgGuide = false }) }
     restore?.let { f ->
         ConfirmDialog(stringResource(R.string.confirm_restore, f.name), stringResource(R.string.restore), onConfirm = { vm.restoreBackup(f) }, onDismiss = { restore = null })
     }

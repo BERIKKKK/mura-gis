@@ -328,7 +328,7 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
             if (askGpsOff) ChromeTheme {
                 ConfirmDialog(stringResource(R.string.confirm_gps_off), stringResource(R.string.gps_off), onConfirm = { vm.stopGps() }, onDismiss = { askGpsOff = false })
             }
-            if (askBackground) ChromeTheme { BackgroundDialog(vm, act, onClose = { askBackground = false }) }
+            if (askBackground) ChromeTheme { BackgroundDialog(vm, act, onClose = { askBackground = false }, closeWhenGranted = true) }
 
             // Таңдалған ескерткіш / маршрут — төменгі парақ
             if (edit == null && pick == null && sheet == null && menu == null) {
@@ -428,33 +428,6 @@ private fun niceScale(metersPerDp: Double): Pair<Double, Float> {
     val p = Math.pow(10.0, Math.floor(Math.log10(max)))
     val m = listOf(5.0, 2.0, 1.0).map { it * p }.first { it <= max }
     return m to (m / metersPerDp).toFloat()
-}
-
-/**
- * Трек фонда (басқа қолданба ашық не экран өшкен кезде) үзілмеуі үшін: орынға «Әрқашан» рұқсат және батарея үнемдеуінен
- * босату. Әрқайсысы — жүйенің өз терезесі; берілгені белгіленеді. Жазу бұл терезеге қарамай жүріп тұрады.
- */
-@Composable
-private fun BackgroundDialog(vm: MainViewModel, act: MainActivity, onClose: () -> Unit) {
-    act.resumes.intValue // баптаулардан қайтқанда күйді қайта оқу
-    val bgOk = act.hasBackgroundLocation()
-    val batOk = act.ignoresBatteryOptimizations()
-    if (bgOk && batOk) { LaunchedEffect(Unit) { onClose() }; return }
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onClose,
-        title = { Text(stringResource(R.string.bg_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(stringResource(R.string.bg_text), fontSize = 14.sp)
-                BigButton(stringResource(if (bgOk) R.string.bg_location_ok else R.string.bg_location), Modifier.fillMaxWidth(),
-                    primary = !bgOk, enabled = !bgOk) { act.askBackgroundLocation() }
-                BigButton(stringResource(if (batOk) R.string.bg_battery_ok else R.string.bg_battery), Modifier.fillMaxWidth(),
-                    primary = !batOk, enabled = !batOk) { act.askIgnoreBatteryOptimizations() }
-            }
-        },
-        confirmButton = { androidx.compose.material3.TextButton(onClick = onClose) { Text(stringResource(R.string.close)) } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = { vm.bgAskOff = true; onClose() }) { Text(stringResource(R.string.bg_dont_ask)) } },
-    )
 }
 
 /**
