@@ -17,14 +17,21 @@ data class TileResponse(val data: ByteArray, val mime: String)
 fun interface TileProvider {
     /** layerId бойынша тайл; null — тайл жоқ (204). */
     fun tile(layerId: String, z: Int, x: Int, y: Int): TileResponse?
+
+    /** Карта пакетінің ресурсы (стиль, қаріп, белгіше): path — мыс. "glyphs/Noto Sans Regular/0-255.pbf". */
+    fun resource(layerId: String, path: String): TileResponse? = null
+
+    /** Пакеттегі қосымша растр жиынының тайлы (мыс. жер бедерінің көлеңкесі). */
+    fun extraTile(layerId: String, set: String, z: Int, x: Int, y: Int): TileResponse? = null
 }
 
 /**
  * Құрылғының ішіндегі (127.0.0.1) шағын HTTP-сервер: жергілікті карта файлдарындағы (MBTiles, ZIP, қалта, GeoPackage)
- * тайлдарды карта қозғалтқышына береді — GET /t/{layerId}/{z}/{x}/{y}.
+ * тайлдарды карта қозғалтқышына береді — GET /t/{layerId}/{z}/{x}/{y}; офлайн пакеттің ресурстары — GET /r/{layerId}/{path},
+ * қосымша растр жиыны — GET /s/{layerId}/{set}/{z}/{x}/{y}.
  * Тек loopback интерфейсте тыңдайды (желіден қолжетімсіз), интернет қажет емес. Тайлдар сұралғанда ғана оқылады.
  */
-class LocalTileServer(private val provider: TileProvider, threads: Int = 4) : Closeable {
+class LocalTileServer(private val provider: TileProvider, threads: Int = 16) : Closeable {
     private val socket = ServerSocket(0, 64, InetAddress.getByName("127.0.0.1"))
     private val pool: ExecutorService = Executors.newFixedThreadPool(threads) { r -> Thread(r, "mura-tiles").apply { isDaemon = true } }
     @Volatile private var running = true
@@ -40,6 +47,8 @@ class LocalTileServer(private val provider: TileProvider, threads: Int = 4) : Cl
         }
     }, "mura-tiles-accept").apply { isDaemon = true; start() }
 
+    private val RES = Regex("^/r/([A-Za-z0-9_.-]+)/([^?]+)(?:\\?.*)?$")
+    private val SET = Regex("^/s/([A-Za-z0-9_.-]+)/([A-Za-z0-9_-]+)/(\\d{1,2})/(\\d{1,8})/(\\d{1,8})(?:\\.[a-z]+)?(?:\\?.*)?$")
     private val PATH = Regex("^/t/([A-Za-z0-9_.-]+)/(\\d{1,2})/(\\d{1,8})/(\\d{1,8})(?:\\.[a-z]+)?(?:\\?.*)?$")
 
     private fun handle(s: Socket) {
@@ -48,7 +57,12 @@ class LocalTileServer(private val provider: TileProvider, threads: Int = 4) : Cl
                 sock.soTimeout = 15_000
                 val inp = BufferedInputStream(sock.getInputStream())
                 val out = sock.getOutputStream()
+                var first = true
                 while (running) {
+                    // Бос тұрған keep-alive қосылымы ағынды ұзақ ұстамасын: келесі сұранысты қысқа күтеміз
+                    // (векторлық стиль тайл, қаріп, белгішені бір мезетте сұрайды — басқа қосылымдар кезекте қалмауы керек)
+                    if (!first) sock.soTimeout = 2_000
+                    first = false
                     val line = readLine(inp) ?: return
                     if (line.isEmpty()) continue
                     var keepAlive = line.endsWith("HTTP/1.1")
@@ -60,14 +74,30 @@ class LocalTileServer(private val provider: TileProvider, threads: Int = 4) : Cl
                     }
                     val parts = line.split(' ')
                     val method = parts.getOrNull(0) ?: ""
-                    val m = PATH.matchEntire(parts.getOrNull(1) ?: "")
-                    if ((method != "GET" && method != "HEAD") || m == null) {
-                        respond(out, 404, "text/plain", "Not found".toByteArray(), keepAlive, method == "HEAD")
-                    } else {
+                    val path = parts.getOrNull(1) ?: ""
+                    val head = method == "HEAD"
+                    val m = PATH.matchEntire(path)
+                    val r = if (m == null) RES.matchEntire(path) else null
+                    val st = if (m == null && r == null) SET.matchEntire(path) else null
+                    if ((method != "GET" && !head) || (m == null && r == null && st == null)) {
+                        respond(out, 404, "text/plain", "Not found".toByteArray(), keepAlive, head)
+                    } else if (m != null) {
                         val (id, z, x, y) = m.destructured
                         val t = runCatching { provider.tile(id, z.toInt(), x.toInt(), y.toInt()) }.getOrNull()
-                        if (t == null) respond(out, 204, "text/plain", ByteArray(0), keepAlive, method == "HEAD")
-                        else respond(out, 200, t.mime, t.data, keepAlive, method == "HEAD")
+                        if (t == null) respond(out, 204, "text/plain", ByteArray(0), keepAlive, head)
+                        else respond(out, 200, t.mime, t.data, keepAlive, head)
+                    } else if (r != null) {
+                        val (id, p) = r.destructured
+                        val name = runCatching { java.net.URLDecoder.decode(p.replace("+", "%2B"), "UTF-8") }.getOrDefault(p)
+                        // Жолдан шығуға тыйым (..), тек пакет ішіндегі атаулар
+                        val t = if (name.contains("..")) null else runCatching { provider.resource(id, name) }.getOrNull()
+                        if (t == null) respond(out, 404, "text/plain", "Not found".toByteArray(), keepAlive, head)
+                        else respond(out, 200, t.mime, t.data, keepAlive, head)
+                    } else {
+                        val (id, set, z, x, y) = st!!.destructured
+                        val t = runCatching { provider.extraTile(id, set, z.toInt(), x.toInt(), y.toInt()) }.getOrNull()
+                        if (t == null) respond(out, 204, "text/plain", ByteArray(0), keepAlive, head)
+                        else respond(out, 200, t.mime, t.data, keepAlive, head)
                     }
                     if (!keepAlive) return
                 }

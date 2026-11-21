@@ -6,6 +6,8 @@ import android.util.LruCache
 import io.github.berikkkk.muragis.core.db.LayerFormat
 import io.github.berikkkk.muragis.core.db.LayerStore
 import io.github.berikkkk.muragis.core.db.MapLayer
+import io.github.berikkkk.muragis.core.db.SqlDb
+import io.github.berikkkk.muragis.core.packages.MapPackage
 import io.github.berikkkk.muragis.core.server.TileProvider
 import io.github.berikkkk.muragis.core.server.TileResponse
 import io.github.berikkkk.muragis.core.tiles.GpkgTileStore
@@ -30,11 +32,52 @@ class TileRegistry(private val layers: LayerStore) : TileProvider {
         }
     }
     private val meta = HashMap<String, MapLayer>()
+    /** Офлайн пакеттердің (MBTiles + mura_resources/mura_tiles) екінші оқу қосылымы: стиль, қаріп, белгіше, қосымша тайлдар. */
+    private val packages = object : LruCache<String, SqlDb>(4) {
+        override fun entryRemoved(evicted: Boolean, key: String, oldValue: SqlDb, newValue: SqlDb?) {
+            runCatching { oldValue.close() }
+        }
+    }
 
     @Synchronized
     fun invalidate(layerId: String) {
         open.remove(layerId)
+        packages.remove(layerId)
         meta.remove(layerId)
+    }
+
+    @Synchronized
+    private fun pkg(id: String): SqlDb? {
+        packages.get(id)?.let { return it }
+        val l = meta[id] ?: layers.layer(id)?.also { meta[id] = it } ?: return null
+        if (l.format != LayerFormat.MBTILES) return null
+        val f = File(l.path)
+        if (!f.isFile) return null
+        val db = runCatching { AndroidSqlDb.openReadOnly(f) }.getOrNull() ?: return null
+        packages.put(id, db)
+        return db
+    }
+
+    /** Пакеттің MapLibre стилі (mura:// сілтемелерімен) — векторлық пакет болмаса null. */
+    fun packageStyle(layerId: String): String? {
+        val db = pkg(layerId) ?: return null
+        return synchronized(db) { MapPackage.resource(db, MapPackage.STYLE) }?.toString(Charsets.UTF_8)
+    }
+
+    override fun resource(layerId: String, path: String): TileResponse? {
+        val db = pkg(layerId) ?: return null
+        val name = if (path == "sprite") "sprite.json" else path
+        val data = synchronized(db) { MapPackage.resource(db, name) } ?: return null
+        val mime = when (name.substringAfterLast('.').lowercase()) {
+            "json" -> "application/json"; "png" -> "image/png"; "pbf" -> "application/x-protobuf"; else -> "application/octet-stream"
+        }
+        return TileResponse(data, mime)
+    }
+
+    override fun extraTile(layerId: String, set: String, z: Int, x: Int, y: Int): TileResponse? {
+        val db = pkg(layerId) ?: return null
+        val data = synchronized(db) { if (db.tableExists(MapPackage.EXTRA_TILES)) MapPackage.extraTile(db, set, z, x, y) else null } ?: return null
+        return TileResponse(data, TileFormat.sniff(data).mime)
     }
 
     @Synchronized
@@ -59,6 +102,8 @@ class TileRegistry(private val layers: LayerStore) : TileProvider {
         if (Projection.of(l.projection) == Projection.ELLIPTICAL_MERCATOR) return reproject3395(s, z, x, y)
         val data = synchronized(s) { s.tile(z, x, y) } ?: return null
         val fmt = TileFormat.sniff(data).takeIf { it != TileFormat.UNKNOWN } ?: s.info.format
+        // Векторлық тайлдар (pbf) MBTiles-те gzip-пен сақталады — MapLibre-ге ашып береміз
+        if (fmt == TileFormat.PBF || s.info.format == TileFormat.PBF) return TileResponse(MapPackage.gunzipIfNeeded(data), TileFormat.PBF.mime)
         return TileResponse(data, fmt.mime)
     }
 
@@ -96,5 +141,5 @@ class TileRegistry(private val layers: LayerStore) : TileProvider {
     }
 
     @Synchronized
-    fun closeAll() = open.evictAll()
+    fun closeAll() { open.evictAll(); packages.evictAll() }
 }

@@ -1,0 +1,22 @@
+# Sentinel-2 L2A TCI сахналары (Element 84 Earth Search, коллекция sentinel-2-c1-l2a), басымдық ретімен.
+# Әр жол: <атау> <COG сілтемесі>. Таңдау: bbox 54.36,49.42,56.31,51.05; 2025-06-01…09-15; eo:cloud_cover < 2.
+S2C_T39UYQ_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/39/U/YQ/2025/7/S2C_T39UYQ_20250720T072119_L2A/TCI.tif
+S2C_T40UCV_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/CV/2025/7/S2C_T40UCV_20250720T072119_L2A/TCI.tif
+S2C_T40UDV_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/DV/2025/7/S2C_T40UDV_20250720T072119_L2A/TCI.tif
+S2C_T39UYR_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/39/U/YR/2025/7/S2C_T39UYR_20250720T072119_L2A/TCI.tif
+S2C_T40UCA_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/CA/2025/7/S2C_T40UCA_20250720T072119_L2A/TCI.tif
+S2C_T40UDA_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/DA/2025/7/S2C_T40UDA_20250720T072119_L2A/TCI.tif
+S2C_T39UYS_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/39/U/YS/2025/7/S2C_T39UYS_20250720T072119_L2A/TCI.tif
+S2C_T40UCB_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/CB/2025/7/S2C_T40UCB_20250720T072119_L2A/TCI.tif
+S2C_T40UDB_20250720T072119_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/DB/2025/7/S2C_T40UDB_20250720T072119_L2A/TCI.tif
+S2C_T39UYR_20250713T072826_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/39/U/YR/2025/7/S2C_T39UYR_20250713T072826_L2A/TCI.tif
+S2C_T40UCA_20250713T072826_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/CA/2025/7/S2C_T40UCA_20250713T072826_L2A/TCI.tif
+S2C_T39UYS_20250713T072826_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/39/U/YS/2025/7/S2C_T39UYS_20250713T072826_L2A/TCI.tif
+S2C_T40UCB_20250713T072826_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/CB/2025/7/S2C_T40UCB_20250713T072826_L2A/TCI.tif
+S2C_T39UYQ_20250710T072118_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/39/U/YQ/2025/7/S2C_T39UYQ_20250710T072118_L2A/TCI.tif
+S2C_T39UYR_20250710T072118_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/39/U/YR/2025/7/S2C_T39UYR_20250710T072118_L2A/TCI.tif
+S2C_T40UCA_20250710T072118_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/CA/2025/7/S2C_T40UCA_20250710T072118_L2A/TCI.tif
+S2C_T40UDA_20250710T072118_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/DA/2025/7/S2C_T40UDA_20250710T072118_L2A/TCI.tif
+S2C_T39UYS_20250710T072118_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/39/U/YS/2025/7/S2C_T39UYS_20250710T072118_L2A/TCI.tif
+S2C_T40UCB_20250710T072118_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/CB/2025/7/S2C_T40UCB_20250710T072118_L2A/TCI.tif
+S2C_T40UDB_20250710T072118_L2A https://e84-earth-search-sentinel-data.s3.us-west-2.amazonaws.com/sentinel-2-c1-l2a/40/U/DB/2025/7/S2C_T40UDB_20250710T072118_L2A/TCI.tif
