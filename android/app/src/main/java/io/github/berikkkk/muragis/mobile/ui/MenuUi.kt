@@ -237,7 +237,7 @@ private fun MonumentsPage(vm: MainViewModel, controller: MapController) {
             items(list, key = { it.id }) { m -> MonumentRow(m, prefs.dataLang) { pickMonument(vm, m) } }
         }
     }
-    if (showFilter) FilterDialog(vm, filter) { showFilter = false }
+    if (showFilter) FilterDialog(vm, filter, all, prefs.dataLang) { showFilter = false }
     dataDialog?.let { DataDialogs(vm, it, ImportTarget.MONUMENTS, filter.active) { dataDialog = null } }
 }
 

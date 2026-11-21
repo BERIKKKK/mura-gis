@@ -365,6 +365,19 @@ async function run(win) {
     eq([...document.querySelectorAll('#rtTo option')].some(o => o.value === 'pl:' + pA.id), true, 'А/Б тізімінде өзге нысан');
     MuraRoutes.closePanel(); M.setTab('marks');
 
+    // Картада тек сүзгідегілер: аудан + түрі → құралдар жолағында «1/N», белгі картадан алынады; сүзгіні тазарту → бәрі
+    const fset = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change')); };
+    const total = M.items.length;
+    fset('mkFDistrict', 'Алға ауданы'); fset('mkFType', 'arch'); await wait(100);
+    eq(document.getElementById('mkCount').textContent, '1/' + total, 'картада тек сүзгідегілер');
+    eq(document.getElementById('mkFReset').hidden, false, '«Сүзгіні тазарту» көрінеді');
+    document.getElementById('mkMapF').click(); await wait(100);
+    eq(document.getElementById('mkCount').textContent, String(total), 'ауыстырғыш өшірулі — картада бәрі');
+    document.getElementById('mkMapF').click(); await wait(100);
+    eq(document.getElementById('mkCount').textContent, '1/' + total, 'ауыстырғыш қайта қосулы');
+    document.getElementById('mkFReset').click(); await wait(100);
+    eq(document.getElementById('mkCount').textContent + ' ' + document.getElementById('mkFReset').hidden, total + ' true', 'сүзгі тазартылды');
+
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;
     const p = await M.buildPdf(); out.pdf = p.size + ' ' + (await p.slice(0, 5).text());

@@ -141,11 +141,20 @@ data class MonumentFilter(
     val types: Set<MonumentType> = emptySet(),
     val categories: Set<Category> = emptySet(),
     val statuses: Set<Status> = emptySet(),
+    /** Облыс / аудан — [placeKey] мәндері; "" — көрсетілмеген. */
+    val oblasts: Set<String> = emptySet(),
+    val districts: Set<String> = emptySet(),
 ) {
-    val active get() = query.isNotBlank() || types.isNotEmpty() || categories.isNotEmpty() || statuses.isNotEmpty()
+    val active get() = query.isNotBlank() || types.isNotEmpty() || categories.isNotEmpty() || statuses.isNotEmpty() || oblasts.isNotEmpty() || districts.isNotEmpty()
     fun matches(m: Monument): Boolean =
         (query.isBlank() || m.name.matches(query) || m.period.matches(query) || m.place.matches(query) || m.district.matches(query) || m.oblast.matches(query) || m.note.matches(query)) &&
-            (types.isEmpty() || m.type in types) && (categories.isEmpty() || m.category in categories) && (statuses.isEmpty() || m.status in statuses)
+            (types.isEmpty() || m.type in types) && (categories.isEmpty() || m.category in categories) && (statuses.isEmpty() || m.status in statuses) &&
+            (oblasts.isEmpty() || placeKey(m.oblast) in oblasts) && (districts.isEmpty() || placeKey(m.district) in districts)
+
+    companion object {
+        /** Облыс/аудан атауының тілге тәуелсіз кілті (жұмыс үстеліндегідей — қазақша мәні негізгі). */
+        fun placeKey(l: Localized): String = l.kk.trim().ifBlank { l.ru.trim() }
+    }
 }
 
 /** Өңделіп жатқан маршрут (жоба): тарих — «болдырмау» үшін. */

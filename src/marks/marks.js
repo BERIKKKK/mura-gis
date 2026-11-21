@@ -60,6 +60,8 @@ async function api(op, data) {
 }
 async function saveMark(m) {
   const j = await api('save', { data: JSON.stringify(m) });
+  // Сақталған белгі сүзгіге сай келмесе де картадан жоғалмайды
+  if (j.id && !keepShown.has(j.id)) { keepShown.add(j.id); drawMarkers(); }
   return items.find(x => x.id === j.id);
 }
 
@@ -127,10 +129,24 @@ function makeDot(m0, renderer) {
 }
 const marksView = culledLayer(map, { limit: 500, sig: markSig, pin: makePin, dot: makeDot });
 const layer = marksView.layer;
+/** Сүзгі өрістері (панельдегі тізім мен — «Картада тек сүзгідегілер» қосулы болса — картаға ортақ). */
+const FILTER_IDS = ['mkQ', 'mkFCat', 'mkFOblast', 'mkFDistrict', 'mkFType', 'mkFStatus'];
+const filterActive = () => FILTER_IDS.some(id => $(id).value.trim());
+/** Сүзгіге сай келмесе де картада көрсетілетіндер: жаңа не өңделген белгі, «Картадан көрсету» басылғаны.
+    Сүзгі өзгергенде тазартылады. */
+const keepShown = new Set();
 function drawMarkers() {
   byId.clear();
   for (const m of items) byId.set(m.id, m);
-  marksView.setData(items);
+  let data = items;
+  if ($('mkMapF').checked && filterActive()) {
+    const ids = new Set(filtered().map(m => m.id));
+    data = items.filter(m => ids.has(m.id) || keepShown.has(m.id));
+  }
+  marksView.setData(data);
+  // Құралдар жолағындағы сан: картада сүзгі қолданылса — «көрінетіні / барлығы»
+  $('mkCount').textContent = data.length === items.length ? items.length : data.length + '/' + items.length;
+  $('mkListBtn').classList.toggle('is-filtered', data.length !== items.length);
 }
 function paintLayerVisibility() {
   const on = $('mkShow').checked;
@@ -395,6 +411,7 @@ async function removeMark(m) {
 }
 function flyTo(m) {
   if (!$('mkShow').checked) { $('mkShow').checked = true; paintLayerVisibility(); }
+  if (!keepShown.has(m.id) && !marksView.has(m.id)) { keepShown.add(m.id); drawMarkers(); }
   map.once('moveend', () => { marksView.syncNow(); marksView.pin(m.id)?.openTooltip(); });
   map.flyTo([m.lat, m.lon], Math.max(map.getZoom(), 15), { duration: 0.6 });
 }
@@ -452,7 +469,12 @@ fillSel('mkFStatus', STATUSES);
 fillSel('mkFCat', CATEGORIES.slice().sort((a, b) => a.order - b.order).map(c => ({ v: c.v || '—', label: c.label })));
 /** Іздеу өрісі: әр әріпте емес, теру тоқтағанда (мыңдаған белгіде тізім әр басуда қайта салынбайды). */
 const debounce = (fn, ms) => { let t = 0; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
-for (const id of ['mkQ', 'mkFCat', 'mkFOblast', 'mkFDistrict', 'mkFType', 'mkFStatus']) $(id).addEventListener(id === 'mkQ' ? 'input' : 'change', id === 'mkQ' ? debounce(() => render(), 180) : () => render());
+/** Сүзгі өзгерді: тізім мен (қосулы болса) картадағы белгілер жаңарады. */
+const onFilter = () => { keepShown.clear(); render(true); };
+for (const id of FILTER_IDS) $(id).addEventListener(id === 'mkQ' ? 'input' : 'change', id === 'mkQ' ? debounce(onFilter, 180) : onFilter);
+$('mkMapF').checked = store.get('mk-map-filter') !== '0';
+$('mkMapF').addEventListener('change', () => { store.set('mk-map-filter', $('mkMapF').checked ? '1' : '0'); onFilter(); });
+$('mkFReset').addEventListener('click', () => { for (const id of FILTER_IDS) $(id).value = ''; onFilter(); });
 $('mkShow').addEventListener('change', paintLayerVisibility);
 $('mkLabels').addEventListener('change', () => { store.set('mk-labels', $('mkLabels').checked ? '1' : '0'); marksView.rebuild(); });
 $('mkLabels').checked = store.get('mk-labels') === '1';
@@ -491,9 +513,7 @@ document.addEventListener('mura:doclang', () => { titleAuto = true; paintTitle(f
 const paintMarkList = progressiveList($('mkList'));
 /** changed — items өзгерді (картадағы белгілер жаңарады); сүзгі өзгергенде тек панель тізімі қайта салынады. */
 function render(changed) {
-  $('mkCount').textContent = items.length;
   $('mkTabN').textContent = items.length;
-  if (changed) drawMarkers();
   // Облыс сүзгісі (бірден көп облыс болса ғана көрінеді) және аудан сүзгісі — бар белгілердің мәндері
   const os = $('mkFOblast'), oc = os.value;
   const obs = [...new Set(items.map(m => m.oblast).filter(Boolean))].sort(compareText);
@@ -507,6 +527,9 @@ function render(changed) {
   sel.innerHTML = '<option value="">Барлық аудан</option>' + ds.map(d => '<option value="' + esc(d) + '"' + (d === cur ? ' selected' : '') + '>' + esc(REG ? REG.show(d, os.value) : d) + '</option>').join('') +
     (hasNone ? '<option value="—"' + (cur === '—' ? ' selected' : '') + '>Ауданы көрсетілмеген</option>' : '');
   if (![...sel.options].some(o => o.value === cur)) sel.value = '';
+  // Белгілер облыс/аудан тізімі жаңарғаннан кейін салынады (жоғалған аудан мәні сүзгіден алынып тасталған)
+  if (changed) drawMarkers();
+  $('mkFReset').hidden = !filterActive();
   if (!open) return;
   const list = filtered();
   for (const id of [...selected]) if (!items.some(m => m.id === id)) selected.delete(id);
