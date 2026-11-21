@@ -176,8 +176,10 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     }
     // Өзге нысандар және таңдалғаны (карточка ашылғанда нысан оның үстінде көрінеді)
     val places by vm.places.collectAsState()
+    val placeFilter by vm.placeFilter.collectAsState()
+    val filteredPlaces by vm.filteredPlaces.collectAsState()
     val selectedPlace by vm.selectedPlace.collectAsState()
-    LaunchedEffect(mapReady, places) { if (mapReady) controller.setPlaces(places) }
+    LaunchedEffect(mapReady, places, placeFilter, filteredPlaces) { if (mapReady) controller.setPlaces(if (placeFilter.active) filteredPlaces else places) }
     LaunchedEffect(mapReady, selectedPlace, places) { if (mapReady) controller.setSelectedPlace(vm.place(selectedPlace)) }
     LaunchedEffect(mapReady, selectedPlace) {
         val p = vm.place(selectedPlace) ?: return@LaunchedEffect
@@ -316,8 +318,12 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
                         top = prefs.barTop, online = online, offlineTitle = base?.takeIf { it.isOffline }?.title, attribution = base?.attribution.orEmpty(),
                         loc = if (prefs.showLocation && act.hasLocation()) loc else null, gpsOn = prefs.showLocation && act.hasLocation(),
                         follow = follow, track = track, planActive = plan != null,
-                        filtered = if (filter.active) monuments.size to allMonuments.size else null,
-                        onFilter = { vm.openMenu(MenuPage.MONUMENTS) }, onFilterClear = { vm.setFilter(MonumentFilter()) },
+                        filters = buildList {
+                            if (filter.active) add(MapFilterInfo(stringResource(R.string.map_filter_chip, monuments.size, allMonuments.size),
+                                { vm.openMenu(MenuPage.MONUMENTS) }, { vm.setFilter(MonumentFilter()) }))
+                            if (placeFilter.active) add(MapFilterInfo(stringResource(R.string.map_filter_chip_places, filteredPlaces.size, places.size),
+                                { vm.openMenu(MenuPage.PLACES) }, { vm.setPlaceFilter(PlaceFilter()) }))
+                        },
                         onMenu = { vm.openMenu() },
                         onLocate = {
                             when {
@@ -521,12 +527,12 @@ private fun ChromeIconButton(icon: androidx.compose.ui.graphics.vector.ImageVect
 private fun BoxScope.Dock(
     top: Boolean, online: Boolean, offlineTitle: String?, attribution: String,
     loc: android.location.Location?, gpsOn: Boolean, follow: Boolean, track: TrackRec?, planActive: Boolean,
-    filtered: Pair<Int, Int>?, onFilter: () -> Unit, onFilterClear: () -> Unit,
+    filters: List<MapFilterInfo>,
     onMenu: () -> Unit, onLocate: () -> Unit, onRec: () -> Unit, onRoute: () -> Unit, onLayers: () -> Unit, onStrip: () -> Unit,
 ) {
     val parts = buildList<@Composable () -> Unit> {
         if (!online) add { OfflineChip(offlineTitle) }
-        if (filtered != null) add { FilterChipBar(filtered.first, filtered.second, onFilter, onFilterClear) }
+        filters.forEach { f -> add { FilterChipBar(f) } }
         if (track != null) add { RecRow(track, onRec) }
         add { CoordStrip(loc, gpsOn, onStrip) }
         add { ToolBar(follow, track, planActive, onMenu, onLocate, onRec, onRoute, onLayers) }
@@ -544,16 +550,18 @@ private fun BoxScope.Dock(
     ) { Text(attribution, fontSize = 9.sp, color = Color.DarkGray, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)) }
 }
 
-/** Картада ескерткіштер сүзгісі қолданылып тұр: «Картада: N / M» — түрткенде тізім мен сүзгі, ✕ — сүзгіні тазалау. */
+/** Картада сүзгі қолданылып тұр (ескерткіштер не өзге нысандар): мәтіні, түрткенде — тізім, ✕ — сүзгіні тазалау. */
+private class MapFilterInfo(val text: String, val onOpen: () -> Unit, val onClear: () -> Unit)
+
 @Composable
-private fun FilterChipBar(shown: Int, total: Int, onOpen: () -> Unit, onClear: () -> Unit) {
+private fun FilterChipBar(f: MapFilterInfo) {
     Row(
-        Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xF023241F)).clickable(onClick = onOpen).padding(start = 12.dp, end = 2.dp),
+        Modifier.clip(RoundedCornerShape(12.dp)).background(Color(0xF023241F)).clickable(onClick = f.onOpen).padding(start = 12.dp, end = 2.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Icon(Icons.Filled.FilterList, null, tint = Chrome.accent, modifier = Modifier.size(16.dp))
-        Text(stringResource(R.string.map_filter_chip, shown, total), color = Chrome.fg, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+        Text(f.text, color = Chrome.fg, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        IconButton(onClick = f.onClear, modifier = Modifier.size(36.dp)) {
             Icon(Icons.Filled.Close, stringResource(R.string.reset), tint = Chrome.dim, modifier = Modifier.size(18.dp))
         }
     }

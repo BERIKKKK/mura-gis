@@ -105,7 +105,9 @@
       '<div class="qa-sfilter"><label class="qa-search">' + ic(IC.search, 16) + '<input type="search" id="plQ" placeholder="Іздеу: атауы, түрі…" aria-label="Өзге нысандардан іздеу" autocomplete="off"></label>' +
         '<select id="plFKind" aria-label="Түрі бойынша сүзу"><option value="">Барлық түрі</option></select></div>' +
       '<div class="qa-selbar"><label class="qa-check"><input type="checkbox" id="plShow" checked> Картада көрсету</label>' +
-        '<label class="qa-check"><input type="checkbox" id="plLabels"> Атаулары</label><span id="plInfo"></span>' +
+        '<label class="qa-check"><input type="checkbox" id="plLabels"> Атаулары</label>' +
+        '<label class="qa-check" title="Сүзгі қойылса, картада тек соған сай нысандар көрінеді"><input type="checkbox" id="plMapF" checked> Картада тек сүзгідегілер</label>' +
+        '<button type="button" class="lnk" id="plFReset" hidden>Сүзгіні тазарту</button><span id="plInfo"></span>' +
         '<button type="button" class="btn btn--sm" id="plAdd" title="Картадан орнын басып, жаңа өзге нысан қосу">+ Нысан қосу</button></div>' +
       '<div class="qa-slist" id="plList"></div>' +
     '</div>' +

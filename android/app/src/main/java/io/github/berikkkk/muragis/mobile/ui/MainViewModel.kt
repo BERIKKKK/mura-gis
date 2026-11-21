@@ -157,6 +157,13 @@ data class MonumentFilter(
     }
 }
 
+/** Өзге нысандар сүзгісі: іздеу және түрі (тізім мен картаға ортақ). */
+data class PlaceFilter(val query: String = "", val kind: PlaceKind? = null) {
+    val active get() = query.isNotBlank() || kind != null
+    fun matches(p: Place): Boolean = (kind == null || p.kind == kind) &&
+        (query.isBlank() || p.name.matches(query) || p.kind.label(Lang.KK).contains(query, true) || p.kind.label(Lang.RU).contains(query, true))
+}
+
 /** Өңделіп жатқан маршрут (жоба): тарих — «болдырмау» үшін. */
 data class RouteEdit(val base: Route, val points: List<RoutePoint>, val selected: Int = -1, val history: List<List<RoutePoint>> = emptyList()) {
     val lengthMeters: Double get() = io.github.berikkkk.muragis.core.geo.Geo.length(points.map { io.github.berikkkk.muragis.core.geo.LatLon(it.lat, it.lon) })
@@ -198,6 +205,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _selectedRoute = MutableStateFlow<String?>(null); val selectedRoute: StateFlow<String?> = _selectedRoute
     private val _edit = MutableStateFlow<RouteEdit?>(null); val edit: StateFlow<RouteEdit?> = _edit
     private val _places = MutableStateFlow<List<Place>>(emptyList()); val places: StateFlow<List<Place>> = _places
+    private val _placeFilter = MutableStateFlow(PlaceFilter()); val placeFilter: StateFlow<PlaceFilter> = _placeFilter
     private val _selectedPlace = MutableStateFlow<String?>(null); val selectedPlace: StateFlow<String?> = _selectedPlace
     /** Өзге нысанды өңдеу терезесі: жаңа (id жоқ) не бар жазба. */
     private val _placeEditor = MutableStateFlow<Place?>(null); val placeEditor: StateFlow<Place?> = _placeEditor
@@ -216,6 +224,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val filteredMonuments: StateFlow<List<Monument>> = combine(_monuments, _filter, prefs) { list, f, p ->
         Sorting.sortMonuments(list.filter { f.matches(it) }, p.dataLang)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val filteredPlaces: StateFlow<List<Place>> = combine(_places, _placeFilter, prefs) { list, f, p ->
+        Sorting.sortPlaces(list.filter { f.matches(it) }, p.dataLang)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Жүктелген пакеттердің ішінде офлайн жол графы бар ма («Маршрут құру» әдепкі режимі). */
@@ -320,6 +332,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ======================= Ескерткіштер ======================= */
     fun setFilter(f: MonumentFilter) { _filter.value = f }
+    fun setPlaceFilter(f: PlaceFilter) { _placeFilter.value = f }
     fun select(id: String?) { _selected.value = id; if (id != null) _selectedPlace.value = null }
     fun monument(id: String?): Monument? = id?.let { i -> _monuments.value.firstOrNull { it.id == i } }
 

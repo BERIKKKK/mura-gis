@@ -331,6 +331,11 @@ async function run(win) {
     eq(pA && pA.kind + ' ' + /^[0-9a-f]{16}$/.test(pA.id) + ' ' + pA.lat.toFixed(4), 'well true ' + pc.lat.toFixed(4), 'өзге нысан сақталды');
     eq(M.items.length, nMarks, 'ескерткіштерге түспеді');
     M.setTab('places'); await wait(300);
+    // Өзге нысандар сүзгісі картаға: түрі «Қыстау» → «0/1», тазарту → «1»
+    const pk = document.getElementById('plFKind'); pk.value = 'qystau'; pk.dispatchEvent(new Event('change')); await wait(100);
+    eq(document.getElementById('plTabN').textContent + ' ' + document.getElementById('plFReset').hidden, '0/1 false', 'өзге нысандар картада сүзілді');
+    document.getElementById('plFReset').click(); await wait(100);
+    eq(document.getElementById('plTabN').textContent, '1', 'өзге нысандар сүзгісі тазартылды');
     out.placesTab = document.querySelectorAll('#plList .pl-card').length + ' карточка / таб ' + document.getElementById('plTabN').textContent + ' / белгі ' + document.querySelectorAll('.pl-pin').length;
     const pg = P.geojson(P.items, 'x');
     eq(pg.features[0].properties.kind_kk + ' ' + pg.features[0].properties.mura_layer, 'Құдық places', 'GeoJSON өрістері');

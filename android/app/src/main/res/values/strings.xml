@@ -38,6 +38,7 @@
     <string name="f_category">Санаты</string>
     <string name="f_district_none">Ауданы көрсетілмеген</string>
     <string name="map_filter_chip">Картада: %1$d / %2$d ескерткіш</string>
+    <string name="map_filter_chip_places">Картада: %1$d / %2$d нысан</string>
     <string name="f_status">Мәртебесі</string>
     <string name="new_monument">Жаңа ескерткіш</string>
     <string name="edit_monument">Ескерткішті өңдеу</string>
