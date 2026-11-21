@@ -100,11 +100,11 @@ sealed interface UpdateState {
     data class Available(val release: AppUpdate.Release) : UpdateState
 }
 
-/** Жаңарту APK-сын қолданбаның ішінде жүктеу күйі (браузерсіз): жүктелуде → дайын (орнату терезесі ашылады) не қате. */
+/** Жаңарту APK-сын жүктеу күйі (жүйенің DownloadManager-і, браузерсіз): жүктелуде → дайын (хабарландыруды түрту) не қате. */
 sealed interface ApkState {
     data object Idle : ApkState
     data class Downloading(val done: Long, val total: Long) : ApkState
-    data class Ready(val file: File) : ApkState
+    data class Ready(val version: String) : ApkState
     data object Failed : ApkState
 }
 
@@ -323,57 +323,63 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private var apkJob: kotlinx.coroutines.Job? = null
 
     /**
-     * Жаңа нұсқаның APK-сын фонда жүктеу (cache/update/, алдымен .part): өлшемі мен SHA-256 хэші GitHub-тағымен
-     * салыстырылады — бүлінген не толық жүктелмеген файл орнатуға берілмейді. Дайын болғанда орнату терезесі ашылады.
-     * Жүктеу ViewModel-де жүреді: «Бағдарлама туралы» бетінен шығып кетсе де тоқтамайды.
+     * Жаңа нұсқаның APK-сын жүйенің DownloadManager-і арқылы фонда жүктеу. Қолданба орнату рұқсатын
+     * (REQUEST_INSTALL_PACKAGES) сұрамайды және орнату терезесін өзі ашпайды — орнатуды жүйенің «Жүктеу аяқталды»
+     * хабарландыруы бастайды (браузерден жүктегендей). Play Protect «APK жүктеп өзі орнатады» үлгісін зиянды деп
+     * белгілейтіндіктен осылай (alpha.6-да ескерту шықты). Жүктеп болған соң өлшемі мен SHA-256 хэші GitHub-тағымен
+     * салыстырылады: бүлінген файл жүктеулерден бірден өшіріледі (хабарландыруымен бірге).
      */
     fun downloadUpdate(r: AppUpdate.Release) {
         val url = r.apkUrl ?: return
+        val app = getApplication<Application>()
+        val dm = app.getSystemService(android.app.DownloadManager::class.java) ?: return
         if (_apk.value is ApkState.Downloading) return
-        (_apk.value as? ApkState.Ready)?.let { if (it.file.name == apkName(r) && it.file.exists()) { installApk(it.file); return } }
+        if ((_apk.value as? ApkState.Ready)?.version == r.version) { openDownloads(); return }
+        val name = "MuraGIS-Android-" + r.version + ".apk"
+        val req = android.app.DownloadManager.Request(Uri.parse(url))
+            .setTitle("Mura GIS " + r.version)
+            .setMimeType("application/vnd.android.package-archive")
+            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+        // Android 10+ — ортақ «Жүктеулер» қалтасы (рұқсатсыз); 8–9 — қолданбаның өз қалтасы (сақтау рұқсатын сұрамау үшін)
+        if (android.os.Build.VERSION.SDK_INT >= 29) req.setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, name)
+        else req.setDestinationInExternalFilesDir(app, android.os.Environment.DIRECTORY_DOWNLOADS, name)
+        val id = runCatching { dm.enqueue(req) }.getOrElse { _apk.value = ApkState.Failed; return }
         _apk.value = ApkState.Downloading(0, r.apkSize)
         apkJob = viewModelScope.launch(Dispatchers.IO) {
-            val app = getApplication<Application>()
-            val dir = File(app.cacheDir, "update").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
-            val out = File(dir, apkName(r)); val part = File(dir, out.name + ".part")
-            val ok = try {
-                val c = URL(url).openConnection() as HttpURLConnection
-                try {
-                    c.connectTimeout = 15_000; c.readTimeout = 30_000
-                    c.setRequestProperty("User-Agent", "MuraGIS-Android/${BuildConfig.VERSION_NAME}")
-                    if (c.responseCode != 200) false else {
-                        val total = c.contentLengthLong.takeIf { it > 0 } ?: r.apkSize
-                        val md = java.security.MessageDigest.getInstance("SHA-256")
-                        var done = 0L; var shown = 0L
-                        c.inputStream.use { inp -> part.outputStream().use { o ->
-                            val buf = ByteArray(64 * 1024)
-                            while (true) {
-                                val n = inp.read(buf); if (n < 0) break
-                                o.write(buf, 0, n); md.update(buf, 0, n); done += n
-                                if (done - shown >= 256 * 1024) { shown = done; _apk.value = ApkState.Downloading(done, total) }
-                            }
-                        } }
-                        val hex = md.digest().joinToString("") { "%02x".format(it) }
-                        (r.apkSize <= 0 || done == r.apkSize) && (r.apkSha256 == null || hex == r.apkSha256) && part.renameTo(out)
+            val q = android.app.DownloadManager.Query().setFilterById(id)
+            while (true) {
+                val st = dm.query(q)?.use { c ->
+                    if (!c.moveToFirst()) null
+                    else Triple(c.getInt(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_STATUS)),
+                        c.getLong(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)),
+                        c.getLong(c.getColumnIndexOrThrow(android.app.DownloadManager.COLUMN_TOTAL_SIZE_BYTES)))
+                }
+                when (st?.first) {
+                    android.app.DownloadManager.STATUS_SUCCESSFUL -> break
+                    android.app.DownloadManager.STATUS_FAILED, null -> { _apk.value = ApkState.Failed; return@launch }
+                    else -> _apk.value = ApkState.Downloading(st.second, st.third.takeIf { it > 0 } ?: r.apkSize)
+                }
+                kotlinx.coroutines.delay(700)
+            }
+            val ok = runCatching {
+                dm.openDownloadedFile(id).use { pfd ->
+                    val md = java.security.MessageDigest.getInstance("SHA-256"); var n = 0L
+                    java.io.FileInputStream(pfd.fileDescriptor).use { inp ->
+                        val buf = ByteArray(64 * 1024)
+                        while (true) { val k = inp.read(buf); if (k < 0) break; md.update(buf, 0, k); n += k }
                     }
-                } finally { c.disconnect() }
-            } catch (e: Exception) { false }
-            if (!ok) { part.delete(); out.delete(); _apk.value = ApkState.Failed; return@launch }
-            _apk.value = ApkState.Ready(out)
-            withContext(Dispatchers.Main) { installApk(out) }
+                    (r.apkSize <= 0 || n == r.apkSize) && (r.apkSha256 == null || md.digest().joinToString("") { "%02x".format(it) } == r.apkSha256)
+                }
+            }.getOrDefault(false)
+            if (!ok) { dm.remove(id); _apk.value = ApkState.Failed; return@launch }
+            _apk.value = ApkState.Ready(r.version)
         }
     }
 
-    private fun apkName(r: AppUpdate.Release) = "MuraGIS-Android-" + r.version + ".apk"
-
-    /** Жүйенің орнату терезесі (FileProvider арқылы). «Белгісіз көздерден орнатуға» рұқсат жоқ болса, жүйе өзі сұрайды. */
-    fun installApk(f: File) {
+    /** Жүйенің «Жүктеулер» тізімі: хабарландыру жабылып қалса, APK-ны сол жерден түртіп орнатуға болады. */
+    fun openDownloads() {
         val app = getApplication<Application>()
-        runCatching {
-            val uri = androidx.core.content.FileProvider.getUriForFile(app, app.packageName + ".files", f)
-            app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-        }.onFailure { _apk.value = ApkState.Failed }
+        runCatching { app.startActivity(android.content.Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
     /* ======================= Навигация: мәзір және парақтар ======================= */

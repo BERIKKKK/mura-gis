@@ -275,7 +275,7 @@
     <string name="update_download">APK жүктеу · %1$s</string>
     <string name="update_notes">Не өзгерді (GitHub)</string>
     <string name="update_downloading">Жүктелуде… %1$d%%</string>
-    <string name="update_install">Орнату · %1$s</string>
+    <string name="update_ready">Жүктелді — орнату үшін «Жүктеу аяқталды» хабарландыруын түртіңіз</string>
     <string name="update_failed">Жүктеу сәтсіз аяқталды (файл толық емес не бүлінген) — қайталау</string>
     <string name="about_version">Mura GIS Android %1$s (жинақ %2$d)</string>
     <string name="about_text">Тарихи-мәдени мұра объектілеріне арналған мобильді ГАЖ: ескерткіштер және маршруттар. Жұмыс үстеліндегі Mura GIS-тен бөлек нұсқаланады; деректері (GeoJSON, .gpkg жобасы, GPX) үйлесімді.</string>
