@@ -240,8 +240,9 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
             vm.location.setTracking(true)
             vm.setFollow(true)
             val l = vm.location.location.value
-            if (l != null) controller.moveTo(l.latitude, l.longitude, maxOf(controller.zoom(), 15.0))
-            else { vm.toast(R.string.msg_gps_wait); vm.location.requestFix { f -> f?.let { controller.moveTo(it.latitude, it.longitude, maxOf(controller.zoom(), 15.0)) } } }
+            // Масштаб — кемінде көше деңгейі ([LOCATE_ZOOM]); одан да жақын болса — өзгермейді
+            if (l != null) controller.moveTo(l.latitude, l.longitude, maxOf(controller.zoom(), LOCATE_ZOOM))
+            else { vm.toast(R.string.msg_gps_wait); vm.location.requestFix { f -> f?.let { controller.moveTo(it.latitude, it.longitude, maxOf(controller.zoom(), LOCATE_ZOOM)) } } }
         }
     }
 
@@ -441,6 +442,9 @@ private fun niceScale(metersPerDp: Double): Pair<Double, Float> {
  * Баяу жүргенде GPS бағыты секіріп тұрады, сондықтан ол кезде компас сенімдірек. Ауысу шегі екеу (≥ 1,2 м/с — GPS-ке,
  * < 0,7 м/с — компасқа): жылдамдық ~1 м/с маңында ауытқығанда карта екі бағыттың арасында бұрылып-бұрылып тұрмайды.
  */
+/** «Дәлдеу» басылғанда карта кемінде осы масштабқа жақындайды (~1 м/px: көшелер, үйлер, соқпақтар көрінеді). */
+private const val LOCATE_ZOOM = 17.0
+
 private class DirectionPicker {
     private var moving = false
     fun pick(l: android.location.Location, compass: Float?): Float? {
