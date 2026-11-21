@@ -104,12 +104,12 @@ fun AboutPage(vm: MainViewModel) {
         ) { vm.checkUpdate() }
         if (u is UpdateState.Available) {
             Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // APK браузерсіз, фонда жүктеледі; дайын болғанда орнату терезесі өзі ашылады (MainViewModel.downloadUpdate)
+                // APK браузерсіз, жүйенің DownloadManager-і арқылы фонда жүктеледі; орнату — «Жүктеу аяқталды» хабарландыруынан (MainViewModel.downloadUpdate)
                 if (u.release.apkUrl != null) {
                     val a = apk
                     val label = when (a) {
                         is ApkState.Downloading -> stringResource(R.string.update_downloading, if (a.total > 0) (a.done * 100 / a.total).toInt() else 0)
-                        is ApkState.Ready -> stringResource(R.string.update_install, u.release.version)
+                        is ApkState.Ready -> stringResource(R.string.update_ready)
                         ApkState.Failed -> stringResource(R.string.update_failed)
                         ApkState.Idle -> stringResource(R.string.update_download, fmtBytes(u.release.apkSize))
                     }
