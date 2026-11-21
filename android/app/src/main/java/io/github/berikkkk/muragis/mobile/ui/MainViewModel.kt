@@ -56,6 +56,7 @@ import io.github.berikkkk.muragis.mobile.data.TrackRec
 import io.github.berikkkk.muragis.mobile.map.RasterSpec
 import io.github.berikkkk.muragis.mobile.map.StyleBuilder
 import io.github.berikkkk.muragis.mobile.util.Connectivity
+import io.github.berikkkk.muragis.mobile.util.HeadingSensor
 import io.github.berikkkk.muragis.mobile.util.LocationTracker
 import io.github.berikkkk.muragis.mobile.work.DownloadWorker
 import io.github.berikkkk.muragis.mobile.work.ImportMapWorker
@@ -157,6 +158,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val g = (app as MuraApp).graph
     val connectivity = Connectivity(app)
     val location = LocationTracker(app)
+    val heading = HeadingSensor(app)
     val prefs: StateFlow<Prefs> = g.settings.prefs
     val online: StateFlow<Boolean> = connectivity.online
 
@@ -166,6 +168,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _pin = MutableStateFlow<InputPin?>(null); val pin: StateFlow<InputPin?> = _pin
     /** «Дәлдеу»: камера GPS нүктесіне ереді; картаны саусақпен жылжытқанда өшеді. */
     private val _follow = MutableStateFlow(false); val follow: StateFlow<Boolean> = _follow
+    /** Еру соңғы рет саусақпен өшірілген сәт (elapsedRealtime) — трек жазу кезінде біраз уақыттан кейін ерудің қайта қосылуы үшін. */
+    private val _followOffAt = MutableStateFlow(0L); val followOffAt: StateFlow<Long> = _followOffAt
+    /** Компас: «бағыт бойынша» режимі — карта телефонның бағытымен бұрылады (әйтпесе солтүстік жоғарыда). */
+    private val _headingUp = MutableStateFlow(false); val headingUp: StateFlow<Boolean> = _headingUp
     val track: StateFlow<TrackRec?> = g.recorder.state
     private val _monuments = MutableStateFlow<List<Monument>>(emptyList()); val monuments: StateFlow<List<Monument>> = _monuments
     private val _routes = MutableStateFlow<List<Route>>(emptyList()); val routes: StateFlow<List<Route>> = _routes
@@ -271,7 +277,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun openMenu(p: MenuPage = MenuPage.ROOT) { _menu.value = p; _sheet.value = null }
     fun closeMenu() { _menu.value = null }
     fun openSheet(s: Sheet?) { _sheet.value = s }
-    fun setFollow(on: Boolean) { _follow.value = on }
+    fun setFollow(on: Boolean) {
+        if (!on && _follow.value) _followOffAt.value = android.os.SystemClock.elapsedRealtime()
+        _follow.value = on
+    }
+
+    /** Компас батырмасы: солтүстік жоғарыда ↔ бағыт бойынша (карта телефонмен бірге бұрылады, орынға ереді). */
+    fun toggleHeadingUp(): Boolean {
+        if (_headingUp.value) { _headingUp.value = false; heading.setActive(false); msg(R.string.msg_north_up); return false }
+        if (!heading.available) { msg(R.string.err_no_compass); return false }
+        _headingUp.value = true
+        heading.setActive(true)
+        msg(R.string.msg_heading_up)
+        return true
+    }
 
     /* ======================= Ескерткіштер ======================= */
     fun setFilter(f: MonumentFilter) { _filter.value = f }
@@ -921,6 +940,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         location.setTracking(false)
+        heading.setActive(false)
         super.onCleared()
     }
 }

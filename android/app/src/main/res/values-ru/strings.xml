@@ -196,6 +196,11 @@
     <string name="msg_saved">Сохранено</string>
     <string name="msg_deleted_n">Удалено: %1$d</string>
     <string name="msg_gps_wait">Определение координат GPS…</string>
+    <string name="compass_heading">Компас: вращать карту по направлению</string>
+    <string name="compass_north">Компас: север вверху</string>
+    <string name="msg_heading_up">Карта поворачивается по вашему направлению</string>
+    <string name="msg_north_up">Север вверху</string>
+    <string name="err_no_compass">На этом устройстве нет датчика компаса.</string>
     <string name="msg_added_to_route">Добавлено в маршрут: %1$s</string>
     <string name="msg_draft_restored">Восстановлен незавершённый маршрут</string>
     <string name="msg_layer_deleted">Слой удалён</string>

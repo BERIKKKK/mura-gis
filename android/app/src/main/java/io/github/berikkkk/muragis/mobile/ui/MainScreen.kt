@@ -1,7 +1,9 @@
 package io.github.berikkkk.muragis.mobile.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +47,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +55,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
@@ -74,6 +82,8 @@ import io.github.berikkkk.muragis.mobile.data.TrackRec
 import io.github.berikkkk.muragis.mobile.map.MapController
 import io.github.berikkkk.muragis.mobile.map.MapEvents
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.combine
+import kotlin.math.abs
 import org.maplibre.android.maps.MapView
 
 /**
@@ -95,6 +105,10 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     val pin by vm.pin.collectAsState()
     val track by vm.track.collectAsState()
     val follow by vm.follow.collectAsState()
+    val headingUp by vm.headingUp.collectAsState()
+    val followOffAt by vm.followOffAt.collectAsState()
+    /** Картаның қазіргі бұрылу бұрышы (компас тілі осыған қарай бұрылады). */
+    val bearingState = remember { mutableFloatStateOf(0f) }
     val snack = remember { SnackbarHostState() }
 
     // Картаның оқиғалары → ViewModel
@@ -118,6 +132,7 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
             override fun onCameraIdle(lat: Double, lon: Double, zoom: Double) = vm.rememberCamera(lat, lon, zoom)
             override fun isEditingRoute() = vm.edit.value != null
             override fun onUserGesture() = vm.setFollow(false)
+            override fun onBearing(bearing: Double) { if (abs(bearing.toFloat() - bearingState.floatValue) > 0.5f || bearing == 0.0) bearingState.floatValue = bearing.toFloat() }
             override fun onPinTap() = vm.openSheet(Sheet.Pin)
         })
     }
@@ -159,7 +174,22 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     LaunchedEffect(mapReady, loc, prefs.showLocation) {
         if (mapReady) controller.setLocation(if (prefs.showLocation) loc?.latitude else null, loc?.longitude, loc?.accuracy ?: 0f)
     }
-    LaunchedEffect(mapReady, loc, follow) { val l = loc; if (mapReady && follow && l != null) controller.follow(l.latitude, l.longitude) }
+    // GPS-ке еру және «бағыт бойынша» бұру: орын не компас өзгерген сайын камера жаңарады
+    LaunchedEffect(mapReady, follow) { if (mapReady) controller.setFollowFocus(follow) }
+    // (Ағындар тікелей жиналады — компастың жиі өзгерісі бүкіл экранды қайта құрмауы үшін)
+    LaunchedEffect(mapReady) {
+        if (!mapReady) return@LaunchedEffect
+        combine(vm.location.location, vm.follow, vm.headingUp, vm.heading.heading) { l, f, hu, h -> l?.takeIf { f } to h?.takeIf { hu } }
+            .collect { (l, h) -> if (l != null || h != null) controller.follow(l?.latitude, l?.longitude, h?.toDouble()) }
+    }
+    LaunchedEffect(loc) { loc?.let { vm.heading.updateDeclination(it.latitude, it.longitude, it.altitude) } }
+    LaunchedEffect(headingUp) { if (!headingUp && mapReady) controller.resetNorth() }
+    // Трек жазылып жатқанда: картаны саусақпен жылжытқаннан кейін 15 с ішінде қимыл болмаса, карта қайтадан орынға ереді
+    LaunchedEffect(follow, track?.running, followOffAt) {
+        if (follow || track?.running != true) return@LaunchedEffect
+        delay(15_000)
+        vm.setFollow(true)
+    }
     LaunchedEffect(mapReady, plan) {
         if (!mapReady) return@LaunchedEffect
         val p = plan
@@ -224,7 +254,19 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
                 edit != null -> RoutesPane(vm, controller)
                 pick != null -> PickBar(vm, pick!!, controller, act)
                 !layersOpen -> {
-                    SideButtons(prefs.zoomLeft, onZoom = { controller.zoomBy(it); scaleAt = android.os.SystemClock.elapsedRealtime() }, onMark = { vm.setPick(Pick.MONUMENT) })
+                    SideButtons(
+                        prefs.zoomLeft, bearing = { bearingState.floatValue }, headingUp = headingUp,
+                        onZoom = { controller.zoomBy(it); scaleAt = android.os.SystemClock.elapsedRealtime() },
+                        onCompass = {
+                            if (vm.toggleHeadingUp()) act.withLocation {
+                                // Бағыт бойынша режимде карта орынға да ереді (навигатордағыдай)
+                                vm.updatePrefs { it.copy(showLocation = true) }
+                                vm.location.setTracking(true)
+                                vm.setFollow(true)
+                            }
+                        },
+                        onMark = { vm.setPick(Pick.MONUMENT) },
+                    )
                     ScaleBar(controller, onLeft = !prefs.zoomLeft, shownAt = scaleAt)
                     Dock(
                         top = prefs.barTop, online = online, offlineTitle = base?.takeIf { it.isOffline }?.title, attribution = base?.attribution.orEmpty(),
@@ -298,7 +340,7 @@ fun Crosshair() {
 
 /** Zoom (+/−) және оның астында «Белгі қою»: картаның оң не сол жағында (баптаудан). */
 @Composable
-private fun BoxScope.SideButtons(left: Boolean, onZoom: (Double) -> Unit, onMark: () -> Unit) {
+private fun BoxScope.SideButtons(left: Boolean, bearing: () -> Float, headingUp: Boolean, onZoom: (Double) -> Unit, onCompass: () -> Unit, onMark: () -> Unit) {
     Column(
         Modifier.align(if (left) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -308,6 +350,7 @@ private fun BoxScope.SideButtons(left: Boolean, onZoom: (Double) -> Unit, onMark
             Box(Modifier.width(52.dp).height(1.dp).background(Color(0x17FFFFFF)))
             ChromeIconButton(Icons.Filled.Remove, stringResource(R.string.zoom_out)) { onZoom(-1.0) }
         }
+        CompassButton(bearing, headingUp, onCompass)
         Box(
             Modifier.size(width = 52.dp, height = 56.dp).shadow(6.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Chrome.accent)
                 .clickable(role = Role.Button, onClickLabel = stringResource(R.string.place_mark), onClick = onMark),
@@ -352,6 +395,32 @@ private fun niceScale(metersPerDp: Double): Pair<Double, Float> {
     val p = Math.pow(10.0, Math.floor(Math.log10(max)))
     val m = listOf(5.0, 2.0, 1.0).map { it * p }.first { it <= max }
     return m to (m / metersPerDp).toFloat()
+}
+
+/**
+ * Компас (zoom батырмаларының астында): тілі әрдайым солтүстікті көрсетеді (карта бұрылса — бірге бұрылады).
+ * Басқанда: солтүстік жоғарыда ↔ «бағыт бойынша» (карта телефонның бағытымен бұрылады; қосулыда жиегі ерекшеленеді).
+ */
+@Composable
+private fun CompassButton(bearing: () -> Float, headingUp: Boolean, onClick: () -> Unit) {
+    val label = stringResource(if (headingUp) R.string.compass_north else R.string.compass_heading)
+    Box(
+        Modifier.size(width = 52.dp, height = 56.dp).shadow(6.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Chrome.bg)
+            .then(if (headingUp) Modifier.border(2.dp, Chrome.accent, RoundedCornerShape(16.dp)) else Modifier)
+            .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(34.dp).graphicsLayer { rotationZ = -bearing() }) {
+            val cx = size.width / 2f; val cy = size.height / 2f
+            val hw = size.width * 0.16f; val hl = size.height * 0.40f
+            val north = Path().apply { moveTo(cx, cy - hl); lineTo(cx + hw, cy); lineTo(cx - hw, cy); close() }
+            val south = Path().apply { moveTo(cx, cy + hl); lineTo(cx + hw, cy); lineTo(cx - hw, cy); close() }
+            drawPath(north, Chrome.rec)
+            drawPath(south, Chrome.fg)
+            drawCircle(Chrome.bg, radius = hw * 0.45f, center = Offset(cx, cy))
+        }
+    }
 }
 
 @Composable

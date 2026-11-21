@@ -16,6 +16,8 @@ import org.json.JSONObject
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.gestures.MoveGestureDetector
+import org.maplibre.android.gestures.StandardScaleGestureDetector
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -37,8 +39,10 @@ interface MapEvents {
     fun onCameraIdle(lat: Double, lon: Double, zoom: Double)
     /** Өңдеу режимі қосулы ма (нүкте қосу/жылжыту). */
     fun isEditingRoute(): Boolean
-    /** Пайдаланушы картаны саусақпен жылжытты (GPS-ке еру режимін өшіру үшін). */
+    /** Пайдаланушы картаны бір саусақпен жылжытты (GPS-ке еру режимін өшіру үшін). Масштабтау еруді өшірмейді. */
     fun onUserGesture() {}
+    /** Картаның бұрылу бұрышы өзгерді (компас батырмасы үшін), градус. */
+    fun onBearing(bearing: Double) {}
     fun onPinTap() {}
 }
 
@@ -63,10 +67,23 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             m.uiSettings.isTiltGesturesEnabled = false
             m.uiSettings.isLogoEnabled = false
             m.uiSettings.isAttributionEnabled = true
+            m.uiSettings.isCompassEnabled = false // өз компас батырмамыз бар (zoom астында)
             m.setMaxZoomPreference(20.0)
             m.addOnMapClickListener { p -> handleTap(p); true }
             m.addOnMapLongClickListener { p -> events.onMapLongPress(p.latitude, p.longitude); true }
-            m.addOnCameraMoveStartedListener { reason -> if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) events.onUserGesture() }
+            // Еру режимін тек бір саусақпен жылжыту өшіреді: екі саусақпен масштабтау / екі рет басу еруді бұзбайды
+            // (бұрын кез келген қимыл, соның ішінде zoom, еруді өшіретін — карта орынмен бірге қозғалмай қалатын).
+            m.addOnMoveListener(object : MapLibreMap.OnMoveListener {
+                override fun onMoveBegin(d: MoveGestureDetector) { gestures++; if (d.pointersCount <= 1) events.onUserGesture() }
+                override fun onMove(d: MoveGestureDetector) {}
+                override fun onMoveEnd(d: MoveGestureDetector) { gestures = maxOf(0, gestures - 1) }
+            })
+            m.addOnScaleListener(object : MapLibreMap.OnScaleListener {
+                override fun onScaleBegin(d: StandardScaleGestureDetector) { gestures++ }
+                override fun onScale(d: StandardScaleGestureDetector) {}
+                override fun onScaleEnd(d: StandardScaleGestureDetector) { gestures = maxOf(0, gestures - 1) }
+            })
+            m.addOnCameraMoveListener { events.onBearing(m.cameraPosition.bearing) }
             m.addOnCameraIdleListener {
                 val c = m.cameraPosition
                 c.target?.let { t -> events.onCameraIdle(t.latitude, t.longitude, c.zoom) }
@@ -315,10 +332,37 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         m.animateCamera(CameraUpdateFactory.zoomBy(delta), 250)
     }
 
-    /** Камераны жылжыту, масштабты өзгертпей (GPS-ке еру режимі). */
-    fun follow(lat: Double, lon: Double) {
+    /** Саусақ қимылы жүріп жатыр ма (сол кезде камераны еру анимациясымен бұзбаймыз). */
+    private var gestures = 0
+
+    /**
+     * GPS-ке еру режимі: масштабтау экран ортасына (яғни орынға) қатысты болады — орын ортадан кетпейді.
+     * Режим өшкенде — әдеттегідей саусақтар арасындағы нүктеге қатысты.
+     */
+    fun setFollowFocus(on: Boolean) {
         val m = map ?: return
-        m.animateCamera(CameraUpdateFactory.newLatLng(LatLng(lat, lon)), 400)
+        m.uiSettings.focalPoint = if (on && view.width > 0) PointF(view.width / 2f, view.height / 2f) else null
+    }
+
+    /**
+     * Камераны орынға жылжыту (масштабты өзгертпей) және, [bearing] берілсе, картаны бұру («бағыт бойынша» режимі).
+     * [lat]/[lon] null болса — тек бұру (еру өшірулі, бірақ карта бағытпен бұрылады).
+     */
+    fun follow(lat: Double?, lon: Double?, bearing: Double? = null) {
+        val m = map ?: return
+        if (gestures > 0) return
+        if (lat != null && lon != null) setFollowFocus(true)
+        val c = m.cameraPosition
+        val b = CameraPosition.Builder(c)
+        if (lat != null && lon != null) b.target(LatLng(lat, lon))
+        if (bearing != null) b.bearing(bearing)
+        m.easeCamera(CameraUpdateFactory.newCameraPosition(b.build()), if (bearing != null) 250 else 500)
+    }
+
+    /** Картаны солтүстікке бұру (компасты басқанда). */
+    fun resetNorth() {
+        val m = map ?: return
+        if (m.cameraPosition.bearing != 0.0) m.animateCamera(CameraUpdateFactory.bearingTo(0.0), 300)
     }
 
     fun center(): Pair<Double, Double>? = map?.cameraPosition?.target?.let { it.latitude to it.longitude }
