@@ -104,10 +104,24 @@ function makeDot(p0, renderer) {
 }
 const view = culledLayer(map, { limit: 500, sig: p => p.lat + ',' + p.lon + '|' + p.kind + '|' + titleOf(p), pin: makePin, dot: makeDot });
 const layer = view.layer;
+/** Сүзгі (тізім мен — «Картада тек сүзгідегілер» қосулы болса — картаға ортақ). */
+const FILTER_IDS = ['plQ', 'plFKind'];
+const filterActive = () => FILTER_IDS.some(id => $(id).value.trim());
+/** Сүзгіге сай келмесе де картада көрсетілетіндер: жаңа не өңделген нысан, «Картадан көрсету» басылғаны. */
+const keepShown = new Set();
 function draw() {
   byId.clear();
   for (const p of items) byId.set(p.id, p);
-  view.setData(items);
+  let data = items;
+  if ($('plMapF').checked && filterActive()) {
+    const ids = new Set(filtered().map(p => p.id));
+    data = items.filter(p => ids.has(p.id) || keepShown.has(p.id));
+  }
+  view.setData(data);
+  const n = data.length === items.length ? items.length : data.length + '/' + items.length;
+  $('plTabN').textContent = n;
+  $('plCount').textContent = n;
+  $('plListBtn').classList.toggle('is-filtered', data.length !== items.length);
 }
 function paintVisibility() {
   const on = $('plShow').checked;
@@ -233,6 +247,7 @@ function openDialog(p, o = {}) {
     btn.disabled = true;
     try {
       const j = await api('save', { data: JSON.stringify(rec) });
+      if (j.id && !keepShown.has(j.id)) { keepShown.add(j.id); draw(); }   // сүзгіден тыс болса да картадан жоғалмайды
       store.set(lastKey, rec.kind);
       closeDialog();
       toast((isNew ? tx('Нысан сақталды: «', 'Объект сохранён: «') : tx('Нысан жаңартылды: «', 'Объект обновлён: «')) + titleOf(rec) + '».');
@@ -260,6 +275,7 @@ async function removePlace(p) {
 }
 function flyTo(p) {
   if (!$('plShow').checked) { $('plShow').checked = true; paintVisibility(); }
+  if (!keepShown.has(p.id) && !view.has(p.id)) { keepShown.add(p.id); draw(); }
   map.once('moveend', () => { view.syncNow(); view.pin(p.id)?.openTooltip(); });
   map.flyTo([p.lat, p.lon], Math.max(map.getZoom(), 15), { duration: 0.6 });
 }
@@ -267,8 +283,13 @@ function flyTo(p) {
 /* ======================= «Өзге нысандар» қойындысы ======================= */
 $('plFKind').insertAdjacentHTML('beforeend', KINDS.map(k => '<option value="' + k.v + '">' + esc(UI === 'ru' ? k.ru : k.kk) + '</option>').join(''));
 const debounce = (fn, ms) => { let t = 0; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
-$('plQ').addEventListener('input', debounce(() => render(), 180));
-$('plFKind').addEventListener('change', () => render());
+/** Сүзгі өзгерді: тізім мен (қосулы болса) картадағы нысандар жаңарады. */
+const onFilter = () => { keepShown.clear(); render(true); };
+$('plQ').addEventListener('input', debounce(onFilter, 180));
+$('plFKind').addEventListener('change', onFilter);
+$('plMapF').checked = store.get('pl-map-filter') !== '0';
+$('plMapF').addEventListener('change', () => { store.set('pl-map-filter', $('plMapF').checked ? '1' : '0'); onFilter(); });
+$('plFReset').addEventListener('click', () => { for (const id of FILTER_IDS) $(id).value = ''; onFilter(); });
 $('plShow').addEventListener('change', paintVisibility);
 $('plLabels').addEventListener('change', () => { store.set('pl-labels', $('plLabels').checked ? '1' : '0'); view.rebuild(); });
 $('plLabels').checked = store.get('pl-labels') === '1';
@@ -281,8 +302,8 @@ function filtered() {
 const paintList = progressiveList($('plList'));
 const shown = () => !$('mkPanel').hidden && !$('mkTabPlaces').hidden;
 function render(changed) {
-  $('plTabN').textContent = items.length;
   if (changed) draw();
+  $('plFReset').hidden = !filterActive();
   if (!shown()) return;
   const list = filtered();
   $('plInfo').textContent = (list.length === items.length ? items.length : list.length + ' / ' + items.length) + tx(' нысан', ' объектов');

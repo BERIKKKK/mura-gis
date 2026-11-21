@@ -255,13 +255,12 @@ fun PlacesPage(vm: MainViewModel) {
     val all by vm.places.collectAsState()
     val prefs by vm.prefs.collectAsState()
     val ui = uiLang()
-    var q by rememberSaveable { mutableStateOf("") }
-    var kind by rememberSaveable { mutableStateOf<PlaceKind?>(null) }
+    // Сүзгі ViewModel-де: картада да тек сүзгіге сай нысандар көрінеді
+    val f by vm.placeFilter.collectAsState()
+    val list by vm.filteredPlaces.collectAsState()
+    val q = f.query; val kind = f.kind
     var dataDialog by remember { mutableStateOf<DataDialog?>(null) }
     val lang = prefs.dataLang
-    val list = remember(all, q, kind, lang) {
-        Sorting.sortPlaces(all.filter { (kind == null || it.kind == kind) && (q.isBlank() || it.name.matches(q) || it.kind.label(Lang.KK).contains(q, true) || it.kind.label(Lang.RU).contains(q, true)) }, lang)
-    }
     Column(Modifier.padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -270,11 +269,11 @@ fun PlacesPage(vm: MainViewModel) {
             }
             DataMenu(onImport = { dataDialog = DataDialog.IMPORT }, onExport = { dataDialog = DataDialog.EXPORT })
         }
-        ChromeSearch(q, { q = it }, stringResource(R.string.places_search_hint))
+        ChromeSearch(q, { vm.setPlaceFilter(f.copy(query = it)) }, stringResource(R.string.places_search_hint))
         LazyRow(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            item { FilterChip(selected = kind == null, onClick = { kind = null }, label = { Text(stringResource(R.string.all_kinds), fontSize = 13.sp) }) }
+            item { FilterChip(selected = kind == null, onClick = { vm.setPlaceFilter(f.copy(kind = null)) }, label = { Text(stringResource(R.string.all_kinds), fontSize = 13.sp) }) }
             items(PlaceKind.entries) { k ->
-                FilterChip(selected = kind == k, onClick = { kind = if (kind == k) null else k }, leadingIcon = { PlaceBadge(k, 18.dp) }, label = { Text(k.label(ui), fontSize = 13.sp) })
+                FilterChip(selected = kind == k, onClick = { vm.setPlaceFilter(f.copy(kind = if (kind == k) null else k)) }, leadingIcon = { PlaceBadge(k, 18.dp) }, label = { Text(k.label(ui), fontSize = 13.sp) })
             }
         }
         BigButton(stringResource(R.string.add_place), Modifier.fillMaxWidth().padding(top = 8.dp), icon = { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(20.dp)) }) {

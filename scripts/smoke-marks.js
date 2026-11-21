@@ -331,6 +331,21 @@ async function run(win) {
     eq(pA && pA.kind + ' ' + /^[0-9a-f]{16}$/.test(pA.id) + ' ' + pA.lat.toFixed(4), 'well true ' + pc.lat.toFixed(4), 'өзге нысан сақталды');
     eq(M.items.length, nMarks, 'ескерткіштерге түспеді');
     M.setTab('places'); await wait(300);
+    // Өзге нысандар сүзгісі картаға: түрі «Қыстау» → «0/1», тазарту → «1»
+    const pk = document.getElementById('plFKind'); pk.value = 'qystau'; pk.dispatchEvent(new Event('change')); await wait(100);
+    eq(document.getElementById('plTabN').textContent + ' ' + document.getElementById('plFReset').hidden, '0/1 false', 'өзге нысандар картада сүзілді');
+    document.getElementById('plFReset').click(); await wait(100);
+    eq(document.getElementById('plTabN').textContent, '1', 'өзге нысандар сүзгісі тазартылды');
+    // Екінші қатардағы «Өзге нысандар» батырмасы: санауыш, қойындыны ашу/жабу, «Ескерткіштер» батырмасымен ауысу
+    const plB = document.getElementById('plListBtn');
+    eq(plB.getAttribute('aria-expanded') + ' ' + document.getElementById('plCount').textContent, 'true 1', '«Өзге нысандар» батырмасы');
+    document.getElementById('mkListBtn').click(); await wait(100);
+    eq(document.getElementById('mkTabMarks').hidden + ' ' + plB.getAttribute('aria-expanded'), 'false false', '«Ескерткіштер» қойындысына ауысты');
+    plB.click(); await wait(100);
+    eq(document.getElementById('mkTabPlaces').hidden, false, '«Өзге нысандар» қойындысы ашылды');
+    plB.click(); await wait(100);
+    eq(document.getElementById('mkPanel').hidden, true, 'қайта басқанда панель жабылды');
+    plB.click(); await wait(300);
     out.placesTab = document.querySelectorAll('#plList .pl-card').length + ' карточка / таб ' + document.getElementById('plTabN').textContent + ' / белгі ' + document.querySelectorAll('.pl-pin').length;
     const pg = P.geojson(P.items, 'x');
     eq(pg.features[0].properties.kind_kk + ' ' + pg.features[0].properties.mura_layer, 'Құдық places', 'GeoJSON өрістері');
@@ -364,6 +379,19 @@ async function run(win) {
     out.routeEnds = [...document.querySelectorAll('#rtTo optgroup')].map(g => g.label + ' ' + g.children.length).join(' | ');
     eq([...document.querySelectorAll('#rtTo option')].some(o => o.value === 'pl:' + pA.id), true, 'А/Б тізімінде өзге нысан');
     MuraRoutes.closePanel(); M.setTab('marks');
+
+    // Картада тек сүзгідегілер: аудан + түрі → құралдар жолағында «1/N», белгі картадан алынады; сүзгіні тазарту → бәрі
+    const fset = (id, v) => { const el = document.getElementById(id); el.value = v; el.dispatchEvent(new Event('change')); };
+    const total = M.items.length;
+    fset('mkFDistrict', 'Алға ауданы'); fset('mkFType', 'arch'); await wait(100);
+    eq(document.getElementById('mkCount').textContent, '1/' + total, 'картада тек сүзгідегілер');
+    eq(document.getElementById('mkFReset').hidden, false, '«Сүзгіні тазарту» көрінеді');
+    document.getElementById('mkMapF').click(); await wait(100);
+    eq(document.getElementById('mkCount').textContent, String(total), 'ауыстырғыш өшірулі — картада бәрі');
+    document.getElementById('mkMapF').click(); await wait(100);
+    eq(document.getElementById('mkCount').textContent, '1/' + total, 'ауыстырғыш қайта қосулы');
+    document.getElementById('mkFReset').click(); await wait(100);
+    eq(document.getElementById('mkCount').textContent + ' ' + document.getElementById('mkFReset').hidden, total + ' true', 'сүзгі тазартылды');
 
     const g = M.geojson(M.filtered(), 'x'); out.geo = g.features.length + ' ' + JSON.stringify(g.features[0].geometry);
     const d = await M.buildDocx(); out.docx = d.size;

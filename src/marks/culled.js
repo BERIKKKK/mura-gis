@@ -85,6 +85,8 @@ export function culledLayer(map, o) {
     },
     syncNow() { if (raf) cancelAnimationFrame(raf); sync(); },
     pin: id => pins.get(id)?.mk || null,
+    /** Нүкте қазіргі тізімде бар ма (сүзгіден өткен бе). */
+    has: id => list.some(it => it.id === id),
     eachPin(fn) { for (const p of pins.values()) fn(p.mk); },
     get mode() { return mode; },
   };

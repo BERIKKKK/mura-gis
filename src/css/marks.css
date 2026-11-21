@@ -42,6 +42,8 @@ body.mura .mk-group .qa-total { margin-left: 4px; }
 .mk-filters select[hidden] { display: none; }
 .mk-filters select { width: 100%; min-width: 0; padding: 4px 6px; font-size: 12.5px; }
 .mk-drawer .qa-selbar { flex-wrap: wrap; gap: 6px 14px; }
+/* Картада сүзгі қолданылғанда: құралдар жолағындағы сан «көрінетіні/барлығы» және ерекшеленеді */
+#mkListBtn.is-filtered .mk-total, #plListBtn.is-filtered .mk-total { background: #b8670f; color: #fff; }
 .mk-dhead { margin: 6px 0 -2px; font-size: 11.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--soft); }
 .mk-card { align-items: flex-start; }
 .mk-sym { flex: 0 0 auto; display: inline-flex; line-height: 0; }

@@ -141,11 +141,27 @@ data class MonumentFilter(
     val types: Set<MonumentType> = emptySet(),
     val categories: Set<Category> = emptySet(),
     val statuses: Set<Status> = emptySet(),
+    /** Облыс / аудан — [placeKey] мәндері; "" — көрсетілмеген. */
+    val oblasts: Set<String> = emptySet(),
+    val districts: Set<String> = emptySet(),
 ) {
-    val active get() = query.isNotBlank() || types.isNotEmpty() || categories.isNotEmpty() || statuses.isNotEmpty()
+    val active get() = query.isNotBlank() || types.isNotEmpty() || categories.isNotEmpty() || statuses.isNotEmpty() || oblasts.isNotEmpty() || districts.isNotEmpty()
     fun matches(m: Monument): Boolean =
         (query.isBlank() || m.name.matches(query) || m.period.matches(query) || m.place.matches(query) || m.district.matches(query) || m.oblast.matches(query) || m.note.matches(query)) &&
-            (types.isEmpty() || m.type in types) && (categories.isEmpty() || m.category in categories) && (statuses.isEmpty() || m.status in statuses)
+            (types.isEmpty() || m.type in types) && (categories.isEmpty() || m.category in categories) && (statuses.isEmpty() || m.status in statuses) &&
+            (oblasts.isEmpty() || placeKey(m.oblast) in oblasts) && (districts.isEmpty() || placeKey(m.district) in districts)
+
+    companion object {
+        /** Облыс/аудан атауының тілге тәуелсіз кілті (жұмыс үстеліндегідей — қазақша мәні негізгі). */
+        fun placeKey(l: Localized): String = l.kk.trim().ifBlank { l.ru.trim() }
+    }
+}
+
+/** Өзге нысандар сүзгісі: іздеу және түрі (тізім мен картаға ортақ). */
+data class PlaceFilter(val query: String = "", val kind: PlaceKind? = null) {
+    val active get() = query.isNotBlank() || kind != null
+    fun matches(p: Place): Boolean = (kind == null || p.kind == kind) &&
+        (query.isBlank() || p.name.matches(query) || p.kind.label(Lang.KK).contains(query, true) || p.kind.label(Lang.RU).contains(query, true))
 }
 
 /** Өңделіп жатқан маршрут (жоба): тарих — «болдырмау» үшін. */
@@ -189,6 +205,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _selectedRoute = MutableStateFlow<String?>(null); val selectedRoute: StateFlow<String?> = _selectedRoute
     private val _edit = MutableStateFlow<RouteEdit?>(null); val edit: StateFlow<RouteEdit?> = _edit
     private val _places = MutableStateFlow<List<Place>>(emptyList()); val places: StateFlow<List<Place>> = _places
+    private val _placeFilter = MutableStateFlow(PlaceFilter()); val placeFilter: StateFlow<PlaceFilter> = _placeFilter
     private val _selectedPlace = MutableStateFlow<String?>(null); val selectedPlace: StateFlow<String?> = _selectedPlace
     /** Өзге нысанды өңдеу терезесі: жаңа (id жоқ) не бар жазба. */
     private val _placeEditor = MutableStateFlow<Place?>(null); val placeEditor: StateFlow<Place?> = _placeEditor
@@ -207,6 +224,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     val filteredMonuments: StateFlow<List<Monument>> = combine(_monuments, _filter, prefs) { list, f, p ->
         Sorting.sortMonuments(list.filter { f.matches(it) }, p.dataLang)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val filteredPlaces: StateFlow<List<Place>> = combine(_places, _placeFilter, prefs) { list, f, p ->
+        Sorting.sortPlaces(list.filter { f.matches(it) }, p.dataLang)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     /** Жүктелген пакеттердің ішінде офлайн жол графы бар ма («Маршрут құру» әдепкі режимі). */
@@ -311,6 +332,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /* ======================= Ескерткіштер ======================= */
     fun setFilter(f: MonumentFilter) { _filter.value = f }
+    fun setPlaceFilter(f: PlaceFilter) { _placeFilter.value = f }
     fun select(id: String?) { _selected.value = id; if (id != null) _selectedPlace.value = null }
     fun monument(id: String?): Monument? = id?.let { i -> _monuments.value.firstOrNull { it.id == i } }
 

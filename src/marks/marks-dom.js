@@ -18,6 +18,8 @@
     flag: '<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/><circle cx="6" cy="21" r=".6"/>',
     // «Белгілер» панелі — «Қорғау аймақтары» панелімен (қалта + белгі) бір үлгіде: екеуі де жазбалар жинағы
     list: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/><path d="M10.5 17.5v-7h5l-1.2 1.8 1.2 1.7h-5"/>',
+    // «Өзге нысандар»: картадағы шаршы белгісі сияқты
+    place: '<rect x="5" y="5" width="14" height="14" rx="2.5"/><path d="M9 12h6M12 9v6"/>',
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/>',
   };
@@ -30,7 +32,8 @@
   grp.setAttribute('aria-label', 'Ескерткіш белгілері');
   grp.innerHTML =
     '<button type="button" class="qa-tbtn" id="mkMode" data-prio="0" aria-pressed="false" aria-label="Белгі қою" data-tip="Белгі қою: картаны басып ескерткішті белгілеңіз">' + ic(IC.flag) + '<span class="qa-tl">Белгі қою</span></button>' +
-    '<button type="button" class="qa-tbtn" id="mkListBtn" data-prio="2" aria-controls="mkPanel" aria-expanded="false" aria-label="Ескерткіштер" data-tip="Ескерткіштер: тізім, экспорт (GeoJSON, DOCX, PDF)">' + ic(IC.list) + '<span class="qa-tl">Ескерткіштер</span><span class="qa-total mk-total" id="mkCount">0</span></button>';
+    '<button type="button" class="qa-tbtn" id="mkListBtn" data-prio="2" aria-controls="mkPanel" aria-expanded="false" aria-label="Ескерткіштер" data-tip="Ескерткіштер: тізім, экспорт (GeoJSON, DOCX, PDF)">' + ic(IC.list) + '<span class="qa-tl">Ескерткіштер</span><span class="qa-total mk-total" id="mkCount">0</span></button>' +
+    '<button type="button" class="qa-tbtn" id="plListBtn" data-prio="2" aria-controls="mkPanel" aria-expanded="false" aria-label="Өзге нысандар" data-tip="Өзге нысандар: елді мекен, қыстау, құдық т.б. — тізім, сүзгі, экспорт">' + ic(IC.place) + '<span class="qa-tl">Өзге нысандар</span><span class="qa-total mk-total" id="plCount">0</span></button>';
   tmain.insertBefore(grp, tmain.firstChild);
 
   /* ---------- Координата панелі: енгізілген координатаны белгі ретінде қосу ---------- */
@@ -82,7 +85,9 @@
         '<select id="mkFStatus" aria-label="Мәртебесі бойынша сүзу"><option value="">Барлық мәртебе</option></select>' +
       '</div>' +
       '<div class="qa-selbar"><label class="qa-check"><input type="checkbox" id="mkShow" checked> Картада көрсету</label>' +
-        '<label class="qa-check"><input type="checkbox" id="mkLabels"> Атаулары</label><span id="mkInfo"></span></div>' +
+        '<label class="qa-check"><input type="checkbox" id="mkLabels"> Атаулары</label>' +
+        '<label class="qa-check" title="Сүзгі қойылса, картада тек соған сай ескерткіштер көрінеді"><input type="checkbox" id="mkMapF" checked> Картада тек сүзгідегілер</label>' +
+        '<button type="button" class="lnk" id="mkFReset" hidden>Сүзгіні тазарту</button><span id="mkInfo"></span></div>' +
       '<div class="mk-selbar" id="mkSelBar"><label class="qa-check"><input type="checkbox" id="mkSelAll"> Барлығын таңдау</label>' +
         '<span id="mkSelInfo"></span><button type="button" class="btn btn--sm mk-seldel" id="mkSelDel" hidden>Таңдалғандарды өшіру</button></div>' +
       '<div class="qa-slist" id="mkList"><div class="qa-empty">Жүктелуде…</div></div>' +
@@ -103,7 +108,9 @@
       '<div class="qa-sfilter"><label class="qa-search">' + ic(IC.search, 16) + '<input type="search" id="plQ" placeholder="Іздеу: атауы, түрі…" aria-label="Өзге нысандардан іздеу" autocomplete="off"></label>' +
         '<select id="plFKind" aria-label="Түрі бойынша сүзу"><option value="">Барлық түрі</option></select></div>' +
       '<div class="qa-selbar"><label class="qa-check"><input type="checkbox" id="plShow" checked> Картада көрсету</label>' +
-        '<label class="qa-check"><input type="checkbox" id="plLabels"> Атаулары</label><span id="plInfo"></span>' +
+        '<label class="qa-check"><input type="checkbox" id="plLabels"> Атаулары</label>' +
+        '<label class="qa-check" title="Сүзгі қойылса, картада тек соған сай нысандар көрінеді"><input type="checkbox" id="plMapF" checked> Картада тек сүзгідегілер</label>' +
+        '<button type="button" class="lnk" id="plFReset" hidden>Сүзгіні тазарту</button><span id="plInfo"></span>' +
         '<button type="button" class="btn btn--sm" id="plAdd" title="Картадан орнын басып, жаңа өзге нысан қосу">+ Нысан қосу</button></div>' +
       '<div class="qa-slist" id="plList"></div>' +
     '</div>' +

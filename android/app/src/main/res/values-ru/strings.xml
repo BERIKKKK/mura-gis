@@ -36,6 +36,9 @@
     <string name="confirm_delete_monument">Удалить памятник «%1$s»?</string>
     <string name="f_type">Вид</string>
     <string name="f_category">Категория</string>
+    <string name="f_district_none">Район не указан</string>
+    <string name="map_filter_chip">На карте: %1$d / %2$d памятников</string>
+    <string name="map_filter_chip_places">На карте: %1$d / %2$d объектов</string>
     <string name="f_status">Статус</string>
     <string name="new_monument">Новый памятник</string>
     <string name="edit_monument">Редактирование памятника</string>

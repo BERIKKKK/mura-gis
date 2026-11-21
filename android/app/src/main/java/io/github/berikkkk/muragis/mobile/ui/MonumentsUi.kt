@@ -147,14 +147,46 @@ fun MonumentCardContent(vm: MainViewModel, m: Monument, lang: Lang, dms: Boolean
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun FilterDialog(vm: MainViewModel, f: MonumentFilter, onDismiss: () -> Unit) {
+fun FilterDialog(vm: MainViewModel, f: MonumentFilter, all: List<Monument>, dataLang: Lang, onDismiss: () -> Unit) {
     val ui = uiLang()
     var cur by remember { mutableStateOf(f) }
+    // Облыс пен аудан тізімі — бар ескерткіштердің мәндері; аудандар — таңдалған облыстардікі
+    val names = remember(all, dataLang) {
+        val m = HashMap<String, String>()
+        for (x in all) for (l in listOf(x.oblast, x.district)) MonumentFilter.placeKey(l).takeIf { it.isNotEmpty() }?.let { k -> m.getOrPut(k) { l.display(dataLang) } }
+        m
+    }
+    val collator = remember { java.text.Collator.getInstance(java.util.Locale.forLanguageTag("kk")) }
+    val oblasts = remember(all) { all.map { MonumentFilter.placeKey(it.oblast) }.filter { it.isNotEmpty() }.distinct().sortedWith(compareBy(collator) { names[it] ?: it }) }
+    val inOblast = all.filter { cur.oblasts.isEmpty() || MonumentFilter.placeKey(it.oblast) in cur.oblasts }
+    val districts = inOblast.map { MonumentFilter.placeKey(it.district) }.distinct().sortedWith(compareBy<String> { it.isEmpty() }.thenBy(collator) { names[it] ?: it })
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.filter)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (oblasts.size > 1 || cur.oblasts.isNotEmpty()) {
+                    SectionTitle(stringResource(R.string.f_oblast))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        oblasts.forEach { o ->
+                            FilterChip(selected = o in cur.oblasts, label = { Text(names[o] ?: o, fontSize = 12.sp) }, onClick = {
+                                val obs = cur.oblasts.toggle(o)
+                                // Таңдалған облыстарда жоқ аудандар сүзгіден алынады
+                                val left = all.filter { obs.isEmpty() || MonumentFilter.placeKey(it.oblast) in obs }.map { MonumentFilter.placeKey(it.district) }.toSet()
+                                cur = cur.copy(oblasts = obs, districts = cur.districts.filter { it in left }.toSet())
+                            })
+                        }
+                    }
+                }
+                if (districts.isNotEmpty()) {
+                    SectionTitle(stringResource(R.string.f_district))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        districts.forEach { d ->
+                            FilterChip(selected = d in cur.districts, onClick = { cur = cur.copy(districts = cur.districts.toggle(d)) },
+                                label = { Text(if (d.isEmpty()) stringResource(R.string.f_district_none) else names[d] ?: d, fontSize = 12.sp) })
+                        }
+                    }
+                }
                 SectionTitle(stringResource(R.string.f_type))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     MonumentType.entries.forEach { t ->
