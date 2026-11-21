@@ -176,6 +176,7 @@ function forMark(m, ev) {
     { label: 'Өңдеу', icon: IC.edit, run: () => globalThis.__marks?.openDialog(m) },
     { label: 'Осы ескерткішке жол табу', hint: 'маршруттар желісі бойынша', icon: IC.route, run: () => globalThis.MuraRoutes?.findTo({ markId: m.id, lat: m.lat, lon: m.lon }) },
     { label: 'Қорғау аймағын белгілеу', icon: IC.zone, run: () => globalThis.MuraZone?.startFromMark(m) },
+    { label: tx('Жоспарды ашу', 'Открыть план'), hint: tx('құрамындағы нысандар, контурлар, PDF', 'объекты в составе, контуры, PDF'), icon: globalThis.MuraPlanIcon?.plan || IC.zone, run: () => globalThis.MuraPlan?.openForMark(m) },
     'sep',
     ...gmapsItems(m),
   ]);

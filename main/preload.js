@@ -25,8 +25,8 @@ contextBridge.exposeInMainWorld('mura', {
   gpkgInspect: file => ipcRenderer.invoke('mura:gpkg-inspect', file || ''),
   /** Мәзір пәрмендері (Жаңа жоба, Баптаулар, Бастапқы терезе). */
   onUi: cb => { ipcRenderer.on('mura:ui', (_e, cmd) => cb(String(cmd))); },
-  /** Ескерткіштер тізімінің HTML-і → PDF (Uint8Array). */
-  pdf: html => ipcRenderer.invoke('mura:pdf', html),
+  /** HTML → PDF (Uint8Array). opts.exact — өрістері мен колонтитулы жоқ, масштабы 1:1 («Жоспар» сызбалары). */
+  pdf: (html, opts) => ipcRenderer.invoke('mura:pdf', html, opts && opts.exact ? { exact: true } : undefined),
   /** Алмасу буфері: картаның оң жақ мәзірі үшін. */
   clipRead: () => ipcRenderer.invoke('mura:clip-read'),
   clipWrite: text => ipcRenderer.invoke('mura:clip-write', text),

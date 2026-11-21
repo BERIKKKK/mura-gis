@@ -1,12 +1,12 @@
 /* Mura GIS: екі қатарлы құралдар жолағы — «қызмет → тиісті құралдар».
-   • Жоғарғы қатар: қызметтер (Ескерткіштер, Маршруттар, Қорғау аймағы) және барлық қызметке ортақ құралдар
+   • Жоғарғы қатар: қызметтер (Ескерткіштер, Маршруттар, Қорғау аймағы, Жоспар) және барлық қызметке ортақ құралдар
      (Сызғыш, бұрышты туралау, Сыйғызу, Толық экран, «⋯»).
    • Төменгі қатар (#qaTmain): тек таңдалған қызметтің батырмалары. Сыймаса — ui.js бұрынғыдай
      жазуларды жасырып, артығын «⋯» мәзіріне жинайды (тек көрініп тұрған қызметтің батырмаларын).
    • Қызмет ауысқанда: алдыңғы қызметтің режимі (Нүкте қою / Белгі қою) өшеді, оның панелі жабылады.
    • Қызмет өзі де ауысады: басқа қызметтің режимі не панелі ашылса (оң жақ мәзір, координата панелі,
      белгіден қорғау аймағын бастау т.б.), жолақ сол қызметке көшеді.
-   • Пернелер: 1 — Ескерткіштер, 2 — Маршруттар, 3 — Қорғау аймағы (мәтін өрісінде емес кезде). Соңғы қызмет есте сақталады.
+   • Пернелер: 1 — Ескерткіштер, 2 — Маршруттар, 3 — Қорғау аймағы, 4 — Жоспар (мәтін өрісінде емес кезде). Соңғы қызмет есте сақталады.
    Бұл файл marks-dom.js-тен кейін, qorgau/ui.js-тен БҰРЫН орындалады (DOM-ды ui.js батырмаларды санамай тұрып өзгертеміз).
    Жаңа қызмет қосу: SERVICES тізіміне жол және төменгі қатарға data-svc="…" тобы. */
 (function () {
@@ -23,6 +23,9 @@
       icon: '<path d="M9 5h8.5a1 1 0 010 7h-11a1 1 0 000 7H15"/><circle cx="18" cy="19" r="3"/><circle cx="6" cy="5" r="3"/>' },
     { id: 'zone', label: 'Қорғау аймағы', tip: 'Қорғау аймағы: шекара, есеп, сақталған аймақтар (3)',
       icon: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>' },
+    // Жоспар: ескерткіштің құрамындағы нысандар, контурлар, масштабты PDF (plan/plan-dom.js, plan/plan.js)
+    { id: 'plan', label: (window.tx ? tx('Жоспар', 'План') : 'Жоспар'), tip: (window.tx ? tx('Жоспар: ескерткіштің нысандары, контур, бағыттауыш, масштабты PDF (4)', 'План: объекты памятника, контур, указатель, масштабный PDF (4)') : 'Жоспар (4)'),
+      icon: (window.MuraPlanIcon && window.MuraPlanIcon.plan) || '' },
   ];
   var svg = function (p) { return '<svg class="qa-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; };
   var store = {
@@ -99,6 +102,8 @@
       if (ui && ui.panel && ui.panel()) ui.closePanel();
     } else if (svc === 'routes') {
       if (globalThis.MuraRoutes) { globalThis.MuraRoutes.stop(); globalThis.MuraRoutes.closePanel(); }
+    } else if (svc === 'plan') {
+      if (globalThis.MuraPlan) { globalThis.MuraPlan.stop(); globalThis.MuraPlan.closePanel(); }
     } else if (svc === 'marks') {
       if (pressed('mkMode')) $('mkMode').click();
       if (globalThis.__marks && globalThis.__marks.closePanel) globalThis.__marks.closePanel();
@@ -162,12 +167,14 @@
   follow('rtDraw', 'routes', 'aria-pressed');
   follow('rtPanel', 'routes', 'hidden');
   ['qaPanelInfo', 'qaPanelSaved', 'qaPanelPts'].forEach(function (id) { follow(id, 'zone', 'hidden'); });
+  follow('pjPanel', 'plan', 'hidden');
+  follow('pjDraw', 'plan', 'aria-pressed');
   // Координата панелі: «Қосу» — шекара нүктесі, «Белгі» — ескерткіш белгісі (басу өз әрекетін орындайды)
   var inAdd = $('qaInAdd'), inMark = $('mkFromCoord');
   if (inAdd) inAdd.addEventListener('click', function () { set('zone'); }, true);
   if (inMark) inMark.addEventListener('click', function () { set('marks'); }, true);
 
-  /* ---------- Пернелер: 1, 2 ---------- */
+  /* ---------- Пернелер: 1–4 ---------- */
   document.addEventListener('keydown', function (e) {
     if (e.defaultPrevented || e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
     var t = e.target;

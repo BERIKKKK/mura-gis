@@ -97,7 +97,7 @@ function pinIcon(m) {
    Оқиғалар белгінің id-і бойынша ағымдағы жазбаны алады (items жаңарғанда белгі қайта жасалмауы мүмкін). */
 const byId = new Map();
 const cur = id => byId.get(id);
-const passThrough = () => mapEl.classList.contains('is-adding') || mapEl.classList.contains('is-ruler');
+const passThrough = () => mapEl.classList.contains('is-adding') || mapEl.classList.contains('is-ruler') || mapEl.classList.contains('is-pjmap');
 const markSig = m => m.lat + ',' + m.lon + '|' + m.type + '|' + m.category + '|' + m.status + '|' + view(m).name;
 function makePin(m0) {
   const id = m0.id, labels = $('mkLabels').checked;
@@ -268,7 +268,8 @@ function openDialog(m, o = {}) {
       I18N.biField({ id: 'mkNote', name: 'note', label: tx('Ескертпе', 'Примечание'), kk: v.note, ru: v.note_ru, max: 3000, rows: 2 }) +
       '<p class="mk-err" id="mkErr" role="alert" hidden></p>' +
       '<div class="qa-dlg-btns">' +
-        (isNew ? '' : '<button type="button" class="lnk lnk--danger mk-del" id="mkDel">Өшіру</button><button type="button" class="lnk" id="mkGo">Картадан көрсету</button><button type="button" class="lnk" id="mkZone" title="Осы ескерткіштің қорғау аймағын белгілеу">Қорғау аймағы</button>') +
+        (isNew ? '' : '<button type="button" class="lnk lnk--danger mk-del" id="mkDel">Өшіру</button><button type="button" class="lnk" id="mkGo">Картадан көрсету</button><button type="button" class="lnk" id="mkZone" title="Осы ескерткіштің қорғау аймағын белгілеу">Қорғау аймағы</button>' +
+          '<button type="button" class="lnk" id="mkPlan" title="' + tx('«Жоспар» режимінде осы ескерткіштің жоспарын ашу: құрамындағы нысандар, контурлар, PDF', 'Открыть план этого памятника в режиме «План»: объекты в составе, контуры, PDF') + '">' + tx('Жоспарды ашу', 'Открыть план') + '</button>') +
         '<span class="mk-sp"></span>' +
         '<button type="button" class="btn btn--ghost btn--sm" id="mkCancel">Бас тарту</button>' +
         '<button type="submit" class="btn btn--primary btn--sm">' + (isNew ? 'Белгіні сақтау' : 'Сақтау') + '</button>' +
@@ -396,6 +397,7 @@ function openDialog(m, o = {}) {
   back.querySelector('#mkDel')?.addEventListener('click', () => removeMark(m));
   back.querySelector('#mkGo')?.addEventListener('click', () => { closeDialog(); flyTo(m); });
   back.querySelector('#mkZone')?.addEventListener('click', () => { closeDialog(); globalThis.MuraZone?.startFromMark(m); });
+  back.querySelector('#mkPlan')?.addEventListener('click', () => { closeDialog(); globalThis.MuraPlan?.openForMark(m); });
   back.addEventListener('mousedown', e => { if (e.target === back) back.dataset.down = '1'; });
   back.addEventListener('click', e => { if (e.target === back && back.dataset.down) closeDialog(); delete back.dataset.down; });
   const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(); } };
