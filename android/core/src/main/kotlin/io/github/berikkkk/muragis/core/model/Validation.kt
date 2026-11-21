@@ -51,6 +51,12 @@ object Validation {
         )
     }
 
+    /** Өзге нысанды тексеру: тек координата міндетті (атауы бос болса — карта мен тізімде түрі көрсетіледі). */
+    fun clean(p: Place): Place {
+        if (!validCoord(p.lat, p.lon)) throw ValidationException("coord", "Invalid coordinates")
+        return p.copy(lat = round(p.lat, 8), lon = round(p.lon, 8), name = p.name.cut(Limits.NAME))
+    }
+
     /** Маршрутты тексеру: кемінде 2 нүкте, координаталар 1e-7 дәлдікке дейін. */
     fun clean(r: Route): Route {
         val pts = r.points.filter { validCoord(it.lat, it.lon) }

@@ -160,9 +160,14 @@ modeBtn.addEventListener('click', () => setMarking(!marking));
 const modeObs = new MutationObserver(() => { if (marking && (pressed(addBtn) || pressed(rulerBtn) || pressed(compassBtn))) setMarking(false); });
 for (const b of [addBtn, rulerBtn, compassBtn]) if (b) modeObs.observe(b, { attributes: true, attributeFilter: ['aria-pressed'] });
 
+/** Жаңа белгі: алдымен түрі сұралады — ескерткіш белгісі (осы терезе) не өзге нысан (marks/places.js). */
+function newMark(pt) {
+  if (globalThis.__places) globalThis.__places.choose(pt, p => openDialog(p));
+  else openDialog(pt);
+}
 map.on('click', e => {
   if (!marking || dragging) return;
-  openDialog({ lat: e.latlng.lat, lon: e.latlng.lng });
+  newMark({ lat: e.latlng.lat, lon: e.latlng.lng });
 });
 
 /* ======================= Белгі терезесі (атауы, орналасқан жері, түрі, санаты, мәртебесі) ======================= */
@@ -399,7 +404,7 @@ $('mkFromCoord')?.addEventListener('click', () => {
   const latS = $('qaInLat').value, lonS = $('qaInLon').value;
   const r = parseLatLon(latS, lonS);
   if (r.err) { openDialog({}, { latText: latS, lonText: lonS }); return; }
-  openDialog({ lat: r.lat, lon: r.lon });
+  newMark({ lat: r.lat, lon: r.lon });
   map.panTo([r.lat, r.lon]);
 });
 
@@ -420,6 +425,7 @@ function openPanel() {
   applyRight();
   render();
   renderImports();
+  globalThis.__places?.render();
 }
 function closePanel() {
   if (!open) return;
@@ -650,6 +656,7 @@ $('mkGeoFile').addEventListener('change', async e => {
       if (/\.(kml|kmz|gpx)$/i.test(f.name)) {
         const pts = await parseGeoFile(f, /\.kmz$/i.test(f.name) ? await loadFflate() : null);
         if (!pts.length) throw new Error(f.name + tx(': нүкте табылмады.', ': точки не найдены.'));
+        if (await importAsPlaces(f.name, pts)) return;
         const r = await api('iadd', { data: JSON.stringify(pts) });
         toast(f.name + ': ' + r.added + ' нүкте импортталды' + (r.skipped ? ', ' + r.skipped + ' қайталанған не қате нүкте алынбады' : '') + '. Оларды «Импортталғандар» қойындысынан сәйкестендіріңіз.');
         setTab('imp');
@@ -659,9 +666,18 @@ $('mkGeoFile').addEventListener('change', async e => {
       }
       let o;
       try { o = JSON.parse(await f.text()); } catch (ex) { throw new Error(f.name + tx(': файл оқылмады (JSON емес).', ': не удалось прочитать файл (не JSON).')); }
+      // Mura GIS-тің өзге нысандар файлы (жұмыс үстелі не Android) — бірден өзге нысандарға
+      const PL = globalThis.__places;
+      if (PL && PL.isMuraPlaces(o)) {
+        const r = await PL.api('import', { data: JSON.stringify(PL.fromGeojson(o)) });
+        toast(tx('Өзге нысандар — қосылды: ', 'Прочие объекты — добавлено: ') + r.added + tx(', жаңартылды: ', ', обновлено: ') + r.updated + (r.skipped ? tx(', өзгеріссіз: ', ', без изменений: ') + r.skipped : '') + '.');
+        setTab('places');
+        return;
+      }
       if (!isMuraMarks(o)) {
         const pts = parseGeojsonPoints(o, f.name);
         if (!pts.length) throw new Error(f.name + tx(': нүкте не полигон табылмады.', ': точки или полигоны не найдены.'));
+        if (await importAsPlaces(f.name, pts)) return;
         const r = await api('iadd', { data: JSON.stringify(pts) });
         toast(f.name + ': ' + r.added + ' нүкте импортталды' + (r.skipped ? ', ' + r.skipped + ' қайталанған не қате нүкте алынбады' : '') + '. Оларды «Импортталғандар» қойындысынан сәйкестендіріңіз.');
         setTab('imp');
@@ -678,16 +694,33 @@ $('mkGeoFile').addEventListener('change', async e => {
   }
 });
 
-/* ---------- Қойындылар: Белгілер | Импортталғандар ---------- */
+/** Бөтен нүктелер: қайда импорттау керегі сұралады. Өзге нысандарға таңдалса — сонда қосылады (true), бас тартса — қате. */
+async function importAsPlaces(file, pts) {
+  const PL = globalThis.__places;
+  if (!PL) return false;
+  const c = await PL.askImportTarget(file, pts.length);
+  if (!c) { toast(file + tx(': импорттан бас тартылды.', ': импорт отменён.')); return true; }
+  if (c.target !== 'places') return false;
+  const r = await PL.importPoints(pts, c.kind);
+  toast(file + tx(': өзге нысандар — қосылды ', ': прочие объекты — добавлено ') + r.added + (r.skipped ? tx(', қабылданбады: ', ', не принято: ') + r.skipped : '') + '.');
+  setTab('places');
+  return true;
+}
+
+/* ---------- Қойындылар: Ескерткіштер | Өзге нысандар | Импортталғандар ---------- */
 let tab = 'marks';
 function setTab(t) {
-  tab = t === 'imp' ? 'imp' : 'marks';
+  tab = t === 'imp' || t === 'places' ? t : 'marks';
   if (!open) openPanel();
   $('mkTabMarks').hidden = tab !== 'marks';
+  $('mkTabPlaces').hidden = tab !== 'places';
   $('mkTabImp').hidden = tab !== 'imp';
   $('mkTabMarksB').setAttribute('aria-selected', tab === 'marks' ? 'true' : 'false');
+  $('mkTabPlacesB').setAttribute('aria-selected', tab === 'places' ? 'true' : 'false');
   $('mkTabImpB').setAttribute('aria-selected', tab === 'imp' ? 'true' : 'false');
   for (const id of ['mkGeo', 'mkDocx', 'mkPdf']) $(id).hidden = tab !== 'marks';
+  $('plGeo').hidden = tab !== 'places';
+  if (tab === 'places') globalThis.__places?.render();
   $('mkIDelAll').hidden = tab !== 'imp' || !imports.length;
   if (tab === 'imp' && !$('mkImpShow').checked) { $('mkImpShow').checked = true; paintImpVisibility(); }
   renderImports();
@@ -706,6 +739,7 @@ function impMenu(id) {
     L.DomEvent.preventDefault(oe);
     globalThis.MuraCtx?.openMenu(oe.clientX, oe.clientY, esc(x.name || '(атаусыз)'), [
       { label: 'Сәйкестендіру', hint: 'белгі ретінде мәліметтерін толтыру', icon: '<path d="M6 21V4"/><path d="M6 4.5h11l-2.2 3.8L17 12H6"/>', run: () => identify(x) },
+      { label: tx('Өзге нысан ретінде', 'Как прочий объект'), hint: tx('елді мекен, қыстау, құдық т.б.', 'населённый пункт, зимовка, колодец и др.'), icon: '<rect x="5" y="5" width="14" height="14" rx="3"/>', run: () => globalThis.__places?.identifyAsPlace(x) },
       { label: 'Координатаны көшіру', hint: x.lat.toFixed(7) + ', ' + x.lon.toFixed(7), icon: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>', run: () => (globalThis.mura?.clipWrite ? globalThis.mura.clipWrite(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7)) : navigator.clipboard.writeText(x.lat.toFixed(7) + ', ' + x.lon.toFixed(7))) },
       'sep',
       { label: 'Импорттан өшіру', icon: '<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/>', run: () => removeImport(x) },
@@ -792,7 +826,8 @@ function renderImports(changed) {
       '<div class="qa-sc-main"><button type="button" class="qa-sc-title" data-iact="go" title="Картадан көрсету">' + esc(x.name || '(атаусыз)') + '</button>' +
       (x.desc ? '<p class="qa-sc-desc">' + esc(x.desc) + '</p>' : '') +
       '<div class="qa-sc-meta mk-cc">' + esc(coordLines(x).join(', ')) + '</div>' +
-      '<div class="qa-sc-act"><button type="button" class="lnk mk-ident" data-iact="ident">Сәйкестендіру</button><button type="button" class="lnk" data-iact="go">Картадан көрсету</button>' +
+      '<div class="qa-sc-act"><button type="button" class="lnk mk-ident" data-iact="ident">Сәйкестендіру</button>' +
+      '<button type="button" class="lnk" data-iact="place">' + tx('Өзге нысан ретінде', 'Как прочий объект') + '</button><button type="button" class="lnk" data-iact="go">Картадан көрсету</button>' +
       '<button type="button" class="lnk lnk--danger" data-iact="del">Өшіру</button></div></div></div>';
     yield html;
   } })(), shown.length, list.length > 1000 ? '<div class="qa-empty">' + tx('Тағы ' + (list.length - 1000) + ' нүкте — іздеу не файл сүзгісін қолданыңыз.', 'Ещё точек: ' + (list.length - 1000) + ' — воспользуйтесь поиском или фильтром по файлу.') + '</div>' : '');
@@ -806,6 +841,7 @@ $('mkImpList').addEventListener('click', e => {
     if (!$('mkImpShow').checked) { $('mkImpShow').checked = true; paintImpVisibility(); }
     map.flyTo([x.lat, x.lon], Math.max(map.getZoom(), 15), { duration: 0.6 });
   } else if (b.dataset.iact === 'ident') identify(x);
+  else if (b.dataset.iact === 'place') globalThis.__places?.identifyAsPlace(x);
   else if (b.dataset.iact === 'del') removeImport(x);
 });
 
@@ -817,4 +853,4 @@ paintLayerVisibility();
 paintImpVisibility();
 api('list').catch(e => { toast(tx('Белгілер жүктелмеді: ', 'Метки не загружены: ') + e.message, true); render(); });
 
-globalThis.__marks = { symbolSvg, exportSections, get imports() { return imports; }, setTab, identify, get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };
+globalThis.__marks = { newMark, symbolSvg, exportSections, get imports() { return imports; }, setTab, identify, get items() { return items; }, api, filtered, buildDocx, buildPdf, geojson, pdfHtml, setMarking, openDialog, openPanel, closePanel, get marking() { return marking; } };

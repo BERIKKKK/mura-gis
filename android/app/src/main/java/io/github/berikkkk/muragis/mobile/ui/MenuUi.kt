@@ -82,6 +82,7 @@ fun MenuScreen(vm: MainViewModel, page: MenuPage, controller: MapController, act
                 when (page) {
                     MenuPage.ROOT -> MenuRoot(vm, controller)
                     MenuPage.MONUMENTS -> MonumentsPage(vm, controller)
+                    MenuPage.PLACES -> PlacesPage(vm)
                     MenuPage.ROUTES -> RoutesPage(vm, controller)
                     MenuPage.COORDS -> CoordsPage(vm, controller)
                     MenuPage.SETTINGS -> Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
@@ -135,6 +136,7 @@ fun ChromeSearch(value: String, onChange: (String) -> Unit, hint: String, modifi
 @Composable
 private fun MenuRoot(vm: MainViewModel, controller: MapController) {
     val monuments by vm.monuments.collectAsState()
+    val places by vm.places.collectAsState()
     val routes by vm.routes.collectAsState()
     val prefs by vm.prefs.collectAsState()
     var q by rememberSaveable { mutableStateOf("") }
@@ -155,6 +157,7 @@ private fun MenuRoot(vm: MainViewModel, controller: MapController) {
         if (q.isNotBlank()) {
             val coord = (Coords.parseLine(q) as? Coords.Pair.Ok)
             val found = monuments.filter { it.name.matches(q) || it.place.matches(q) || it.district.matches(q) }.take(50)
+            val foundPlaces = places.filter { it.name.matches(q) }.take(50)
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 coord?.let { c ->
                     OptionRow(stringResource(R.string.go_to_coord), Utm.formatDd(c.lat, c.lon), subMono = true, leading = { SectionIcon(Icons.Filled.Place) }, trailing = { Chevron() }) {
@@ -162,12 +165,18 @@ private fun MenuRoot(vm: MainViewModel, controller: MapController) {
                     }
                 }
                 found.forEach { m -> MonumentRow(m, lang) { pickMonument(vm, m) } }
-                if (coord == null && found.isEmpty()) Text(stringResource(R.string.search_nothing, q), color = Chrome.dim, fontSize = 14.sp, modifier = Modifier.padding(4.dp))
+                foundPlaces.forEach { p -> PlaceRow(p, lang) { pickPlace(vm, p) } }
+                if (coord == null && found.isEmpty() && foundPlaces.isEmpty()) Text(stringResource(R.string.search_nothing, q), color = Chrome.dim, fontSize = 14.sp, modifier = Modifier.padding(4.dp))
             }
         } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val tracks = routes.count { MainViewModel.isTrack(it) }
             OptionRow(stringResource(R.string.tab_monuments), stringResource(R.string.menu_monuments_sub, monuments.size), leading = { SectionIcon(Icons.Filled.AccountBalance) },
                 trailing = { Chevron() }) { vm.openMenu(MenuPage.MONUMENTS) }
+            // Өзге нысандар — ескерткіштердің астында (жұмыс үстеліндегідей)
+            OptionRow(stringResource(R.string.tab_places), stringResource(R.string.menu_places_sub, places.size),
+                leading = { Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Chrome.bg3), contentAlignment = Alignment.Center) {
+                    PlaceBadge(io.github.berikkkk.muragis.core.model.PlaceKind.QYSTAU, 26.dp)
+                } }, trailing = { Chevron() }) { vm.openMenu(MenuPage.PLACES) }
             OptionRow(stringResource(R.string.tab_routes), stringResource(R.string.menu_routes_sub, routes.size - tracks, tracks), leading = { SectionIcon(Icons.Filled.Route) },
                 trailing = { Chevron() }) { vm.openMenu(MenuPage.ROUTES) }
             OptionRow(stringResource(R.string.coord_input), "DD · DMS · UTM", leading = { SectionIcon(Icons.Filled.Place) }, trailing = { Chevron() }) { vm.openMenu(MenuPage.COORDS) }

@@ -117,16 +117,18 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
             override fun onMapTap(lat: Double, lon: Double) {
                 when {
                     vm.edit.value != null -> vm.addPoint(lat, lon)
-                    else -> { vm.select(null); vm.selectRoute(null) }
+                    else -> { vm.select(null); vm.selectRoute(null); vm.selectPlace(null) }
                 }
             }
             override fun onMapLongPress(lat: Double, lon: Double) {
-                if (vm.edit.value == null && vm.pick.value == null) vm.newMonumentAt(lat, lon)
+                // Ұзақ басу — жаңа белгі: алдымен түрі сұралады (ескерткіш белгісі не өзге нысан)
+                if (vm.edit.value == null && vm.pick.value == null) vm.newMarkAt(lat, lon)
             }
             override fun onMonumentTap(id: String) {
                 if (vm.edit.value != null) vm.addMonumentToRoute(id) else { vm.selectRoute(null); vm.select(id) }
             }
             override fun onRouteTap(id: String) { vm.select(null); vm.selectRoute(id) }
+            override fun onPlaceTap(id: String) = vm.selectPlace(id)
             override fun onVertexTap(index: Int) = vm.selectVertex(index)
             override fun onVertexMoved(index: Int, lat: Double, lon: Double) = vm.moveVertex(index, lat, lon)
             override fun onCameraIdle(lat: Double, lon: Double, zoom: Double) = vm.rememberCamera(lat, lon, zoom)
@@ -145,7 +147,7 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
             val p = vm.prefs.value
             controller.moveTo(p.lastLat, p.lastLon, p.lastZoom, animate = false)
         }
-        onDispose { }
+        onDispose { controller.release() }
     }
 
     // Деректер → карта
@@ -169,13 +171,30 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         if (controller.zoom() < 13.0) controller.moveTo(m.lat, m.lon, 15.0, animate = false)
         controller.revealAbove(m.lat, m.lon)
     }
+    // Өзге нысандар және таңдалғаны (карточка ашылғанда нысан оның үстінде көрінеді)
+    val places by vm.places.collectAsState()
+    val selectedPlace by vm.selectedPlace.collectAsState()
+    LaunchedEffect(mapReady, places) { if (mapReady) controller.setPlaces(places) }
+    LaunchedEffect(mapReady, selectedPlace, places) { if (mapReady) controller.setSelectedPlace(vm.place(selectedPlace)) }
+    LaunchedEffect(mapReady, selectedPlace) {
+        val p = vm.place(selectedPlace) ?: return@LaunchedEffect
+        if (!mapReady) return@LaunchedEffect
+        if (controller.zoom() < 13.0) controller.moveTo(p.lat, p.lon, 15.0, animate = false)
+        controller.revealAbove(p.lat, p.lon)
+    }
     LaunchedEffect(mapReady, routes, selectedRoute, edit?.base?.id) { if (mapReady) controller.setRoutes(routes, selectedRoute, edit?.base?.id?.ifEmpty { null }) }
     LaunchedEffect(mapReady, edit) { if (mapReady) controller.setEditRoute(edit?.points ?: emptyList(), edit?.selected ?: -1) }
-    // Орын белгісі: бағыт белгілі болса — үшбұрыш (қозғалыста — жүру бағыты, тұрғанда — навигацияда компас)
+    // Қозғалыс бағытын таңдау (GPS ↔ компас) — жылдамдық шегінде ауыса бермеуі үшін күйі сақталады
+    val dirPicker = remember { DirectionPicker() }
+    // Орын белгісі: бағыт белгілі болса — үшбұрыш (қозғалыста — жүру бағыты, тұрғанда — навигацияда компас).
+    // Белгі көрсетілмесе де орын беріледі — камера соған ереді (белгі мен камера бір тегіс қозғалыспен жүреді).
     LaunchedEffect(mapReady) {
         if (!mapReady) return@LaunchedEffect
-        combine(vm.location.location, vm.prefs, vm.headingUp, vm.heading.heading) { l, p, hu, h -> Triple(l?.takeIf { p.showLocation }, hu, h) }
-            .collect { (l, hu, h) -> controller.setLocation(l?.latitude, l?.longitude, l?.accuracy ?: 0f, l?.let { direction(it, h?.takeIf { hu }) }) }
+        combine(vm.location.location, vm.prefs, vm.headingUp, vm.heading.heading) { l, p, hu, h -> Triple(l to p.showLocation, hu, h) }
+            .collect { (lv, hu, h) ->
+                val (l, show) = lv
+                controller.setLocation(l?.latitude, l?.longitude, l?.accuracy ?: 0f, l?.let { dirPicker.pick(it, h?.takeIf { hu }) }, show)
+            }
     }
     // GPS-ке еру және навигация режиміндегі бұру: орын не компас өзгерген сайын камера жаңарады
     LaunchedEffect(mapReady, follow) { if (mapReady) controller.setFollowFocus(follow) }
@@ -184,8 +203,8 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         if (!mapReady) return@LaunchedEffect
         // Навигация режимінде карта бағытпен бұрылады: қозғалыста — жүру бағыты (GPS), тұрғанда — компас
         combine(vm.location.location, vm.follow, vm.headingUp, vm.heading.heading) { l, f, hu, h ->
-            l?.takeIf { f } to (if (hu) (l?.let { direction(it, h) } ?: h) else null)
-        }.collect { (l, b) -> if (l != null || b != null) controller.follow(l?.latitude, l?.longitude, b?.toDouble()) }
+            (f && l != null) to (if (hu) (l?.let { dirPicker.pick(it, h) } ?: h) else null)
+        }.collect { (f, b) -> controller.follow(f, b?.toDouble()) }
     }
     LaunchedEffect(loc) { loc?.let { vm.heading.updateDeclination(it.latitude, it.longitude, it.altitude) } }
     LaunchedEffect(mapReady, headingUp) {
@@ -215,16 +234,17 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     }
 
     // «Артқа»: мәзір беті → мәзір → парақ → таңдау режимі → таңдалған нысан
-    BackHandler(enabled = menu != null || sheet != null || pick != null || selected != null || selectedRoute != null) {
+    BackHandler(enabled = menu != null || sheet != null || pick != null || selected != null || selectedRoute != null || selectedPlace != null) {
         when {
             menu != null -> if (menu != MenuPage.ROOT) vm.openMenu(menu!!.parent) else vm.closeMenu()
             sheet != null -> if (sheet == Sheet.TrackStop) vm.resumeTrack() else vm.openSheet(null)
             pick != null -> when (pick) {
                 Pick.EDITOR -> vm.cancelEditorPick()
-                Pick.MONUMENT -> vm.setPick(null)
+                Pick.PLACE_EDITOR -> vm.cancelPlaceEditorPick()
+                Pick.MONUMENT, Pick.MARK, Pick.PLACE -> vm.setPick(null)
                 else -> { vm.setPick(null); vm.openSheet(Sheet.Plan) }
             }
-            else -> { vm.select(null); vm.selectRoute(null) }
+            else -> { vm.select(null); vm.selectRoute(null); vm.selectPlace(null) }
         }
     }
 
@@ -234,8 +254,9 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
             vm.location.setTracking(true)
             vm.setFollow(true)
             val l = vm.location.location.value
-            if (l != null) controller.moveTo(l.latitude, l.longitude, maxOf(controller.zoom(), 15.0))
-            else { vm.toast(R.string.msg_gps_wait); vm.location.requestFix { f -> f?.let { controller.moveTo(it.latitude, it.longitude, maxOf(controller.zoom(), 15.0)) } } }
+            // Масштаб — кемінде көше деңгейі ([LOCATE_ZOOM]); одан да жақын болса — өзгермейді
+            if (l != null) controller.moveTo(l.latitude, l.longitude, maxOf(controller.zoom(), LOCATE_ZOOM))
+            else { vm.toast(R.string.msg_gps_wait); vm.location.requestFix { f -> f?.let { controller.moveTo(it.latitude, it.longitude, maxOf(controller.zoom(), LOCATE_ZOOM)) } } }
         }
     }
 
@@ -285,7 +306,7 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
                                 vm.setFollow(true)
                             }
                         },
-                        onMark = { vm.setPick(Pick.MONUMENT) },
+                        onMark = { vm.setPick(Pick.MARK) },
                     )
                     ScaleBar(controller, onLeft = !prefs.zoomLeft, shownAt = scaleAt)
                     Dock(
@@ -334,7 +355,9 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
             if (edit == null && pick == null && sheet == null && menu == null) {
                 val m = vm.monument(selected)
                 val r = routes.firstOrNull { it.id == selectedRoute }
+                val pl = vm.place(selectedPlace)
                 if (m != null) MapSheet(onDismiss = { vm.select(null) }, maxHeightFraction = 0.6f) { MonumentCardContent(vm, m, prefs.dataLang, prefs.coordFormatDms) }
+                else if (pl != null) MapSheet(onDismiss = { vm.selectPlace(null) }, maxHeightFraction = 0.5f) { PlaceCardContent(vm, pl, prefs.dataLang, prefs.coordFormatDms) }
                 else if (r != null) MapSheet(onDismiss = { vm.selectRoute(null) }, maxHeightFraction = 0.6f) { RouteCardContent(vm, r, controller) }
             }
 
@@ -356,6 +379,10 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     // Терезелер (бөлімге тәуелсіз)
     val editor by vm.editor.collectAsState()
     editor?.let { MonumentEditorDialog(vm, it, controller, act) }
+    val placeEditor by vm.placeEditor.collectAsState()
+    placeEditor?.let { PlaceEditorDialog(vm, it, controller, act) }
+    val markChoice by vm.markChoice.collectAsState()
+    if (markChoice != null) MarkChoiceDialog(vm)
     val pending by vm.pending.collectAsState()
     pending?.let { PendingPointsDialog(vm, it) }
     val report by vm.mapImport.collectAsState()
@@ -431,11 +458,21 @@ private fun niceScale(metersPerDp: Double): Pair<Double, Float> {
 }
 
 /**
- * Орынның бағыты: жүріп келе жатса (≥ 1 м/с, ~3,6 км/сағ) — GPS-тің қозғалыс бағыты, әйтпесе — компас ([compass], болса).
- * Баяу жүргенде GPS бағыты секіріп тұрады, сондықтан ол кезде компас сенімдірек.
+ * Орынның бағыты: жүріп келе жатса — GPS-тің қозғалыс бағыты, әйтпесе — компас ([compass], болса).
+ * Баяу жүргенде GPS бағыты секіріп тұрады, сондықтан ол кезде компас сенімдірек. Ауысу шегі екеу (≥ 1,2 м/с — GPS-ке,
+ * < 0,7 м/с — компасқа): жылдамдық ~1 м/с маңында ауытқығанда карта екі бағыттың арасында бұрылып-бұрылып тұрмайды.
  */
-private fun direction(l: android.location.Location, compass: Float?): Float? =
-    if (l.hasBearing() && l.hasSpeed() && l.speed >= 1.0f) l.bearing else compass
+/** «Дәлдеу» басылғанда карта кемінде осы масштабқа жақындайды (~1 м/px: көшелер, үйлер, соқпақтар көрінеді). */
+private const val LOCATE_ZOOM = 17.0
+
+private class DirectionPicker {
+    private var moving = false
+    fun pick(l: android.location.Location, compass: Float?): Float? {
+        val v = if (l.hasSpeed()) l.speed else 0f
+        moving = if (moving) v >= 0.7f else v >= 1.2f
+        return if (moving && l.hasBearing()) l.bearing else compass
+    }
+}
 
 /**
  * Компас (zoom батырмаларының астында): тілі әрдайым солтүстікті көрсетеді (карта бұрылса — бірге бұрылады).
@@ -586,26 +623,38 @@ private fun BoxScope.PickBar(vm: MainViewModel, pick: Pick, controller: MapContr
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(10.dp)) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(when (pick) {
-                    Pick.MONUMENT -> R.string.pick_mark_hint; Pick.EDITOR -> R.string.pick_editor_hint
+                    Pick.MARK, Pick.MONUMENT -> R.string.pick_mark_hint; Pick.EDITOR -> R.string.pick_editor_hint
+                    Pick.PLACE -> R.string.pick_place_hint; Pick.PLACE_EDITOR -> R.string.pick_place_editor_hint
                     Pick.PLAN_A -> R.string.pick_a_hint; Pick.PLAN_B -> R.string.pick_b_hint
                 }), color = Chrome.dim, fontSize = 14.sp)
-                if (pick == Pick.MONUMENT || pick == Pick.EDITOR) BigButton(
+                if (pick != Pick.PLAN_A && pick != Pick.PLAN_B) BigButton(
                     if (loc != null) stringResource(R.string.pick_my_location_acc, loc!!.accuracy.toInt()) else stringResource(R.string.my_location),
                     Modifier.fillMaxWidth(), icon = { Icon(Icons.Filled.MyLocation, null, Modifier.size(20.dp)) },
                 ) {
-                    if (pick == Pick.MONUMENT) { vm.setPick(null); act.withLocation { vm.newMonumentAtGps() } }
+                    if (pick == Pick.MONUMENT || pick == Pick.MARK || pick == Pick.PLACE) { vm.setPick(null); act.withLocation { vm.newMarkAtGps(pick) } }
                     else act.withLocation {
                         vm.toast(R.string.msg_gps_wait)
-                        vm.location.requestFix { l -> if (l != null) vm.editorPicked(l.latitude, l.longitude) else vm.toast(R.string.err_no_gps) }
+                        vm.location.requestFix { l ->
+                            if (l == null) vm.toast(R.string.err_no_gps)
+                            else if (pick == Pick.PLACE_EDITOR) vm.placeEditorPicked(l.latitude, l.longitude) else vm.editorPicked(l.latitude, l.longitude)
+                        }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BigButton(stringResource(R.string.cancel), Modifier.weight(1f)) {
-                        when (pick) { Pick.EDITOR -> vm.cancelEditorPick(); Pick.MONUMENT -> vm.setPick(null); else -> { vm.setPick(null); vm.openSheet(Sheet.Plan) } }
+                        when (pick) {
+                            Pick.EDITOR -> vm.cancelEditorPick(); Pick.PLACE_EDITOR -> vm.cancelPlaceEditorPick()
+                            Pick.MONUMENT, Pick.MARK, Pick.PLACE -> vm.setPick(null)
+                            else -> { vm.setPick(null); vm.openSheet(Sheet.Plan) }
+                        }
                     }
                     BigButton(stringResource(R.string.this_point), Modifier.weight(1f), primary = true) {
                         controller.center()?.let { (la, lo) ->
-                            when (pick) { Pick.MONUMENT -> vm.newMonumentAt(la, lo); Pick.EDITOR -> vm.editorPicked(la, lo); else -> vm.pickPlanAt(la, lo) }
+                            when (pick) {
+                                Pick.MARK -> vm.newMarkAt(la, lo); Pick.MONUMENT -> vm.newMonumentAt(la, lo); Pick.PLACE -> vm.newPlaceAt(la, lo)
+                                Pick.EDITOR -> vm.editorPicked(la, lo); Pick.PLACE_EDITOR -> vm.placeEditorPicked(la, lo)
+                                else -> vm.pickPlanAt(la, lo)
+                            }
                         }
                     }
                 }

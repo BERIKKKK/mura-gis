@@ -92,7 +92,7 @@ fun PinSheet(vm: MainViewModel, p: InputPin) {
             }
         }
         BigButton(stringResource(R.string.save_as_monument), Modifier.fillMaxWidth(), icon = { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(20.dp)) }) {
-            vm.openSheet(null); vm.newMonumentAt(p.lat, p.lon)
+            vm.openSheet(null); vm.newMarkAt(p.lat, p.lon)
         }
         BigButton(stringResource(R.string.remove_point), Modifier.fillMaxWidth(), danger = true) { vm.clearPin() }
     }

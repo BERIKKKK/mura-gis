@@ -12,6 +12,7 @@ Mobile (болашақ): тек **Ескерткіштер → Маршрутт�
 | Модуль | Код | Деректер (`%APPDATA%\Mura GIS\data\`) | Протокол |
 |---|---|---|---|
 | Ескерткіштер | `src/marks/`, `main/marks.js` | `marks.json`, `imports.json` | `mura://app/marks` |
+| ↳ Өзге нысандар (елді мекен, қыстау, құдық…) | `src/marks/places.js`, `main/places.js` | жобаның `places` қабаты | `mura://app/places` |
 | Маршруттар | `src/routes/`, `main/routes.js` | `routes.json` | `mura://app/routes` |
 | Қорғау аймағы | `src/qorgau/`, `src/js/zone-dialog.js`, `main/store.js` | `qorgau.json` | `mura://app/api` |
 | Жоспар | — | — | **ӘЗІРГЕ ЖАСАЛМАЙДЫ** |

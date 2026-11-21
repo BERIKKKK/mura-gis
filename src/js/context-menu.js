@@ -140,7 +140,7 @@ if (map) map.on('contextmenu', async e => {
     ...copyItems(p),
     pasteItem,
     'sep',
-    { label: 'Осы жерге белгі қою', icon: IC.flag, run: () => { globalThis.MuraSvc?.set('marks'); globalThis.__marks?.openDialog({ lat: p.lat, lon: p.lon }); } },
+    { label: 'Осы жерге белгі қою', icon: IC.flag, run: () => { globalThis.MuraSvc?.set('marks'); const m = globalThis.__marks; if (m?.newMark) m.newMark({ lat: p.lat, lon: p.lon }); else m?.openDialog({ lat: p.lat, lon: p.lon }); } },
     { label: 'Осы жерге шекара нүктесін қосу', icon: IC.pin, run: () => addBoundaryPoint(p) },
     'sep',
     { label: 'Осы жерден жол табу', hint: 'маршруттар желісі бойынша', icon: IC.route, run: () => globalThis.MuraRoutes?.findFrom(p) },

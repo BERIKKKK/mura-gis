@@ -39,6 +39,9 @@ const TARGETS = {
   z3: { label: tx('Қорғалатын табиғи ландшафт аймағы (дайын полигон)', 'Зона охраняемого природного ландшафта (готовый полигон)'), geom: ['Polygon'], fields: [], zone: 2 },
   routes: { label: tx('Маршруттар', 'Маршруты'), geom: ['LineString'], fields: [
     ['name', tx('Атауы', 'Название')], ['a_name', tx('Басы (А)', 'Начало (А)')], ['b_name', tx('Соңы (Б)', 'Конец (Б)')], ['vehicle', tx('Көлік', 'Транспорт')], ['season', tx('Маусым', 'Сезон')], ['checked', tx('Тексерілген күні', 'Дата проверки')], ['note', tx('Ескертпе', 'Примечание')]] },
+  // Өзге нысандар (елді мекен, қыстау, құдық…): атауы міндетті емес, түрі — таныс мәнге келтіріледі (normKind)
+  places: { label: tx('Өзге нысандар (елді мекен, қыстау, құдық…)', 'Прочие объекты (населённые пункты, зимовки, колодцы…)'), geom: ['Point', 'Polygon'], fields: [
+    ['name', tx('Атауы (қазақша)', 'Название (по-казахски)')], ['name_ru', tx('Атауы (орысша)', 'Название (по-русски)')], ['kind', tx('Түрі', 'Вид')]] },
   imports: { label: tx('Импортталған нүктелер (кейін сәйкестендіріледі)', 'Импортированные точки (сопоставляются позже)'), geom: ['Point'], fields: [['name', tx('Атауы', 'Наименование')], ['desc', tx('Сипаттамасы', 'Описание')]] },
   skip: { label: tx('Импорттамау', 'Не импортировать'), geom: ['Point', 'LineString', 'Polygon'], fields: [] },
 };
@@ -128,6 +131,20 @@ function normCat(v) {
   if (has(s, /республика/)) return 'rep';
   if (has(s, /жергілікті|местн|local|облыс/)) return 'local';
   return '';
+}
+/** Өзге нысанның түрі: код (settlement…) не атауы (қыстау, колодец…); танылмаса — «Басқа». */
+function normKind(v) {
+  const s = String(v || '').trim();
+  if (['settlement', 'qystau', 'zhailau', 'kuzeu', 'kokteu', 'turaq', 'well', 'spring', 'other'].includes(s)) return s;
+  if (has(s, /қыстау|зимов/)) return 'qystau';
+  if (has(s, /жайлау|летов|летн/)) return 'zhailau';
+  if (has(s, /күзеу|осен/)) return 'kuzeu';
+  if (has(s, /көктеу|весен/)) return 'kokteu';
+  if (has(s, /құдық|колод|well/)) return 'well';
+  if (has(s, /бұлақ|родник|spring|источ/)) return 'spring';
+  if (has(s, /тұрақ|стоян/)) return 'turaq';
+  if (has(s, /елді|ауыл|село|посел|аул|город|қала|settle|village/)) return 'settlement';
+  return 'other';
 }
 function normStatus(v) {
   const s = String(v || '').trim();
@@ -321,7 +338,7 @@ function closeMap() { const b = dlg && dlg.querySelector('.gi-map'); if (b) b.re
 async function buildPlan() {
   const P = M.project.current, defOb = (REG && REG.project.oblast) || '', defDi = (REG && REG.project.district) || '';
   const val = (L, f, k) => (L.map[k] ? str(f.p[L.map[k]]) : '');
-  plan = { marks: [], routes: [], imports: [], monuments: [], zonePolys: [], unlinked: 0, noType: 0, src: src.name };
+  plan = { marks: [], places: [], routes: [], imports: [], monuments: [], zonePolys: [], unlinked: 0, noType: 0, src: src.name };
   for (const L of src.layers) {
     if (L.error || L.target === 'skip') continue;
     const tag = src.name + ' / ' + L.title;
@@ -333,6 +350,10 @@ async function buildPlan() {
         plan.marks.push({ name, name_ru, period_ru: val(L, f, 'period_ru'), place_ru: val(L, f, 'place_ru'), note_ru: val(L, f, 'note_ru'), period: val(L, f, 'period'), oblast: val(L, f, 'oblast') || defOb, district: val(L, f, 'district') || (val(L, f, 'oblast') ? '' : defDi),
           place: val(L, f, 'place'), type: normType(val(L, f, 'type')) || 'archeo', category: normCat(val(L, f, 'category')), status: normStatus(val(L, f, 'status')),
           note: val(L, f, 'note'), lat: c.lat, lon: c.lon });
+      } else if (L.target === 'places') {
+        const c = L.geom === 'Polygon' ? centroid(ringOf(f.g)) : { lat: f.g[1], lon: f.g[0] };
+        plan.places.push({ name: val(L, f, 'name'), name_ru: val(L, f, 'name_ru'), kind: normKind(val(L, f, 'kind')), lat: c.lat, lon: c.lon,
+          id: src.isMura ? str(f.p.uid || f.p.id || '') : '', updated_at: src.isMura ? str(f.p.updated_at || '') : '' });
       } else if (L.target === 'imports') {
         plan.imports.push({ name: val(L, f, 'name') || tx('Нүкте', 'Точка'), desc: val(L, f, 'desc'), lat: f.g[1], lon: f.g[0], file: src.name, folder: L.title });
       } else if (L.target === 'routes') {
@@ -394,7 +415,8 @@ function renderCheck() {
   const bad = withZones.filter(m => !m.legal.ok);
   const newZones = plan.monuments.filter(m => m.isNew).length, upd = plan.monuments.filter(m => !m.isNew).length;
   const sum = [plan.marks.length ? nf(plan.marks.length) + tx(' ескерткіш белгісі', ' меток памятников') : '', newZones ? nf(newZones) + tx(' жаңа қорғау аймағы жазбасы', ' новых записей охранных зон') : '',
-    upd ? nf(upd) + tx(' бар жазбаға аймақ полигоны', ' полигонов зон к имеющимся записям') : '', plan.routes.length ? nf(plan.routes.length) + tx(' маршрут', ' маршрутов') : '', plan.imports.length ? nf(plan.imports.length) + tx(' импортталған нүкте', ' импортированных точек') : ''].filter(Boolean);
+    upd ? nf(upd) + tx(' бар жазбаға аймақ полигоны', ' полигонов зон к имеющимся записям') : '', plan.routes.length ? nf(plan.routes.length) + tx(' маршрут', ' маршрутов') : '', plan.imports.length ? nf(plan.imports.length) + tx(' импортталған нүкте', ' импортированных точек') : '',
+    plan.places.length ? nf(plan.places.length) + tx(' өзге нысан', ' прочих объектов') : ''].filter(Boolean);
   const rows = withZones.map((m) => {
     const i = plan.monuments.indexOf(m), ok = m.legal.ok;
     const mnm = m.fields.name || m.fields.name_ru || '';
@@ -450,6 +472,7 @@ async function run() {
   const step = async (label, fn) => { try { const r = await fn(); if (r) out.push(r); } catch (e) { errs.push(label + ': ' + e.message); } };
   if (plan.marks.length) await step(tx('Ескерткіштер', 'Памятники'), async () => { const j = await globalThis.__marks.api('import', { data: JSON.stringify(plan.marks) }); return nf(j.added) + tx(' ескерткіш', ' памятников') + (j.skipped ? tx(' (' + j.skipped + ' өткізілді)', ' (пропущено: ' + j.skipped + ')') : ''); });
   if (plan.imports.length) await step(tx('Нүктелер', 'Точки'), async () => { const j = await globalThis.__marks.api('iadd', { data: JSON.stringify(plan.imports) }); return nf(j.added) + tx(' импортталған нүкте', ' импортированных точек'); });
+  if (plan.places.length) await step(tx('Өзге нысандар', 'Прочие объекты'), async () => { const j = await globalThis.__places.api('import', { data: JSON.stringify(plan.places) }); return nf(j.added) + tx(' өзге нысан', ' прочих объектов') + (j.updated ? tx(', жаңартылды ', ', обновлено ') + nf(j.updated) : ''); });
   if (plan.routes.length) await step(tx('Маршруттар', 'Маршруты'), async () => { const j = await globalThis.MuraRoutes.api('import', { data: JSON.stringify(plan.routes) }); return nf(j.added) + tx(' маршрут', ' маршрутов'); });
   const news = plan.monuments.filter(m => m.isNew).map(zoneRecord);
   if (news.length) await step(tx('Қорғау аймақтары', 'Охранные зоны'), async () => {

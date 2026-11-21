@@ -67,6 +67,8 @@
     '<header class="qa-dh"><h2 id="mkPanelT">' + ic(IC.flag) + 'Ескерткіштер</h2><button type="button" class="qa-ib" data-mkclose aria-label="Жабу" title="Жабу">' + ic(IC.close) + '</button></header>' +
     '<div class="mk-tabs" role="tablist">' +
       '<button type="button" role="tab" id="mkTabMarksB" data-mktab="marks" aria-selected="true">Ескерткіштер <span class="mk-tabn" id="mkTabN">0</span></button>' +
+      // Өзге нысандар — ескерткіштердің жанында (Android мәзіріндегідей: «Ескерткіштердің» астында), бөлек қабат (marks/places.js)
+      '<button type="button" role="tab" id="mkTabPlacesB" data-mktab="places" aria-selected="false" title="Елді мекен, қыстау, жайлау, тұрақ, құдық т.б.">Өзге нысандар <span class="mk-tabn" id="plTabN">0</span></button>' +
       '<button type="button" role="tab" id="mkTabImpB" data-mktab="imp" aria-selected="false" title="KML, KMZ, GPX файлдарынан импортталған, әлі сәйкестендірілмеген нүктелер">Импортталғандар <span class="mk-tabn" id="mkTabI">0</span></button>' +
     '</div>' +
     '<div class="qa-db" id="mkTabMarks">' +
@@ -95,6 +97,16 @@
           '<p class="qa-hint mk-multi" id="mkTitleMulti" hidden></p></div>' +
       '</section>' +
     '</div>' +
+    '<div class="qa-db" id="mkTabPlaces" hidden>' +
+      '<p class="qa-hint mk-imphint">' + tx('Ескерткіш емес нысандар: елді мекен, қыстау, жайлау, күзеу, көктеу, тұрақ, құдық, бұлақ т.б. Қосу — «Белгі қою» → картаны басу → «Өзге нысандар».',
+        'Объекты, не являющиеся памятниками: населённые пункты, зимовки, пастбища, стоянки, колодцы, родники и др. Добавление — «Поставить метку» → щелчок по карте → «Прочие объекты».') + '</p>' +
+      '<div class="qa-sfilter"><label class="qa-search">' + ic(IC.search, 16) + '<input type="search" id="plQ" placeholder="Іздеу: атауы, түрі…" aria-label="Өзге нысандардан іздеу" autocomplete="off"></label>' +
+        '<select id="plFKind" aria-label="Түрі бойынша сүзу"><option value="">Барлық түрі</option></select></div>' +
+      '<div class="qa-selbar"><label class="qa-check"><input type="checkbox" id="plShow" checked> Картада көрсету</label>' +
+        '<label class="qa-check"><input type="checkbox" id="plLabels"> Атаулары</label><span id="plInfo"></span>' +
+        '<button type="button" class="btn btn--sm" id="plAdd" title="Картадан орнын басып, жаңа өзге нысан қосу">+ Нысан қосу</button></div>' +
+      '<div class="qa-slist" id="plList"></div>' +
+    '</div>' +
     '<div class="qa-db" id="mkTabImp" hidden>' +
       '<p class="qa-hint mk-imphint">' + tx('KML, KMZ, GPX файлдарынан алынған нүктелер. Олар әзірге белгі емес: картадан қарауға болады, ал <b>«Сәйкестендіру»</b> басып, ' +
         'ескерткіштің мәліметтерін (атауы, түрі, санаты, мәртебесі…) толтырып сақтағанда ғана белгілер тізіміне өтеді.',
@@ -110,6 +122,7 @@
       '<button type="button" class="btn btn--steppe btn--sm" id="mkGeo" disabled title="Белгілердің нүктелері (WGS 84) — GeoJSON">GeoJSON</button>' +
       '<button type="button" class="btn btn--primary btn--sm" id="mkDocx" disabled title="Ескерткіштер тізімі — Word кестесі">Word (DOCX)</button>' +
       '<button type="button" class="btn btn--ghost btn--sm" id="mkPdf" disabled title="Ескерткіштер тізімі — PDF кестесі">PDF</button>' +
+      '<button type="button" class="btn btn--steppe btn--sm" id="plGeo" hidden disabled title="Өзге нысандардың нүктелері (WGS 84) — GeoJSON">GeoJSON</button>' +
       '<button type="button" class="btn btn--ghost btn--sm mk-imponly" id="mkIDelAll" hidden title="Барлық импортталған нүктелерді тізімнен өшіру (белгілерге әсер етпейді)">Барлығын өшіру</button>' +
       '<input type="file" id="mkGeoFile" accept=".geojson,.json,.kml,.kmz,.gpx,application/geo+json,application/json,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/gpx+xml" multiple hidden>' +
       // Импорт батырмасы — тек құралдар жолағында («Ескерткіштер → Импорт», js/services.js); мұндағы жасырын элемент соның әрекетін орындайды
