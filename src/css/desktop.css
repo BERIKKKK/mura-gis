@@ -52,9 +52,14 @@ body.mura .qa-app:not([data-svc="zone"]) #qaLegend > span:not(.mk-leg) { display
   body.mura .mura-common .qa-tbtn[data-tip]::after { left: auto; right: 0; transform: none; }
   body.mura .mura-2rows .qa-tmain > .qa-tgroup.mura-first .qa-tbtn:first-child::after { left: 0; transform: none; }
 }
+/* Жоғарғы қатардағы ортақ құралдар (Сызғыш, Циркуль, Сыйғызу, Толық экран, Сақтау т.б.) — тек белгісі; атауы — меңзер
+   апарғанда (data-tip). Бұрышты туралаудың градусы (.qa-tv) көрінеді. */
+body.mura .mura-svcrow .qa-tl { display: none; }
+body.mura .mura-svcrow .mura-common .qa-tbtn, body.mura .mura-svcrow .qa-tright .qa-tbtn { padding: 0 9px; }
+/* «Өлшемдерді жабу» — тек картада өлшем бар кезде */
+body.mura #qaMeasureClear:disabled { display: none; }
 @media (max-width: 640px) {
   body.mura .mura-svc { padding: 0 10px; }
-  body.mura .mura-svcrow .qa-tl { display: none; }
 }
 @media (max-width: 460px) {
   body.mura .mura-svc span { display: none; }
