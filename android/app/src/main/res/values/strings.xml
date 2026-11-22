@@ -327,6 +327,9 @@
     <string name="draw_route">Қолмен сызу</string>
     <string name="kind_route">Маршрут</string>
     <string name="kind_track">Жазылған трек</string>
+    <string name="route_keep_shown">Картада үнемі көрсету</string>
+    <string name="route_show">Картада көрсету</string>
+    <string name="route_hide">Картадан жасыру</string>
     <string name="layers_title">Карта қабаттары</string>
 
     <!-- Баптаулар: интерфейс -->

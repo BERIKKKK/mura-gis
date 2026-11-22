@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -244,6 +246,7 @@ private fun RoutesPage(vm: MainViewModel, controller: MapController) {
     val prefs by vm.prefs.collectAsState()
     var dialog by remember { mutableStateOf<DataDialog?>(null) }
     val lang = prefs.dataLang
+    val shown by vm.shownRoutes.collectAsState()
     val (tracks, plain) = routes.sortedBy { it.name.display(lang) }.partition { MainViewModel.isTrack(it) }
     LazyColumn(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)) {
         item {
@@ -260,19 +263,26 @@ private fun RoutesPage(vm: MainViewModel, controller: MapController) {
         }
         item { ChromeLabel(stringResource(R.string.routes_built)) }
         if (plain.isEmpty()) item { Text(stringResource(R.string.routes_empty), color = Chrome.dim, fontSize = 14.sp) }
-        items(plain, key = { it.id }) { r -> RouteRow(vm, controller, r, lang, false) }
+        items(plain, key = { it.id }) { r -> RouteRow(vm, controller, r, lang, false, r.id in shown) }
         item { ChromeLabel(stringResource(R.string.tracks_recorded)) }
         if (tracks.isEmpty()) item { Text(stringResource(R.string.tracks_empty), color = Chrome.dim, fontSize = 14.sp) }
-        items(tracks, key = { it.id }) { r -> RouteRow(vm, controller, r, lang, true) }
+        items(tracks, key = { it.id }) { r -> RouteRow(vm, controller, r, lang, true, r.id in shown) }
     }
     dialog?.let { DataDialogs(vm, it, ImportTarget.ROUTES, false) { dialog = null } }
 }
 
 @Composable
-private fun RouteRow(vm: MainViewModel, controller: MapController, r: Route, lang: io.github.berikkkk.muragis.core.model.Lang, track: Boolean) {
+private fun RouteRow(vm: MainViewModel, controller: MapController, r: Route, lang: io.github.berikkkk.muragis.core.model.Lang, track: Boolean, shown: Boolean) {
     OptionRow(r.name.display(lang).ifBlank { "—" }, fmtLength(r.lengthMeters()) + if (track) "" else " · " + vehicleLabel(r.vehicle),
         leading = { SectionIcon(if (track) Icons.Filled.FiberManualRecord else Icons.Filled.Route, if (track) Chrome.rec else Chrome.accent) },
-        trailing = { Chevron() }) {
+        trailing = {
+            // «Көз»: маршрутты картада үнемі көрсету / жасыру (әдепкіде жасырын)
+            IconButton(onClick = { vm.setRouteShown(r.id, !shown) }) {
+                Icon(if (shown) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                    stringResource(if (shown) R.string.route_hide else R.string.route_show), tint = if (shown) Chrome.accent else Chrome.dim)
+            }
+            Chevron()
+        }) {
         vm.closeMenu()
         vm.select(null)
         vm.selectRoute(r.id)

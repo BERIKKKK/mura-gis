@@ -211,6 +211,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _filter = MutableStateFlow(MonumentFilter()); val filter: StateFlow<MonumentFilter> = _filter
     private val _selected = MutableStateFlow<String?>(null); val selected: StateFlow<String?> = _selected
     private val _selectedRoute = MutableStateFlow<String?>(null); val selectedRoute: StateFlow<String?> = _selectedRoute
+    /** Пайдаланушы «Картада көрсету» қосқан маршруттар/тректер. Қалғандары картада тек таңдалғанда (карточкасы ашық) көрінеді. */
+    private val _shownRoutes = MutableStateFlow(g.settings.shownRoutes); val shownRoutes: StateFlow<Set<String>> = _shownRoutes
     private val _edit = MutableStateFlow<RouteEdit?>(null); val edit: StateFlow<RouteEdit?> = _edit
     private val _places = MutableStateFlow<List<Place>>(emptyList()); val places: StateFlow<List<Place>> = _places
     private val _placeFilter = MutableStateFlow(PlaceFilter()); val placeFilter: StateFlow<PlaceFilter> = _placeFilter
@@ -504,6 +506,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /* ======================= Маршруттар ======================= */
     fun selectRoute(id: String?) { _selectedRoute.value = id; if (id != null) _selectedPlace.value = null }
 
+    fun setRouteShown(id: String, on: Boolean) {
+        val s = if (on) _shownRoutes.value + id else _shownRoutes.value - id
+        _shownRoutes.value = s
+        g.settings.shownRoutes = s
+    }
+
     fun startNewRoute() { _edit.value = RouteEdit(Route(id = ""), emptyList()); _selectedRoute.value = null; _menu.value = null; _sheet.value = null; saveDraft() }
     fun editRoute(id: String) { _routes.value.firstOrNull { it.id == id }?.let { _edit.value = RouteEdit(it, it.points); _menu.value = null; _sheet.value = null; saveDraft() } }
 
@@ -567,6 +575,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         store.deleteRoute(id)
         _routes.value = store.routes()
         if (_selectedRoute.value == id) _selectedRoute.value = null
+        if (id in _shownRoutes.value) withContext(Dispatchers.Main) { setRouteShown(id, false) }
         msg(R.string.msg_deleted_n, 1)
     }
 

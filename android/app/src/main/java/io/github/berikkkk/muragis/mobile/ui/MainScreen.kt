@@ -187,7 +187,11 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         if (controller.zoom() < 13.0) controller.moveTo(p.lat, p.lon, 15.0, animate = false)
         controller.revealAbove(p.lat, p.lon)
     }
-    LaunchedEffect(mapReady, routes, selectedRoute, edit?.base?.id) { if (mapReady) controller.setRoutes(routes, selectedRoute, edit?.base?.id?.ifEmpty { null }) }
+    // Маршруттар мен тректер картада тек пайдаланушы көрсеткенде («Картада көрсету») не карточкасы ашық тұрғанда көрінеді
+    val shownRoutes by vm.shownRoutes.collectAsState()
+    LaunchedEffect(mapReady, routes, selectedRoute, shownRoutes, edit?.base?.id) {
+        if (mapReady) controller.setRoutes(routes.filter { it.id in shownRoutes || it.id == selectedRoute }, selectedRoute, edit?.base?.id?.ifEmpty { null })
+    }
     LaunchedEffect(mapReady, edit) { if (mapReady) controller.setEditRoute(edit?.points ?: emptyList(), edit?.selected ?: -1) }
     // Қозғалыс бағытын таңдау (GPS ↔ компас) — жылдамдық шегінде ауыса бермеуі үшін күйі сақталады
     val dirPicker = remember { DirectionPicker() }

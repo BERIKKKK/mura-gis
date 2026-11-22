@@ -41,6 +41,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -99,7 +100,13 @@ fun RouteCardContent(vm: MainViewModel, r: Route, controller: MapController) {
     Text(stringResource(R.string.route_summary, fmtLength(r.lengthMeters()), r.points.size, vehicleLabel(r.vehicle), seasonLabel(r.season)))
     if (r.checked.isNotBlank()) Text(stringResource(R.string.route_checked, r.checked), style = MaterialTheme.typography.bodySmall)
     if (r.note.display(lang).isNotBlank()) Text(r.note.display(lang), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-    Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Әдепкіде маршрут картада тек карточкасы ашық тұрғанда көрінеді; қосылса — карточка жабылғанда да қалады
+    val shown by vm.shownRoutes.collectAsState()
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp).clickable { vm.setRouteShown(r.id, r.id !in shown) }, verticalAlignment = Alignment.CenterVertically) {
+        Text(stringResource(R.string.route_keep_shown), modifier = Modifier.weight(1f))
+        Switch(checked = r.id in shown, onCheckedChange = { vm.setRouteShown(r.id, it) })
+    }
+    Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         TextButton(onClick = { vm.editRoute(r.id) }) { Icon(Icons.Filled.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.edit)) }
         Spacer(Modifier.weight(1f))
         IconButton(onClick = { Geo.bounds(r.points.map { LatLon(it.lat, it.lon) })?.let { controller.fit(it) } }) { Icon(Icons.Filled.ZoomOutMap, stringResource(R.string.zoom_to)) }
