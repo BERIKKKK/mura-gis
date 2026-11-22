@@ -85,10 +85,13 @@ import java.net.URL
 
 /** Толық экранды мәзірдің беттері. */
 enum class MenuPage {
-    ROOT, MONUMENTS, PLACES, ROUTES, COORDS, SETTINGS, ABOUT;
+    ROOT, MONUMENTS, PLACES, ROUTES, COORDS, SETTINGS, ABOUT,
+
+    /** Баптаулар бөлімдері (Баптаулар → Көрініс / Тіл / Карта / Синхрондау / Сақтық көшірмелер). */
+    SET_LOOK, SET_LANG, SET_MAP, SET_SYNC, SET_BACKUP;
 
     /** «Артқа» апаратын бет. */
-    val parent get() = ROOT
+    val parent get() = if (name.startsWith("SET_")) SETTINGS else ROOT
 }
 
 /** Жаңартуды тексеру күйі. */

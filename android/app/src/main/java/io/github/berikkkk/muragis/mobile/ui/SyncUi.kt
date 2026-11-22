@@ -50,7 +50,6 @@ fun SyncSection(vm: MainViewModel, act: MainActivity) {
     var assign by remember { mutableStateOf(false) }
     val hint = MaterialTheme.typography.labelSmall
 
-    SectionTitle(stringResource(R.string.sync_title))
     Text(stringResource(R.string.sync_provider), style = MaterialTheme.typography.bodySmall)
     listOf(Triple("gdrive", "Google Drive", true), Triple("onedrive", "Microsoft OneDrive", false), Triple("dropbox", "Dropbox", false)).forEach { (id, name, on) ->
         Row(verticalAlignment = Alignment.CenterVertically) {

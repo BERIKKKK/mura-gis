@@ -526,4 +526,11 @@
     <string name="sync_st_error">Ошибка синхронизации: %1$s</string>
     <string name="sync_st_conflicts">Есть конфликты, требующие решения (ниже).</string>
     <string name="sync_st_ok">Синхронизировано</string>
+    <!-- Разделы настроек -->
+    <string name="set_look">Вид</string>
+    <string name="set_lang">Язык</string>
+    <string name="set_lang_sub">Интерфейс: %1$s · данные: %2$s · экспорт: %3$s</string>
+    <string name="set_map_sub">Кластеры, формат координат, местоположение, запись в фоне</string>
+    <string name="set_sync_off">Аккаунт не подключён — только на этом телефоне</string>
+    <string name="set_backups_sub">Копий: %1$d</string>
 </resources>

@@ -532,4 +532,11 @@
     <string name="sync_st_error">Синхрондау қатесі: %1$s</string>
     <string name="sync_st_conflicts">Шешуді қажет ететін қайшылықтар бар (төменде).</string>
     <string name="sync_st_ok">Синхрондалды</string>
+    <!-- Баптаулар бөлімдері -->
+    <string name="set_look">Көрініс</string>
+    <string name="set_lang">Тіл</string>
+    <string name="set_lang_sub">Интерфейс: %1$s · деректер: %2$s · экспорт: %3$s</string>
+    <string name="set_map_sub">Кластерлеу, координата пішімі, орналасу, фонда жазу</string>
+    <string name="set_sync_off">Аккаунт қосылмаған — тек осы телефонда</string>
+    <string name="set_backups_sub">Көшірмелер: %1$d</string>
 </resources>
