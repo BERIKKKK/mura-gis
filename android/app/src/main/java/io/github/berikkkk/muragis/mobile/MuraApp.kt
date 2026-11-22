@@ -13,6 +13,7 @@ class MuraApp : Application() {
         super.onCreate()
         MapLibre.getInstance(this)
         graph = AppGraph(this)
+        graph.sync.start()
         thread(name = "mura-backup", isDaemon = true) { graph.autoBackupIfDue() }
     }
 }

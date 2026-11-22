@@ -3,7 +3,8 @@
    Барлық деректер — ашық жобада: бір GeoPackage (.gpkg) файлы (main/gpkg.js, main/projects.js). Жоба ашылмаса, бет
    бастапқы терезені көрсетеді (жаңа жоба / соңғы жобалар / файлдан ашу — src/js/project.js).
    mura://app/api — сақталған аймақтар (main/store.js); mura://app/marks — ескерткіш белгілері (main/marks.js); mura://app/routes — маршруттар (main/routes.js); mura://app/places — өзге нысандар (main/places.js); mura://app/plans — «Жоспар» нысандары мен баптаулары (main/plans.js). Файлдарды жүктеу (GeoJSON, DOCX, PNG) — «Сақтау» терезесі арқылы. */
-const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, clipboard } = require('electron');
+const { app, BrowserWindow, Menu, protocol, net, session, shell, dialog, ipcMain, clipboard, safeStorage } = require('electron');
+const os = require('node:os');
 const path = require('node:path');
 const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
@@ -13,7 +14,8 @@ const { RoutesStore } = require('./routes');
 const { PlacesStore } = require('./places');
 const { PlansStore } = require('./plans');
 const { Projects } = require('./projects');
-const { noTable } = require('./gpkg');
+const { noTable, Project } = require('./gpkg');
+const { SyncManager } = require('./sync');
 const { find: findRegion } = require('./regions');
 const gpkgRead = require('./gpkg-read');
 const updates = require('./updates');
@@ -38,6 +40,7 @@ let routes = null;
 let places = null;
 let plans = null;
 let projects = null;
+let sync = null;
 
 /** Ашық жобаның қабаттарына қоймаларды байлау (жоба жоқ болса — бос тізім, жазу қате береді). */
 function bindStores() {
@@ -96,7 +99,7 @@ ipcMain.handle('mura:set-autosave', (e, v) => {
 ipcMain.handle('mura:project-save', e => {
   if (!fromApp(e)) return { ok: false, error: tx('Рұқсат жоқ', 'Нет доступа') };
   if (!projects || !projects.current) return { ok: false, error: tx('Жоба ашылмаған.', 'Проект не открыт.') };
-  try { const saved = projects.current.save(); sendDirty(); return { ok: true, saved, autosave: autosave() }; }
+  try { const saved = projects.current.save(); sendDirty(); if (sync) sync.localChanged(); return { ok: true, saved, autosave: autosave() }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
 ipcMain.on('mura:project-info', e => { e.returnValue = projects ? projects.info() : { current: null, recent: [], legacy: null }; });
@@ -155,6 +158,7 @@ function cleanMeta(m) {
 function afterSwitch() {
   bindStores();
   if (win) win.webContents.reload();
+  if (sync) sync.localChanged();
 }
 const safeName = s => String(s).replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80) || tx('Жоба', 'Проект');
 
@@ -437,6 +441,79 @@ async function importStore() {
   } catch (e) { dialog.showErrorBox(tx('Импорт', 'Импорт'), e.message); }
 }
 
+/* ---------- Синхрондау (Баптаулар → Синхрондау; main/sync/) ---------- */
+const MUTATING = new Set(['save', 'delete', 'import', 'patch']);
+function oauthConfig() {
+  let j = {};
+  // google-oauth.local.json — жергілікті әзірлеу (gitignore); google-oauth.json — релиз жинағы (CI оны құпиялардан толтырады)
+  for (const f of ['google-oauth.local.json', 'google-oauth.json']) {
+    try { j = JSON.parse(fs.readFileSync(path.join(__dirname, 'sync', f), 'utf8')) || {}; } catch (e) { j = {}; }
+    if (j.clientId) break;
+  }
+  return { google: { clientId: process.env.MURA_GOOGLE_CLIENT_ID || j.clientId || '', clientSecret: process.env.MURA_GOOGLE_CLIENT_SECRET || j.clientSecret || '' } };
+}
+/** Google-дан қайтқанда браузерде көрсетілетін бет. */
+const authPage = good => '<!doctype html><meta charset="utf-8"><title>Mura GIS</title><body style="font:16px system-ui,sans-serif;background:#ebe5d8;color:#2b2b2b;display:grid;place-items:center;height:90vh">' +
+  '<div style="max-width:30em;text-align:center"><h2>Mura GIS</h2><p>' + (good
+    ? tx('Google аккаунты қосылды. Бұл бетті жауып, бағдарламаға оралыңыз.', 'Аккаунт Google подключён. Закройте эту страницу и вернитесь в программу.')
+    : tx('Кіру аяқталмады. Бағдарламаға оралып, қайталап көріңіз.', 'Вход не завершён. Вернитесь в программу и попробуйте снова.')) + '</p></div>';
+function createSync() {
+  return new SyncManager({
+    dir: path.join(app.getPath('userData'), 'sync'), projects, Project, prefs, config: oauthConfig(), authPage,
+    crypt: { available: () => safeStorage.isAsyncEncryptionAvailable(), encrypt: s => safeStorage.encryptStringAsync(s), decrypt: b => safeStorage.decryptStringAsync(b).then(r => r.result) },
+    http: (url, o) => net.fetch(url, o), online: () => net.isOnline(), openExternal: url => shell.openExternal(url),
+    device: { name: os.hostname(), platform: 'desktop-' + process.platform, app: 'Mura GIS ' + app.getVersion() },
+    onStatus: st => { if (win && !win.isDestroyed()) win.webContents.send('mura:sync', st); },
+    onApplied: () => {
+      if (!win || win.isDestroyed()) return;
+      win.webContents.send('mura:sync-applied');
+      if (projects.current) win.setTitle(projects.info().current.name + ' — Mura GIS');
+    },
+  });
+}
+const syncCall = fn => guard(async (...a) => { await fn(...a); return ok({ status: sync.status() }); });
+ipcMain.handle('mura:sync-status', guard(() => ok({ status: sync.status() })));
+ipcMain.handle('mura:sync-connect', guard(async () => {
+  try { return ok({ status: await sync.connect() }); } catch (e) { return { ok: false, code: e.code || '', error: e.message, status: sync.status() }; }
+}));
+ipcMain.handle('mura:sync-cancel', guard(() => { sync.cancelConnect(); return ok(); }));
+ipcMain.handle('mura:sync-disconnect', syncCall(() => sync.disconnect()));
+ipcMain.handle('mura:sync-now', syncCall(() => sync.syncAll('manual')));
+ipcMain.handle('mura:sync-link', syncCall(() => sync.linkCurrent()));
+ipcMain.handle('mura:sync-unlink', syncCall(pid => sync.unlink(String(pid || ''))));
+ipcMain.handle('mura:sync-resolve', syncCall((pid, key, choice) => sync.resolve(String(pid || ''), String(key || ''), choice === 'remote' ? 'remote' : 'local')));
+/** Бұлттағы жобаны компьютерге алу: файл орнын таңдау, жаңа жоба құрып синхрондау, ашу. */
+ipcMain.handle('mura:sync-download', guard(async pid => {
+  const c = sync.status().cloud.find(x => x.id === pid);
+  if (!c) throw new Error(tx('Жоба бұлтта табылмады.', 'Проект не найден в облаке.'));
+  const r = await dialog.showSaveDialog(win, {
+    title: tx('Бұлттағы жобаны осы компьютерге сақтау (GeoPackage)', 'Сохранить проект из облака на этот компьютер (GeoPackage)'),
+    defaultPath: path.join(app.getPath('documents'), safeName(c.name || tx('Жоба', 'Проект')) + '.gpkg'),
+    filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }],
+  });
+  if (r.canceled || !r.filePath) return ok({ canceled: true });
+  let file = r.filePath;
+  if (!/\.gpkg$/i.test(file)) file += '.gpkg';
+  if (projects.current && projects.current.file === path.resolve(file)) throw new Error(tx('Бұл — ашық жобаның файлы. Басқа атау таңдаңыз.', 'Это файл открытого проекта. Выберите другое имя.'));
+  if (!confirmPending()) return ok({ canceled: true });
+  const f = await sync.download(pid, file);
+  projects.open(f);
+  afterSwitch();
+  return ok({ path: f });
+}));
+ipcMain.handle('mura:sync-open', guard(async pid => {
+  const x = sync.status().projects.find(p => p.id === pid);
+  if (!x || !x.exists) throw new Error(tx('Жоба файлы табылмады.', 'Файл проекта не найден.'));
+  return openProject(x.path);
+}));
+/** Жоба файлы жылжытылса — жаңа орнын көрсету. */
+ipcMain.handle('mura:sync-relink', guard(async pid => {
+  const r = await dialog.showOpenDialog(win, { title: tx('Жоба файлының жаңа орны', 'Новое расположение файла проекта'), properties: ['openFile'], filters: [{ name: 'GeoPackage', extensions: ['gpkg'] }] });
+  if (r.canceled || !r.filePaths[0]) return ok({ canceled: true });
+  try { return ok({ status: sync.relink(String(pid || ''), r.filePaths[0]) }); }
+  catch (e) { throw new Error(e.code === 'mismatch' ? tx('Бұл файл — басқа жоба.', 'Этот файл — другой проект.') : e.message); }
+}));
+
 /** Командалық жолда берілген .gpkg файлы (жобаны «Ашу» арқылы не файлды бағдарламаға сүйреп әкелгенде). */
 const argProject = argv => argv.slice(1).find(a => /\.gpkg$/i.test(a) && fs.existsSync(a)) || '';
 
@@ -460,13 +537,15 @@ app.whenReady().then(() => {
     } catch (e) { console.error(tx('Жоба ашылмады:', 'Проект не открыт:'), e.message); }
   }
   bindStores();
+  sync = createSync();
 
   protocol.handle('mura', req => {
     const u = new URL(req.url);
     if (u.host !== 'app') return new Response('Not found', { status: 404 });
     if (u.pathname === '/api') return store.handle(req);
-    if (u.pathname === '/marks') return marks.handle(req);
-    if (u.pathname === '/routes') return routes.handle(req);
+    // Ескерткіш не маршрут өзгерсе — синхрондау кезегі (желі болса, біраздан кейін жіберіледі)
+    if (u.pathname === '/marks') return marks.handle(req).then(r => { if (MUTATING.has(u.searchParams.get('op'))) sync.localChanged(); return r; });
+    if (u.pathname === '/routes') return routes.handle(req).then(r => { if (MUTATING.has(u.searchParams.get('op'))) sync.localChanged(); return r; });
     if (u.pathname === '/places') return places.handle(req);
     if (u.pathname === '/plans') return plans.handle(req);
     return serveFile(u.pathname);
@@ -489,8 +568,10 @@ app.whenReady().then(() => {
   createWindow();
   bindStores();
   setTimeout(() => updates.check(win, { manual: false }), 4000);
+  // Аккаунт қосылған болса — синхрондау жұмыс кезінде жалғасады (желі қалпына келгенде де)
+  if (sync.account) { sync.start(); setTimeout(() => sync.syncAll('start').catch(() => {}), 6000); }
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('will-quit', () => { if (projects) projects.close(); });   // жоба файлы (SQLite) дұрыс жабылады
+app.on('will-quit', () => { if (sync) sync.stop(); if (projects) projects.close(); });   // жоба файлы (SQLite) дұрыс жабылады
 app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });

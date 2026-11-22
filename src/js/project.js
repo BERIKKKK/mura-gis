@@ -122,7 +122,8 @@
             '<ul class="mura-rcl" id="muraRecent">' + recentHtml(recent) + '</ul>' +
             (!recent.length && !cur ? '<p class="mura-hint mura-rc-empty">Әзірге жоба жоқ. Сол жақта жаңа жоба құрыңыз не бар .gpkg файлын ашыңыз.</p>' : '') +
             '<p class="mura-err" id="muraOpenErr" role="alert" hidden></p>' +
-            '<div class="mura-dlg-btns mura-start-open"><button type="button" class="btn btn--ghost btn--sm" id="muraOpenBtn">' + svg(IC.folder, 16) + 'Басқа жобаны ашу…</button></div>' +
+            '<div class="mura-dlg-btns mura-start-open"><button type="button" class="btn btn--ghost btn--sm" id="muraOpenBtn">' + svg(IC.folder, 16) + 'Басқа жобаны ашу…</button>' +
+              (M.sync ? '<button type="button" class="btn btn--ghost btn--sm" id="muraCloudBtn" title="' + tx('Google Drive арқылы синхрондау: басқа құрылғыдағы жобаны осы компьютерге алу', 'Синхронизация через Google Drive: загрузить проект с другого устройства на этот компьютер') + '">' + tx('Бұлттан…', 'Из облака…') + '</button>' : '') + '</div>' +
           '</section>' +
         '</div>' +
       '</div>';
@@ -156,6 +157,7 @@
       }, function (e2) { busy(false); err('muraOpenErr', e2.message || String(e2)); });
     }
     $('muraOpenBtn').addEventListener('click', function () { openFile(''); });
+    if ($('muraCloudBtn')) $('muraCloudBtn').addEventListener('click', function () { openSettings('sync'); });
     $('muraRecent').addEventListener('click', function (e) {
       var x = e.target.closest('[data-forget]');
       if (x) {
@@ -239,10 +241,10 @@
   /* ======================= «Баптаулар» терезесі ======================= */
   var setDlg = null, setTab = 'project';
   function openSettings(tab) {
-    if (start && !cur) return;
+    if (start && !cur && tab !== 'sync') return;
     if (start) closeStart();
     closeSettings();
-    if (!cur && tab !== 'lang') tab = 'toolbar';
+    if (!cur && tab !== 'lang' && tab !== 'sync') tab = 'toolbar';
     setTab = tab || setTab || 'project';
     if (globalThis.QAUI && globalThis.QAUI.closePop) globalThis.QAUI.closePop();
     setDlg = document.createElement('div');
@@ -254,7 +256,9 @@
           (cur ? '<button type="button" role="tab" data-tab="project">Жоба</button>' : '') +
           '<button type="button" role="tab" data-tab="toolbar">Құралдар панелі</button>' +
           '<button type="button" role="tab" data-tab="lang">Тіл / Язык</button>' +
+          (M.sync ? '<button type="button" role="tab" data-tab="sync">' + tx('Синхрондау', 'Синхронизация') + '</button>' : '') +
         '</div>' +
+        (M.sync ? '<div class="mura-pane mura-sy" data-pane="sync" id="muraSyncPane"></div>' : '') +
         '<div class="mura-pane" data-pane="lang">' +
           '<h4 class="mura-set-h">' + tx('Интерфейс тілі', 'Язык интерфейса') + '</h4>' +
           langButtons() +
@@ -331,11 +335,12 @@
   }
   function paintTab(tab) {
     if (!setDlg) return;
-    if (!cur && tab !== 'lang') tab = 'toolbar';
+    if (!cur && tab !== 'lang' && tab !== 'sync') tab = 'toolbar';
     setTab = tab;
     [].forEach.call(setDlg.querySelectorAll('[data-tab]'), function (b) { b.setAttribute('aria-selected', b.dataset.tab === tab ? 'true' : 'false'); });
     [].forEach.call(setDlg.querySelectorAll('[data-pane]'), function (p) { p.hidden = p.dataset.pane !== tab; });
     if (tab === 'toolbar') paintTb();
+    if (tab === 'sync' && window.MuraSyncUI) window.MuraSyncUI.mount($('muraSyncPane'));
     var first = setDlg.querySelector('[data-pane="' + tab + '"] input, [data-pane="' + tab + '"] select');
     if (first && tab === 'project') first.focus();
   }
@@ -361,7 +366,12 @@
     });
     $('muraTbList').innerHTML = h;
   }
-  function closeSettings() { if (setDlg) { setDlg.remove(); setDlg = null; } }
+  function closeSettings() {
+    if (!setDlg) return;
+    setDlg.remove(); setDlg = null;
+    if (window.MuraSyncUI) window.MuraSyncUI.unmount();
+    if (!cur && !start) openStart(false);          // жоба ашылмаған (бастапқы терезеден «Бұлттан…») — терезеге оралу
+  }
 
   /* ======================= Жобаны сақтау ======================= */
   // Авто сақтау қосулы — әр өзгеріс файлға бірден жазылады («Сақтау» тек растайды). Өшік — main/gpkg.js өзгерістерді жадта

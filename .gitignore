@@ -1,3 +1,5 @@
 node_modules/
 dist/
 *.log
+# Google OAuth клиенті — жергілікті әзірлеу үшін; релизде GitHub Actions құпияларынан жазылады (docs/SYNC.md)
+main/sync/google-oauth.local.json

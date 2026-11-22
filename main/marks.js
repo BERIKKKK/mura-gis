@@ -19,6 +19,7 @@ const LIMITS = { name: 200, period: 120, oblast: 80, district: 80, place: 1500, 
 const TYPES = ['archeo', 'arch', 'ensemble', 'sacred', 'art'];
 const CATEGORIES = ['', 'intl', 'rep', 'local'];
 const STATUSES = ['state', 'prelim', 'archreg', 'excluded'];
+const KNOWN = new Set(['id', 'lat', 'lon', 'created_at', 'created_by', 'updated_at', 'updated_by']);
 
 class MarksStore {
   /** marks, imports — жобаның қабаттары ({ load(), write(items) }). */
@@ -100,10 +101,18 @@ class MarksStore {
     const i = id ? items.findIndex(x => x.id === id) : -1;
     const old = i >= 0 ? items[i] : null;
     if (!old) id = crypto.randomBytes(8).toString('hex');
-    const rec = { id, ...f, created_at: old?.created_at || now, created_by: old?.created_by || user, updated_at: now, updated_by: user };
+    const rec = { ...MarksStore.extras(old), id, ...f, created_at: old?.created_at || now, created_by: old?.created_by || user, updated_at: now, updated_by: user };
     if (old) items[i] = rec; else items.push(rec);
     this.write(items);
     return id;
+  }
+
+  /** Бұл нұсқа білмейтін өрістер (Android, жаңа нұсқа не QGIS қосқан: oblast_ru т.б.) — өңдегенде жоғалмайды. */
+  static extras(old) {
+    if (!old) return {};
+    const o = {};
+    for (const [k, v] of Object.entries(old)) if (!(k in LIMITS) && !KNOWN.has(k)) o[k] = v;
+    return o;
   }
 
   /** Бір белгіні не бірнешеуін (id-лер үтір арқылы) өшіру; өшірілгендер саны. */
@@ -157,7 +166,7 @@ class MarksStore {
       const old = i >= 0 ? items[i] : null;
       let f;
       try { f = MarksStore.clean(old ? { ...old, ...r, lat: old.lat, lon: old.lon } : r); } catch (e) { skipped++; continue; }
-      const rec = { id, ...f, created_at: old?.created_at || now, created_by: old?.created_by || user, updated_at: now, updated_by: user };
+      const rec = { ...MarksStore.extras(old), id, ...f, created_at: old?.created_at || now, created_by: old?.created_by || user, updated_at: now, updated_by: user };
       if (old) { items[i] = rec; updated++; } else { index.set(id, items.length); items.push(rec); added++; }
     }
     if (added || updated) this.write(items);

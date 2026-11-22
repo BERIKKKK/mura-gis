@@ -61,7 +61,7 @@ class PlacesTest {
         assertTrue(s2.places().isEmpty())
         s2.savePlace(well)
         assertEquals(1, s2.places().size)
-        assertEquals(2L, s2.db.scalarLong("PRAGMA user_version"))
+        assertEquals(LocalStore.SCHEMA_VERSION.toLong(), s2.db.scalarLong("PRAGMA user_version"))
     }
 
     @Test fun geojsonRoundTripAndDetection() {

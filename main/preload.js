@@ -27,6 +27,23 @@ contextBridge.exposeInMainWorld('mura', {
   onUi: cb => { ipcRenderer.on('mura:ui', (_e, cmd) => cb(String(cmd))); },
   /** HTML → PDF (Uint8Array). opts.exact — өрістері мен колонтитулы жоқ, масштабы 1:1 («Жоспар» сызбалары). */
   pdf: (html, opts) => ipcRenderer.invoke('mura:pdf', html, opts && opts.exact ? { exact: true } : undefined),
+  /** Синхрондау («Баптаулар → Синхрондау»; main/sync/): күй, Google арқылы кіру, жобаларды қосу, қайшылықтарды шешу. */
+  sync: {
+    status: () => ipcRenderer.invoke('mura:sync-status'),
+    connect: () => ipcRenderer.invoke('mura:sync-connect'),
+    cancel: () => ipcRenderer.invoke('mura:sync-cancel'),
+    disconnect: () => ipcRenderer.invoke('mura:sync-disconnect'),
+    now: () => ipcRenderer.invoke('mura:sync-now'),
+    link: () => ipcRenderer.invoke('mura:sync-link'),
+    unlink: id => ipcRenderer.invoke('mura:sync-unlink', id),
+    download: id => ipcRenderer.invoke('mura:sync-download', id),
+    open: id => ipcRenderer.invoke('mura:sync-open', id),
+    relink: id => ipcRenderer.invoke('mura:sync-relink', id),
+    resolve: (id, key, choice) => ipcRenderer.invoke('mura:sync-resolve', id, key, choice),
+    onStatus: cb => { ipcRenderer.on('mura:sync', (_e, st) => cb(st)); },
+    /** Басқа құрылғының өзгерістері ашық жобаға жазылды — тізімдерді қайта оқу керек. */
+    onApplied: cb => { ipcRenderer.on('mura:sync-applied', () => cb()); },
+  },
   /** Алмасу буфері: картаның оң жақ мәзірі үшін. */
   clipRead: () => ipcRenderer.invoke('mura:clip-read'),
   clipWrite: text => ipcRenderer.invoke('mura:clip-write', text),

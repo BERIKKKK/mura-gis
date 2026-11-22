@@ -109,6 +109,8 @@ data class Monument(
     val updatedAt: String = "",
     val updatedBy: String = "",
     val extra: String = "",
+    /** Синхрондалатын жобаның id-і (16 hex; жұмыс үстеліндегі .gpkg-тің sync_id-і). Бос — жобасыз, тек осы телефонда. */
+    val projectId: String = "",
 )
 
 /**
@@ -185,6 +187,8 @@ data class Route(
     val updatedAt: String = "",
     val updatedBy: String = "",
     val extra: String = "",
+    /** Синхрондалатын жобаның id-і (ескерткіштегідей). */
+    val projectId: String = "",
 )
 
 object Ids {

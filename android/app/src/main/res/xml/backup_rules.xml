@@ -4,4 +4,6 @@
 <full-backup-content>
     <include domain="database" path="mura.db" />
     <include domain="sharedpref" path="." />
+    <!-- Синхрондау баптаулары (құрылғы id-і, аккаунт) көшірілмейді: екі телефонда бір id болса, нұсқалар шатасады -->
+    <exclude domain="sharedpref" path="mura_sync.xml" />
 </full-backup-content>

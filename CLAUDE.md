@@ -17,6 +17,7 @@ Mobile (болашақ): тек **Ескерткіштер → Маршрутт�
 | Қорғау аймағы | `src/qorgau/`, `src/js/zone-dialog.js`, `main/store.js` | `qorgau.json` | `mura://app/api` |
 | Жоспар (1-кезең: қорғандар; 2-кезең: қорым экспликациясы — `docs/PLAN-STAGE2.md`) | `src/plan/`, `main/plans.js`, `main/plan-geom.js` | жобаның `plan_objects`, `plans` қабаттары | `mura://app/plans` |
 | Паспорттау | — | — | **ӘЗІРГЕ ЖАСАЛМАЙДЫ** |
+| Синхрондау (міндетті емес; Google Drive appDataFolder; `docs/SYNC.md`) | `main/sync/`, `src/js/sync-ui.js`; Android: `core/sync/`, `app/.../sync/` | `userData/sync/`, жобаның `mura_project.sync_id` | IPC `mura:sync-*` |
 
 Ортақ қабық: `src/js/services.js` (қызметтер жолағы, `1`–`4` пернелері), `context-menu.js`, `basemaps.js`, `regions.js`,
 `desktop*.js`. Модульдер бір-бірімен `globalThis.MuraMarks` / `globalThis.MuraRoutes` арқылы сөйлеседі.
@@ -51,7 +52,8 @@ Mobile (болашақ): тек **Ескерткіштер → Маршрутт�
 2. Басқа модульдерге, Desktop ↔ Mobile деректер үйлесімділігіне, болашақ «Жоспар»/«Паспорттау» байланысына әсерін бағала
    (`docs/ROADMAP.md` → «Үйлесімділік сұрақтары»).
 3. Тек қажетті өзгерісті енгіз; болашаққа арналған абстракция мен пайдаланылмайтын код қоспа.
-4. Регрессия: `npm test`, `npm run smoke`, `npm run smoke:marks`, `npm run smoke:routes`, `npm run smoke:save`, `npm run smoke:plan`.
+4. Регрессия: `npm test`, `npm run smoke`, `npm run smoke:marks`, `npm run smoke:routes`, `npm run smoke:save`, `npm run smoke:plan`, `npm run smoke:sync`.
+   Синхрондау ережелері екі платформада бірдей болуы керек: `main/sync/engine.js` өзгерсе — `SyncEngine.kt` да (және керісінше).
 5. Қай файл не үшін өзгергенін және архитектуралық тәуекелдерді хабарла.
 
 Өнімділік: деректер көп болуы мүмкін — кеңістіктік индекс, кэш, кластерлеу, тек көрінетінін салу қолайлы, бірақ

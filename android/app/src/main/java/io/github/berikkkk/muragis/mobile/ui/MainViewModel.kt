@@ -271,12 +271,45 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private val store: LocalStore get() = g.store
 
+    /* ---------- Синхрондау (Баптаулар → Синхрондау; sync/SyncManager) ---------- */
+    val sync get() = g.sync
+    val syncUi = g.sync.ui
+
+    /** Google арқылы кіру: рұқсат терезесі керек болса — MainActivity көрсетеді, нәтижесі [syncAuthResult]-қа келеді. */
+    fun syncConnect(act: MainActivity) = viewModelScope.launch {
+        try {
+            when (val s = g.sync.connect()) {
+                is io.github.berikkkk.muragis.mobile.sync.GoogleAuth.Step.NeedsUser -> act.launchAuth(s.intent)
+                is io.github.berikkkk.muragis.mobile.sync.GoogleAuth.Step.Granted -> msg(R.string.sync_connected)
+            }
+        } catch (e: Exception) { syncError(e) }
+    }
+    fun syncAuthResult(data: android.content.Intent?) = viewModelScope.launch {
+        try { g.sync.finishConnect(data); msg(R.string.sync_connected) } catch (e: Exception) { syncError(e) }
+    }
+    private fun syncError(e: Exception) {
+        val c = (e as? io.github.berikkkk.muragis.core.sync.SyncException)?.code
+        if (c == "denied") msg(R.string.sync_err_denied, error = true)
+        else if (c == "offline") msg(R.string.sync_err_offline_short, error = true)
+        else msg(R.string.sync_err_connect, e.message ?: e.javaClass.simpleName, error = true)
+    }
+    fun syncDisconnect() = viewModelScope.launch { g.sync.disconnect() }
+    fun syncNow() = viewModelScope.launch { g.sync.syncNow() }
+    fun syncResolve(project: String, key: String, remote: Boolean) = viewModelScope.launch { g.sync.resolve(project, key, remote) }
+    fun syncSetActive(id: String) = io { g.sync.active = id }
+    fun syncCreateProject(name: String) = io { g.sync.createProject(name) }
+    fun syncLinkProject(id: String) = io { g.sync.linkProject(id) }
+    fun syncAssign() = io { val n = g.sync.assignUnassigned(); _monuments.value = store.monuments(); _routes.value = store.routes(); msg(R.string.sync_assigned, n) }
+
     init {
         reloadAll()
         restoreDraft()
         // Жазу жүріп тұрған кезде процесс жабылып қалған болса — жазу қызметін қайта қосамыз
         if (g.recorder.state.value?.running == true) runCatching { TrackService.start(app) }
         observeImports()
+        // Басқа құрылғының өзгерістері жазылды — тізімдер мен картаны жаңарту
+        viewModelScope.launch { g.sync.applied.collect { reloadAll() } }
+        g.sync.publish()
         viewModelScope.launch {
             // Жүктеу күйін жаңартып тұру (WorkManager прогресі дерекқорға жазылады)
             WorkManager.getInstance(app).getWorkInfosByTagFlow("download").collect { refreshJobs() }

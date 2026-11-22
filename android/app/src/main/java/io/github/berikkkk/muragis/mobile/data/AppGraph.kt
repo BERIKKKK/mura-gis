@@ -15,6 +15,7 @@ import io.github.berikkkk.muragis.core.server.TileProvider
 import io.github.berikkkk.muragis.core.sources.OfflinePolicy
 import io.github.berikkkk.muragis.core.sources.SourcePolicy
 import io.github.berikkkk.muragis.core.sources.TileSource
+import io.github.berikkkk.muragis.mobile.sync.SyncManager
 import java.io.File
 
 /**
@@ -45,8 +46,18 @@ class AppGraph(val context: Context) {
         override fun extraTile(layerId: String, set: String, z: Int, x: Int, y: Int) = tiles.extraTile(layerId, set, z, x, y)
     })
 
+    /** Google Drive арқылы синхрондау (міндетті емес; аккаунт қосылмаса — ештеңе жасамайды). */
+    val sync = SyncManager(context) { store }
+
     init {
         seedBuiltInLayers()
+        wireStore()
+    }
+
+    /** Дерекқор қоймасын синхрондауға байлау: жаңа жазбалардың жобасы және өзгеріс туралы хабар. */
+    private fun wireStore() {
+        store.defaultProject = sync.active
+        store.onChange = { sync.requestSoon() }
     }
 
     private fun deviceUser() = "android:" + (Build.MODEL ?: "device")
@@ -101,6 +112,8 @@ class AppGraph(val context: Context) {
         layers = LayerStore(db)
         tiles = TileRegistry(layers)
         seedBuiltInLayers()
+        wireStore()
+        sync.afterRestore()
     }
 
     fun autoBackupIfDue() {
