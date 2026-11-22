@@ -88,7 +88,7 @@ enum class MenuPage {
     ROOT, MONUMENTS, PLACES, ROUTES, COORDS, SETTINGS, ABOUT;
 
     /** «Артқа» апаратын бет. */
-    val parent get() = if (this == ABOUT) SETTINGS else ROOT
+    val parent get() = ROOT
 }
 
 /** Жаңартуды тексеру күйі. */

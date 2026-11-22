@@ -65,6 +65,7 @@ import io.github.berikkkk.muragis.core.geo.Utm
 import io.github.berikkkk.muragis.core.io.lengthMeters
 import io.github.berikkkk.muragis.core.model.Monument
 import io.github.berikkkk.muragis.core.model.Route
+import io.github.berikkkk.muragis.mobile.BuildConfig
 import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.map.MapController
 
@@ -183,6 +184,8 @@ private fun MenuRoot(vm: MainViewModel, controller: MapController) {
                     stringResource(if (prefs.zoomLeft) R.string.side_left else R.string.side_right),
                     stringResource(if (prefs.barTop) R.string.bar_top else R.string.bar_bottom)),
                 leading = { SectionIcon(LucideIcons.Settings) }, trailing = { Chevron() }) { vm.openMenu(MenuPage.SETTINGS) }
+            OptionRow(stringResource(R.string.about_title), BuildConfig.VERSION_NAME, leading = { SectionIcon(LucideIcons.Info) },
+                trailing = { Chevron() }) { vm.openMenu(MenuPage.ABOUT) }
         }
     }
 }
