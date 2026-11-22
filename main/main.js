@@ -445,7 +445,11 @@ async function importStore() {
 const MUTATING = new Set(['save', 'delete', 'import', 'patch']);
 function oauthConfig() {
   let j = {};
-  try { j = JSON.parse(fs.readFileSync(path.join(__dirname, 'sync', 'google-oauth.json'), 'utf8')) || {}; } catch (e) { j = {}; }
+  // google-oauth.local.json — жергілікті әзірлеу (gitignore); google-oauth.json — релиз жинағы (CI оны құпиялардан толтырады)
+  for (const f of ['google-oauth.local.json', 'google-oauth.json']) {
+    try { j = JSON.parse(fs.readFileSync(path.join(__dirname, 'sync', f), 'utf8')) || {}; } catch (e) { j = {}; }
+    if (j.clientId) break;
+  }
   return { google: { clientId: process.env.MURA_GOOGLE_CLIENT_ID || j.clientId || '', clientSecret: process.env.MURA_GOOGLE_CLIENT_SECRET || j.clientSecret || '' } };
 }
 /** Google-дан қайтқанда браузерде көрсетілетін бет. */

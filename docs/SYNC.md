@@ -58,9 +58,10 @@ Desktop белгісіз өрістерді өңдегенде енді жоға
 2. **OAuth consent screen** (Google Auth Platform): түрі *External*, қолданба атауы, байланыс e-mail; **Data access**-ке
    `.../auth/drive.appdata` қосу. Тестілеу кезінде *Testing* режимі және *Test users* тізіміне өз аккаунттарыңыз;
    барлығына ашу үшін *Publish app* (drive.appdata шектелген (restricted) рұқсат емес).
-3. **Clients → Create client → Desktop app** → `Client ID` мен `Client secret`-ті `main/sync/google-oauth.json`-ға жазу
-   (не `MURA_GOOGLE_CLIENT_ID` / `MURA_GOOGLE_CLIENT_SECRET` айнымалылары). Орнатылған қолданбада бұл «secret» Google
-   ережесі бойынша құпия саналмайды, бірақ репозиторий ашық болғандықтан оны коммиттеу — сіздің шешіміңіз.
+3. **Clients → Create client → Desktop app** → `Client ID` мен `Client secret`. Олар ашық репозиторийге **түспейді**
+   (GitHub push protection оны бұғаттайды): жергілікті әзірлеу — `main/sync/google-oauth.local.json` (gitignore,
+   `google-oauth.json` пішімімен), релиз — GitHub Actions құпиялары `MURA_GOOGLE_CLIENT_ID`, `MURA_GOOGLE_CLIENT_SECRET`
+   (`.github/workflows/release.yml` оларды жинақтағы `google-oauth.json`-ға жазады). Орта айнымалылары да басым.
 4. **Clients → Create client → Android**: пакет `io.github.berikkkk.muragis.mobile`, SHA-1 — шығарылым кілтінің
    (`keytool -list -v -keystore %USERPROFILE%\.mura-gis-keys\mura-gis-release.jks -alias muragis`).
    Debug жинағы үшін тағы бір Android клиенті: пакет `io.github.berikkkk.muragis.mobile.debug`, SHA-1 —

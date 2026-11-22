@@ -75,6 +75,20 @@ jobs:
             gh release create "$TAG" --verify-tag --latest --title "${TAG#v}" --notes-file build/release-notes.md
           fi
 
+      # Синхрондау: Google OAuth «Desktop app» клиенті ашық репозиторийде сақталмайды — құпиялардан жинаққа жазылады
+      - name: Google OAuth клиенті (синхрондау)
+        shell: bash
+        env:
+          MURA_GOOGLE_CLIENT_ID: ${{ secrets.MURA_GOOGLE_CLIENT_ID }}
+          MURA_GOOGLE_CLIENT_SECRET: ${{ secrets.MURA_GOOGLE_CLIENT_SECRET }}
+        run: |
+          if [ -z "$MURA_GOOGLE_CLIENT_ID" ]; then
+            echo "::warning::MURA_GOOGLE_CLIENT_ID құпиясы жоқ — жинақта синхрондау «бапталмаған» болады."
+            exit 0
+          fi
+          node -e "const fs=require('fs'),f='main/sync/google-oauth.json',j=JSON.parse(fs.readFileSync(f,'utf8'));j.clientId=process.env.MURA_GOOGLE_CLIENT_ID.trim();j.clientSecret=(process.env.MURA_GOOGLE_CLIENT_SECRET||'').trim();fs.writeFileSync(f,JSON.stringify(j,null,2))"
+          echo "Google OAuth клиенті жинаққа қосылды."
+
       - name: Құрастыру және жариялау
         run: node scripts/build-win.js --win --publish always   # NSIS-ке қазақ тілі қосылады (build/nsis-lang)
         env:
