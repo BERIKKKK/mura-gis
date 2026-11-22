@@ -1088,18 +1088,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         GPX("gpx", "application/gpx+xml"), GPKG("gpkg", "application/geopackage+sqlite3")
     }
 
-    /** Экспорт: ескерткіштер (сүзгі бойынша не барлығы) / маршруттар → Storage Access Framework арқылы таңдалған файлға. */
-    fun export(uri: Uri, target: ImportTarget, format: ExportFormat, lang: Lang, onlyFiltered: Boolean, routeId: String? = null) = io {
+    /**
+     * Экспорт: ескерткіштер (сүзгі бойынша не барлығы) / маршруттар → Storage Access Framework арқылы таңдалған файлға.
+     * [ids] берілсе — тек тізімде белгіленген ескерткіштер не өзге нысандар ([target] бойынша); .gpkg-ке тек солар жазылады.
+     */
+    fun export(uri: Uri, target: ImportTarget, format: ExportFormat, lang: Lang, onlyFiltered: Boolean, routeId: String? = null, ids: Set<String>? = null) = io {
         _busy.value = true
         try {
             val cr = getApplication<Application>().contentResolver
-            val mons = if (onlyFiltered) filteredMonuments.value else store.monuments()
+            val mons = when {
+                ids != null -> store.monuments().filter { it.id in ids }
+                onlyFiltered -> filteredMonuments.value
+                else -> store.monuments()
+            }
+            val plcs = if (ids != null) store.places().filter { it.id in ids } else store.places()
             val rts = store.routes().filter { routeId == null || it.id == routeId }
             val title = when (target) { ImportTarget.MONUMENTS -> "Mura GIS"; ImportTarget.PLACES -> "Mura GIS places"; ImportTarget.ROUTES -> "Mura GIS routes" }
             if (format == ExportFormat.GPKG) {
                 val f = File(g.exportsDir, "export-" + System.nanoTime() + ".gpkg")
                 AndroidSqlDb.create(f).use { db ->
-                    MuraProject.export(db, if (target == ImportTarget.MONUMENTS) mons else store.monuments(), rts, lang, "Mura GIS Android", store.places())
+                    if (ids != null) {
+                        // Белгіленгендер: тек сол нысандар (маршруттарсыз)
+                        if (target == ImportTarget.PLACES) MuraProject.export(db, emptyList(), emptyList(), lang, "Mura GIS Android", plcs)
+                        else MuraProject.export(db, mons, emptyList(), lang, "Mura GIS Android")
+                    } else MuraProject.export(db, if (target == ImportTarget.MONUMENTS) mons else store.monuments(), rts, lang, "Mura GIS Android", store.places())
                 }
                 cr.openOutputStream(uri, "wt")?.use { o -> f.inputStream().use { it.copyTo(o) } }
                 f.delete()
@@ -1110,8 +1122,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         else -> MonumentGeoJson.export(mons, lang, title)
                     }
                     ImportTarget.PLACES -> when (format) {
-                        ExportFormat.KML -> PlaceGeoJson.exportKml(store.places(), lang, title)
-                        else -> PlaceGeoJson.export(store.places(), lang, title)
+                        ExportFormat.KML -> PlaceGeoJson.exportKml(plcs, lang, title)
+                        else -> PlaceGeoJson.export(plcs, lang, title)
                     }
                     ImportTarget.ROUTES -> when (format) {
                         ExportFormat.GPX -> RouteFormats.toGpx(rts, lang, title, store.monuments().associateBy { it.id })

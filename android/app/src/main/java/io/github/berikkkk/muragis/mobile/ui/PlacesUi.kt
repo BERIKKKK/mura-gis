@@ -28,6 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AddLocationAlt
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -78,6 +79,7 @@ import io.github.berikkkk.muragis.core.model.PlaceKind
 import io.github.berikkkk.muragis.core.model.Sorting
 import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.map.MapController
+import io.github.berikkkk.muragis.core.geo.LatLon
 import io.github.berikkkk.muragis.mobile.map.SymbolIcons
 
 /** Өзге нысанның белгісі — картадағы суреттің дәл өзі (SymbolIcons.place: түсі мен Lucide таңбасы түріне қарай). */
@@ -233,14 +235,16 @@ fun PlaceCardContent(vm: MainViewModel, p: Place, lang: Lang, dms: Boolean) {
         onConfirm = { vm.deletePlaces(listOf(p.id)) }, onDismiss = { confirmDelete = false })
 }
 
+/** [checked] берілсе — белгілеу режимі: сол жақта белгі ұяшығы, көрсеткі жоқ. */
 @Composable
-fun PlaceRow(p: Place, lang: Lang, onClick: () -> Unit) {
+fun PlaceRow(p: Place, lang: Lang, checked: Boolean? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val ui = uiLang()
     OptionRow(
         p.title(lang),
         if (p.name.display(lang).isBlank()) null else p.kind.label(ui),
-        leading = { PlaceBadge(p.kind, 26.dp) },
-        trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }, onClick = onClick,
+        leading = { if (checked != null) SelectBox(checked, onClick) else PlaceBadge(p.kind, 26.dp) },
+        trailing = { if (checked == null) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) },
+        onLongClick = onLongClick, onClick = onClick,
     )
 }
 
@@ -251,7 +255,7 @@ fun pickPlace(vm: MainViewModel, p: Place) {
 
 /** Мәзірдегі «Өзге нысандар» беті: іздеу, түрі бойынша сүзгі, қосу, импорт/экспорт, тізім. */
 @Composable
-fun PlacesPage(vm: MainViewModel) {
+fun PlacesPage(vm: MainViewModel, controller: MapController) {
     val all by vm.places.collectAsState()
     val prefs by vm.prefs.collectAsState()
     val ui = uiLang()
@@ -261,12 +265,17 @@ fun PlacesPage(vm: MainViewModel) {
     val q = f.query; val kind = f.kind
     var dataDialog by remember { mutableStateOf<DataDialog?>(null) }
     val lang = prefs.dataLang
+    // Бірнеше нысанды белгілеу (ұзақ басу не «Белгілеу» батырмасы): өшіру, экспорт, картада көрсету
+    val sel = rememberListSelection(all.map { it.id })
+    var confirmDel by remember { mutableStateOf(false) }
+    var exportSel by remember { mutableStateOf(false) }
     Column(Modifier.padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 PageTitle(stringResource(R.string.tab_places),
                     if (list.size == all.size) stringResource(R.string.places_count, all.size) else stringResource(R.string.places_count_filtered, list.size, all.size))
             }
+            if (!sel.active && all.isNotEmpty()) IconButton(onClick = { sel.active = true }) { Icon(Icons.Filled.Checklist, stringResource(R.string.sel_mode)) }
             DataMenu(onImport = { dataDialog = DataDialog.IMPORT }, onExport = { dataDialog = DataDialog.EXPORT })
         }
         ChromeSearch(q, { vm.setPlaceFilter(f.copy(query = it)) }, stringResource(R.string.places_search_hint))
@@ -276,14 +285,23 @@ fun PlacesPage(vm: MainViewModel) {
                 FilterChip(selected = kind == k, onClick = { vm.setPlaceFilter(f.copy(kind = if (kind == k) null else k)) }, leadingIcon = { PlaceBadge(k, 18.dp) }, label = { Text(k.label(ui), fontSize = 13.sp) })
             }
         }
-        BigButton(stringResource(R.string.add_place), Modifier.fillMaxWidth().padding(top = 8.dp), icon = { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(20.dp)) }) {
+        if (sel.active) SelectionBar(sel, list.map { it.id },
+            onShow = { showOnMap(vm, controller, all.filter { it.id in sel.ids }.map { LatLon(it.lat, it.lon) }) },
+            onExport = { exportSel = true }, onDelete = { confirmDel = true })
+        else BigButton(stringResource(R.string.add_place), Modifier.fillMaxWidth().padding(top = 8.dp), icon = { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(20.dp)) }) {
             vm.setPick(Pick.PLACE)
         }
         Spacer(Modifier.height(10.dp))
         if (list.isEmpty()) Text(stringResource(R.string.list_empty), color = Chrome.dim, modifier = Modifier.padding(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 32.dp)) {
-            items(list, key = { it.id }) { p -> PlaceRow(p, lang) { pickPlace(vm, p) } }
+            items(list, key = { it.id }) { p ->
+                if (sel.active) PlaceRow(p, lang, checked = p.id in sel.ids) { sel.toggle(p.id) }
+                else PlaceRow(p, lang, onLongClick = { sel.start(p.id) }) { pickPlace(vm, p) }
+            }
         }
     }
     dataDialog?.let { DataDialogs(vm, it, ImportTarget.PLACES, false) { dataDialog = null } }
+    if (exportSel) DataDialogs(vm, DataDialog.EXPORT, ImportTarget.PLACES, false, ids = sel.ids) { exportSel = false }
+    if (confirmDel) ConfirmDialog(stringResource(R.string.confirm_delete_selected, sel.ids.size), stringResource(R.string.delete),
+        onConfirm = { vm.deletePlaces(sel.ids.toList()); sel.close() }, onDismiss = { confirmDel = false })
 }

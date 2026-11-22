@@ -26,6 +26,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AddLocationAlt
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.FiberManualRecord
@@ -83,7 +84,7 @@ fun MenuScreen(vm: MainViewModel, page: MenuPage, controller: MapController, act
                 when (page) {
                     MenuPage.ROOT -> MenuRoot(vm, controller)
                     MenuPage.MONUMENTS -> MonumentsPage(vm, controller)
-                    MenuPage.PLACES -> PlacesPage(vm)
+                    MenuPage.PLACES -> PlacesPage(vm, controller)
                     MenuPage.ROUTES -> RoutesPage(vm, controller)
                     MenuPage.COORDS -> CoordsPage(vm, controller)
                     MenuPage.SETTINGS -> Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
@@ -196,14 +197,18 @@ private fun pickMonument(vm: MainViewModel, m: Monument) {
     vm.select(m.id)   // карта белгіге MainScreen-де жылжиды (карточканың үстінде көрінетіндей)
 }
 
+/** [checked] берілсе — белгілеу режимі: сол жақта белгі ұяшығы, көрсеткі жоқ. */
 @Composable
-private fun MonumentRow(m: Monument, lang: io.github.berikkkk.muragis.core.model.Lang, onClick: () -> Unit) {
+private fun MonumentRow(m: Monument, lang: io.github.berikkkk.muragis.core.model.Lang, checked: Boolean? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val ui = uiLang()
     OptionRow(
         m.name.display(lang).ifBlank { "—" },
         listOf(m.period.display(lang), m.type.label(ui), m.district.display(lang)).filter { it.isNotBlank() }.joinToString(" · "),
-        leading = { Box(Modifier.size(14.dp).clip(CircleShape).background(Color(m.category.fill.toInt())).border(2.dp, Color.White, CircleShape)) },
-        trailing = { Chevron() }, onClick = onClick,
+        leading = {
+            if (checked != null) SelectBox(checked, onClick)
+            else Box(Modifier.size(14.dp).clip(CircleShape).background(Color(m.category.fill.toInt())).border(2.dp, Color.White, CircleShape))
+        },
+        trailing = { if (checked == null) Chevron() }, onLongClick = onLongClick, onClick = onClick,
     )
 }
 
@@ -216,12 +221,17 @@ private fun MonumentsPage(vm: MainViewModel, controller: MapController) {
     val prefs by vm.prefs.collectAsState()
     var showFilter by remember { mutableStateOf(false) }
     var dataDialog by remember { mutableStateOf<DataDialog?>(null) }
+    // Бірнеше ескерткішті белгілеу (ұзақ басу не «Белгілеу» батырмасы): өшіру, экспорт, картада көрсету
+    val sel = rememberListSelection(all.map { it.id })
+    var confirmDel by remember { mutableStateOf(false) }
+    var exportSel by remember { mutableStateOf(false) }
     Column(Modifier.padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 PageTitle(stringResource(R.string.tab_monuments),
                     if (list.size == all.size) stringResource(R.string.monuments_count, all.size) else stringResource(R.string.monuments_count_filtered, list.size, all.size))
             }
+            if (!sel.active && all.isNotEmpty()) IconButton(onClick = { sel.active = true }) { Icon(Icons.Filled.Checklist, stringResource(R.string.sel_mode)) }
             DataMenu(onImport = { dataDialog = DataDialog.IMPORT }, onExport = { dataDialog = DataDialog.EXPORT })
         }
         ChromeSearch(filter.query, { vm.setFilter(filter.copy(query = it)) }, stringResource(R.string.search_hint)) {
@@ -229,17 +239,26 @@ private fun MonumentsPage(vm: MainViewModel, controller: MapController) {
                 Icon(Icons.Filled.FilterList, stringResource(R.string.filter), tint = if (filter.copy(query = "").active) Chrome.accent else Chrome.dim)
             }
         }
-        BigButton(stringResource(R.string.add_monument), Modifier.fillMaxWidth().padding(top = 10.dp), icon = { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(20.dp)) }) {
+        if (sel.active) SelectionBar(sel, list.map { it.id },
+            onShow = { showOnMap(vm, controller, all.filter { it.id in sel.ids }.map { LatLon(it.lat, it.lon) }) },
+            onExport = { exportSel = true }, onDelete = { confirmDel = true })
+        else BigButton(stringResource(R.string.add_monument), Modifier.fillMaxWidth().padding(top = 10.dp), icon = { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(20.dp)) }) {
             vm.setPick(Pick.MONUMENT)
         }
         Spacer(Modifier.height(10.dp))
         if (list.isEmpty()) Text(stringResource(R.string.list_empty), color = Chrome.dim, modifier = Modifier.padding(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 32.dp)) {
-            items(list, key = { it.id }) { m -> MonumentRow(m, prefs.dataLang) { pickMonument(vm, m) } }
+            items(list, key = { it.id }) { m ->
+                if (sel.active) MonumentRow(m, prefs.dataLang, checked = m.id in sel.ids) { sel.toggle(m.id) }
+                else MonumentRow(m, prefs.dataLang, onLongClick = { sel.start(m.id) }) { pickMonument(vm, m) }
+            }
         }
     }
     if (showFilter) FilterDialog(vm, filter, all, prefs.dataLang) { showFilter = false }
     dataDialog?.let { DataDialogs(vm, it, ImportTarget.MONUMENTS, filter.active) { dataDialog = null } }
+    if (exportSel) DataDialogs(vm, DataDialog.EXPORT, ImportTarget.MONUMENTS, false, ids = sel.ids) { exportSel = false }
+    if (confirmDel) ConfirmDialog(stringResource(R.string.confirm_delete_selected, sel.ids.size), stringResource(R.string.delete),
+        onConfirm = { vm.deleteMonuments(sel.ids.toList()); sel.close() }, onDismiss = { confirmDel = false })
 }
 
 /** Маршруттар: құру (А → Б), қолмен сызу, импорт/экспорт; құрылған маршруттар мен жазылған тректер — бөлек тізімде. */

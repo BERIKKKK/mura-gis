@@ -313,9 +313,9 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
     }
 }
 
-/** Импорт/экспорт терезелері (ескерткіштер және маршруттар үшін ортақ). */
+/** Импорт/экспорт терезелері (ескерткіштер және маршруттар үшін ортақ). [ids] — тек белгіленгендерді экспорттау. */
 @Composable
-fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filtered: Boolean, routeId: String? = null, onDone: () -> Unit) {
+fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filtered: Boolean, routeId: String? = null, ids: Set<String>? = null, onDone: () -> Unit) {
     val prefs by vm.prefs.collectAsState()
     var lang by remember { mutableStateOf(if (kind == DataDialog.IMPORT) prefs.dataLang else prefs.exportLang) }
     val formats = if (target != ImportTarget.ROUTES) listOf(MainViewModel.ExportFormat.GEOJSON, MainViewModel.ExportFormat.GPKG, MainViewModel.ExportFormat.KML)
@@ -326,7 +326,7 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
     val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.importData(uri, target, lang); onDone() }
     val savers = MainViewModel.ExportFormat.entries.associateWith { f ->
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(f.mime)) { uri ->
-            if (uri != null) vm.export(uri, target, f, lang, onlyFiltered && target == ImportTarget.MONUMENTS, routeId)
+            if (uri != null) vm.export(uri, target, f, lang, onlyFiltered && target == ImportTarget.MONUMENTS, routeId, ids)
             onDone()
         }
     }
@@ -344,6 +344,7 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
                     LangRadio(lang) { lang = it }
                     Text(stringResource(R.string.import_lang_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 } else {
+                    if (ids != null) Text(stringResource(R.string.sel_export_note, ids.size), style = MaterialTheme.typography.bodySmall)
                     SectionTitle(stringResource(R.string.format))
                     formats.forEach { f ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { format = f }) {
@@ -367,7 +368,8 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
                 if (kind == DataDialog.IMPORT) open.launch(arrayOf("*/*"))
                 else {
                     val stamp = java.text.SimpleDateFormat("yyyyMMdd", Locale.ROOT).format(java.util.Date())
-                    val base = when (target) { ImportTarget.MONUMENTS -> "eskertkishter"; ImportTarget.PLACES -> "ozge-nysandar"; ImportTarget.ROUTES -> "marshruttar" }
+                    val base = when (target) { ImportTarget.MONUMENTS -> "eskertkishter"; ImportTarget.PLACES -> "ozge-nysandar"; ImportTarget.ROUTES -> "marshruttar" } +
+                        if (ids != null) "-${ids.size}" else ""
                     savers.getValue(format).launch("$base-${lang.code}-$stamp.${format.ext}")
                 }
             }) { Text(stringResource(if (kind == DataDialog.IMPORT) R.string.choose_file else R.string.save_file)) }

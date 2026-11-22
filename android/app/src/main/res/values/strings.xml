@@ -463,6 +463,13 @@
     <string name="f_place_name">Атауы (міндетті емес)</string>
     <string name="place_name_note">Атауы бос болса, картада және тізімде түрі көрсетіледі.</string>
     <string name="confirm_delete_place">«%1$s» нысанын өшіру керек пе?</string>
+    <string name="confirm_delete_selected">Белгіленген %1$d нысанды өшіру керек пе? Бұл әрекетті қайтару мүмкін емес (тек сақтық көшірмеден).</string>
+    <string name="sel_mode">Белгілеу</string>
+    <string name="sel_count">Белгіленді: %1$d</string>
+    <string name="sel_all">Барлығын белгілеу</string>
+    <string name="sel_none">Белгілерді алу</string>
+    <string name="sel_done">Белгілеуден шығу</string>
+    <string name="sel_export_note">Тек белгіленген %1$d нысан экспортталады.</string>
     <string name="all_kinds">Барлығы</string>
     <string name="mark_choice_title">Қандай белгі қоямыз?</string>
     <string name="mark_choice_monument">Ескерткіш белгісі</string>
