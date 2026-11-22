@@ -214,6 +214,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Пайдаланушы «Картада көрсету» қосқан маршруттар/тректер. Қалғандары картада тек таңдалғанда (карточкасы ашық) көрінеді. */
     private val _shownRoutes = MutableStateFlow(g.settings.shownRoutes); val shownRoutes: StateFlow<Set<String>> = _shownRoutes
     private val _edit = MutableStateFlow<RouteEdit?>(null); val edit: StateFlow<RouteEdit?> = _edit
+    /** Маршрутты сақтау беті ашық па (сызу аяқталып, атауы мен қасиеттері енгізіліп жатыр). */
+    private val _routeSaving = MutableStateFlow(false); val routeSaving: StateFlow<Boolean> = _routeSaving
     private val _places = MutableStateFlow<List<Place>>(emptyList()); val places: StateFlow<List<Place>> = _places
     private val _placeFilter = MutableStateFlow(PlaceFilter()); val placeFilter: StateFlow<PlaceFilter> = _placeFilter
     private val _selectedPlace = MutableStateFlow<String?>(null); val selectedPlace: StateFlow<String?> = _selectedPlace
@@ -553,7 +555,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _edit.value = e.copy(points = e.history.last(), history = e.history.dropLast(1), selected = -1)
         saveDraft()
     }
-    fun cancelEdit() { _edit.value = null; g.settings.routeDraft = null }
+    fun cancelEdit() { _edit.value = null; _routeSaving.value = false; g.settings.routeDraft = null }
+    fun setRouteSaving(on: Boolean) { _routeSaving.value = on && _edit.value != null }
 
     fun saveRoute(meta: Route, done: (Boolean) -> Unit) = io {
         val e = _edit.value ?: return@io
@@ -561,6 +564,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val r = store.saveRoute(meta.copy(id = e.base.id.ifEmpty { Ids.newId() }, points = e.points))
             _routes.value = store.routes()
             _edit.value = null
+            _routeSaving.value = false
             g.settings.routeDraft = null
             _selectedRoute.value = r.id
             withContext(Dispatchers.Main) { done(true) }

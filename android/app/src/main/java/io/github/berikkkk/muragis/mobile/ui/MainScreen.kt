@@ -396,6 +396,8 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     editor?.let { MonumentEditorDialog(vm, it, controller, act) }
     val placeEditor by vm.placeEditor.collectAsState()
     placeEditor?.let { PlaceEditorDialog(vm, it, controller, act) }
+    val routeSaving by vm.routeSaving.collectAsState()
+    if (routeSaving) edit?.let { e -> RouteSavePanel(vm, e) { vm.setRouteSaving(false) } }
     val markChoice by vm.markChoice.collectAsState()
     if (markChoice != null) MarkChoiceDialog(vm)
     val pending by vm.pending.collectAsState()

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -61,8 +60,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import io.github.berikkkk.muragis.core.geo.Geo
 import io.github.berikkkk.muragis.core.geo.LatLon
 import io.github.berikkkk.muragis.core.io.lengthMeters
@@ -122,7 +119,6 @@ fun RouteCardContent(vm: MainViewModel, r: Route, controller: MapController) {
 @Composable
 private fun androidx.compose.foundation.layout.BoxScope.RouteEditorPanel(vm: MainViewModel, e: RouteEdit, controller: MapController) {
     var showPoints by remember { mutableStateOf(false) }
-    var saving by remember { mutableStateOf(false) }
     var confirmCancel by remember { mutableStateOf(false) }
     val prefs by vm.prefs.collectAsState()
     val monuments by vm.monuments.collectAsState()
@@ -135,7 +131,7 @@ private fun androidx.compose.foundation.layout.BoxScope.RouteEditorPanel(vm: Mai
                 Text(stringResource(R.string.route_length_points, fmtLength(e.lengthMeters), e.points.size), style = MaterialTheme.typography.bodySmall)
             }
             IconButton(enabled = e.history.isNotEmpty(), onClick = { vm.undo() }) { Icon(Icons.AutoMirrored.Filled.Undo, stringResource(R.string.undo)) }
-            IconButton(enabled = e.points.size >= 2, onClick = { saving = true }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) }
+            IconButton(enabled = e.points.size >= 2, onClick = { vm.setRouteSaving(true) }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) }
         }
     }
 
@@ -178,13 +174,13 @@ private fun androidx.compose.foundation.layout.BoxScope.RouteEditorPanel(vm: Mai
             }
         }
     }
-    if (saving) RouteSaveDialog(vm, e) { saving = false }
     if (confirmCancel) ConfirmDialog(stringResource(R.string.confirm_discard_route), stringResource(R.string.discard), onConfirm = { vm.cancelEdit() }, onDismiss = { confirmCancel = false })
 }
 
+/** Маршрутты сақтау беті (атауы, басы/соңы, көлік…). MainScreen-нің түбірінде салынады — толық экранды [FullScreenPanel]. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RouteSaveDialog(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Unit) {
+fun RouteSavePanel(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Unit) {
     val prefs by vm.prefs.collectAsState()
     val monuments by vm.monuments.collectAsState()
     var r by remember {
@@ -199,40 +195,34 @@ private fun RouteSaveDialog(vm: MainViewModel, e: RouteEdit, onDismiss: () -> Un
     var tab by remember { mutableStateOf(prefs.dataLang) }
     val vLabels = Vehicle.entries.associateWith { vehicleLabel(it) }
     val sLabels = Season.entries.associateWith { seasonLabel(it) }
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        DialogAdjustResize()
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.systemBarsPadding()) {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.save_route)) },
-                    navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
-                    actions = { IconButton(onClick = { vm.saveRoute(r) { ok -> if (ok) onDismiss() } }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) } },
-                )
-                Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
-                    Text(stringResource(R.string.route_length_points, fmtLength(e.lengthMeters), e.points.size))
-                    TabRow(selectedTabIndex = tab.ordinal, modifier = Modifier.padding(top = 8.dp)) {
-                        Lang.entries.forEach { l -> Tab(selected = tab == l, onClick = { tab = l }, text = { Text(langName(l)) }) }
-                    }
-                    @Composable fun loc(label: Int, v: Localized, set: (Localized) -> Unit) {
-                        OutlinedTextField(value = v[tab], onValueChange = { set(v.with(tab, it)) }, label = { Text(stringResource(label)) },
-                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
-                    }
-                    loc(R.string.f_route_name, r.name) { r = r.copy(name = it) }
-                    loc(R.string.f_from, r.aName) { r = r.copy(aName = it) }
-                    loc(R.string.f_to, r.bName) { r = r.copy(bName = it) }
-                    loc(R.string.f_note, r.note) { r = r.copy(note = it) }
-                    Spacer(Modifier.size(8.dp))
-                    Dropdown(stringResource(R.string.f_vehicle), r.vehicle, Vehicle.entries, { vLabels.getValue(it) }, { r = r.copy(vehicle = it) }, Modifier.fillMaxWidth())
-                    Spacer(Modifier.size(6.dp))
-                    Dropdown(stringResource(R.string.f_season), r.season, Season.entries, { sLabels.getValue(it) }, { r = r.copy(season = it) }, Modifier.fillMaxWidth())
-                    OutlinedTextField(value = r.checked, onValueChange = { r = r.copy(checked = it.take(10)) }, label = { Text(stringResource(R.string.f_checked)) },
-                        placeholder = { Text("2025-06-01") }, singleLine = true, isError = r.checked.isNotEmpty() && !Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(r.checked),
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
-                    Row(Modifier.padding(top = 4.dp)) { TextButton(onClick = { r = r.copy(checked = java.time.LocalDate.now().toString()) }) { Text(stringResource(R.string.today)) } }
-                    Button(onClick = { vm.saveRoute(r) { ok -> if (ok) onDismiss() } }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) { Text(stringResource(R.string.save)) }
-                    ImeSpacer()
-                }
+    FullScreenPanel(onDismiss = onDismiss) {
+        TopAppBar(
+            title = { Text(stringResource(R.string.save_route)) },
+            navigationIcon = { IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
+            actions = { IconButton(onClick = { vm.saveRoute(r) { ok -> if (ok) onDismiss() } }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) } },
+        )
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Text(stringResource(R.string.route_length_points, fmtLength(e.lengthMeters), e.points.size))
+            TabRow(selectedTabIndex = tab.ordinal, modifier = Modifier.padding(top = 8.dp)) {
+                Lang.entries.forEach { l -> Tab(selected = tab == l, onClick = { tab = l }, text = { Text(langName(l)) }) }
             }
+            @Composable fun loc(label: Int, v: Localized, set: (Localized) -> Unit) {
+                OutlinedTextField(value = v[tab], onValueChange = { set(v.with(tab, it)) }, label = { Text(stringResource(label)) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
+            }
+            loc(R.string.f_route_name, r.name) { r = r.copy(name = it) }
+            loc(R.string.f_from, r.aName) { r = r.copy(aName = it) }
+            loc(R.string.f_to, r.bName) { r = r.copy(bName = it) }
+            loc(R.string.f_note, r.note) { r = r.copy(note = it) }
+            Spacer(Modifier.size(8.dp))
+            Dropdown(stringResource(R.string.f_vehicle), r.vehicle, Vehicle.entries, { vLabels.getValue(it) }, { r = r.copy(vehicle = it) }, Modifier.fillMaxWidth())
+            Spacer(Modifier.size(6.dp))
+            Dropdown(stringResource(R.string.f_season), r.season, Season.entries, { sLabels.getValue(it) }, { r = r.copy(season = it) }, Modifier.fillMaxWidth())
+            OutlinedTextField(value = r.checked, onValueChange = { r = r.copy(checked = it.take(10)) }, label = { Text(stringResource(R.string.f_checked)) },
+                placeholder = { Text("2025-06-01") }, singleLine = true, isError = r.checked.isNotEmpty() && !Regex("^\\d{4}-\\d{2}-\\d{2}$").matches(r.checked),
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
+            Row(Modifier.padding(top = 4.dp)) { TextButton(onClick = { r = r.copy(checked = java.time.LocalDate.now().toString()) }) { Text(stringResource(R.string.today)) } }
+            Button(onClick = { vm.saveRoute(r) { ok -> if (ok) onDismiss() } }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) { Text(stringResource(R.string.save)) }
         }
     }
 }
