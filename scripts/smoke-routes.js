@@ -118,6 +118,16 @@ async function run(win) {
     document.getElementById('muraSvc-routes').click(); await wait(100);
     RT.openPanel('list'); await wait(300);
     out.cards = [...document.querySelectorAll('.rt-card .qa-sc-title')].map(b => b.textContent).join(' | ');
+    // Картада көріну: сызып сақталған 2 маршрут — көрінеді, импортталғаны — жоқ (пайдаланушы өзі көрсетпейінше)
+    const nLines = () => document.querySelectorAll('path.rt-line').length;
+    const vis = [nLines()];
+    document.querySelector('.rt-card [data-act=hide]')?.click(); await wait(150); vis.push(nLines());
+    $('rtShow').click(); await wait(150); vis.push(nLines());
+    $('rtShow').click(); await wait(150); vis.push(nLines());
+    const imp = [...document.querySelectorAll('.rt-card')].find(c => c.textContent.includes('Тармақ'));
+    imp?.querySelector('[data-act=go]').click(); await wait(150); vis.push(nLines());
+    out.visible = vis.join(' → ');
+    if (out.visible !== '2 → 1 → 3 → 1 → 2') out.visibleErr = 'күтілгені: 2 → 1 → 3 → 1 → 2';
     return out;
   })()`));
   await snap('-list');
@@ -128,7 +138,7 @@ async function run(win) {
   console.log(JSON.stringify(r, null, 1));
   const real = errors.filter(e => !/tile|Failed to load resource/i.test(e));
   if (errors.length) console.log('Консоль қателері:\n  ' + errors.join('\n  '));
-  app.exit(real.length ? 1 : 0);
+  app.exit(real.length || r.visibleErr ? 1 : 0);
 }
 
 require('../main/main.js');
