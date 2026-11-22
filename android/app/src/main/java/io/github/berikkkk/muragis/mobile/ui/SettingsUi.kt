@@ -11,7 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -32,7 +31,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.os.LocaleListCompat
-import io.github.berikkkk.muragis.mobile.BuildConfig
 import io.github.berikkkk.muragis.mobile.R
 import java.io.File
 
@@ -90,11 +88,7 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
             }
 
             SectionTitle(stringResource(R.string.routing_engine))
-            Text(stringResource(R.string.routing_engine_note), style = MaterialTheme.typography.bodySmall)
-
-            HorizontalDivider(Modifier.padding(vertical = 12.dp))
-            OptionRow(stringResource(R.string.about_title), BuildConfig.VERSION_NAME, Modifier.padding(bottom = 24.dp),
-                trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }) { vm.openMenu(MenuPage.ABOUT) }
+            Text(stringResource(R.string.routing_engine_note), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 24.dp))
         }
     }
     if (bgGuide) ChromeTheme { BackgroundDialog(vm, act, onClose = { bgGuide = false }) }

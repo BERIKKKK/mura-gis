@@ -88,7 +88,7 @@ enum class MenuPage {
     ROOT, MONUMENTS, PLACES, ROUTES, COORDS, SETTINGS, ABOUT;
 
     /** «Артқа» апаратын бет. */
-    val parent get() = if (this == ABOUT) SETTINGS else ROOT
+    val parent get() = ROOT
 }
 
 /** Жаңартуды тексеру күйі. */
@@ -211,7 +211,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _filter = MutableStateFlow(MonumentFilter()); val filter: StateFlow<MonumentFilter> = _filter
     private val _selected = MutableStateFlow<String?>(null); val selected: StateFlow<String?> = _selected
     private val _selectedRoute = MutableStateFlow<String?>(null); val selectedRoute: StateFlow<String?> = _selectedRoute
+    /** Пайдаланушы «Картада көрсету» қосқан маршруттар/тректер. Қалғандары картада тек таңдалғанда (карточкасы ашық) көрінеді. */
+    private val _shownRoutes = MutableStateFlow(g.settings.shownRoutes); val shownRoutes: StateFlow<Set<String>> = _shownRoutes
     private val _edit = MutableStateFlow<RouteEdit?>(null); val edit: StateFlow<RouteEdit?> = _edit
+    /** Маршрутты сақтау беті ашық па (сызу аяқталып, атауы мен қасиеттері енгізіліп жатыр). */
+    private val _routeSaving = MutableStateFlow(false); val routeSaving: StateFlow<Boolean> = _routeSaving
     private val _places = MutableStateFlow<List<Place>>(emptyList()); val places: StateFlow<List<Place>> = _places
     private val _placeFilter = MutableStateFlow(PlaceFilter()); val placeFilter: StateFlow<PlaceFilter> = _placeFilter
     private val _selectedPlace = MutableStateFlow<String?>(null); val selectedPlace: StateFlow<String?> = _selectedPlace
@@ -504,6 +508,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /* ======================= Маршруттар ======================= */
     fun selectRoute(id: String?) { _selectedRoute.value = id; if (id != null) _selectedPlace.value = null }
 
+    fun setRouteShown(id: String, on: Boolean) {
+        val s = if (on) _shownRoutes.value + id else _shownRoutes.value - id
+        _shownRoutes.value = s
+        g.settings.shownRoutes = s
+    }
+
     fun startNewRoute() { _edit.value = RouteEdit(Route(id = ""), emptyList()); _selectedRoute.value = null; _menu.value = null; _sheet.value = null; saveDraft() }
     fun editRoute(id: String) { _routes.value.firstOrNull { it.id == id }?.let { _edit.value = RouteEdit(it, it.points); _menu.value = null; _sheet.value = null; saveDraft() } }
 
@@ -545,7 +555,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _edit.value = e.copy(points = e.history.last(), history = e.history.dropLast(1), selected = -1)
         saveDraft()
     }
-    fun cancelEdit() { _edit.value = null; g.settings.routeDraft = null }
+    fun cancelEdit() { _edit.value = null; _routeSaving.value = false; g.settings.routeDraft = null }
+    fun setRouteSaving(on: Boolean) { _routeSaving.value = on && _edit.value != null }
 
     fun saveRoute(meta: Route, done: (Boolean) -> Unit) = io {
         val e = _edit.value ?: return@io
@@ -553,6 +564,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val r = store.saveRoute(meta.copy(id = e.base.id.ifEmpty { Ids.newId() }, points = e.points))
             _routes.value = store.routes()
             _edit.value = null
+            _routeSaving.value = false
             g.settings.routeDraft = null
             _selectedRoute.value = r.id
             withContext(Dispatchers.Main) { done(true) }
@@ -567,6 +579,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         store.deleteRoute(id)
         _routes.value = store.routes()
         if (_selectedRoute.value == id) _selectedRoute.value = null
+        if (id in _shownRoutes.value) withContext(Dispatchers.Main) { setRouteShown(id, false) }
         msg(R.string.msg_deleted_n, 1)
     }
 
@@ -1079,18 +1092,30 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         GPX("gpx", "application/gpx+xml"), GPKG("gpkg", "application/geopackage+sqlite3")
     }
 
-    /** Экспорт: ескерткіштер (сүзгі бойынша не барлығы) / маршруттар → Storage Access Framework арқылы таңдалған файлға. */
-    fun export(uri: Uri, target: ImportTarget, format: ExportFormat, lang: Lang, onlyFiltered: Boolean, routeId: String? = null) = io {
+    /**
+     * Экспорт: ескерткіштер (сүзгі бойынша не барлығы) / маршруттар → Storage Access Framework арқылы таңдалған файлға.
+     * [ids] берілсе — тек тізімде белгіленген ескерткіштер не өзге нысандар ([target] бойынша); .gpkg-ке тек солар жазылады.
+     */
+    fun export(uri: Uri, target: ImportTarget, format: ExportFormat, lang: Lang, onlyFiltered: Boolean, routeId: String? = null, ids: Set<String>? = null) = io {
         _busy.value = true
         try {
             val cr = getApplication<Application>().contentResolver
-            val mons = if (onlyFiltered) filteredMonuments.value else store.monuments()
+            val mons = when {
+                ids != null -> store.monuments().filter { it.id in ids }
+                onlyFiltered -> filteredMonuments.value
+                else -> store.monuments()
+            }
+            val plcs = if (ids != null) store.places().filter { it.id in ids } else store.places()
             val rts = store.routes().filter { routeId == null || it.id == routeId }
             val title = when (target) { ImportTarget.MONUMENTS -> "Mura GIS"; ImportTarget.PLACES -> "Mura GIS places"; ImportTarget.ROUTES -> "Mura GIS routes" }
             if (format == ExportFormat.GPKG) {
                 val f = File(g.exportsDir, "export-" + System.nanoTime() + ".gpkg")
                 AndroidSqlDb.create(f).use { db ->
-                    MuraProject.export(db, if (target == ImportTarget.MONUMENTS) mons else store.monuments(), rts, lang, "Mura GIS Android", store.places())
+                    if (ids != null) {
+                        // Белгіленгендер: тек сол нысандар (маршруттарсыз)
+                        if (target == ImportTarget.PLACES) MuraProject.export(db, emptyList(), emptyList(), lang, "Mura GIS Android", plcs)
+                        else MuraProject.export(db, mons, emptyList(), lang, "Mura GIS Android")
+                    } else MuraProject.export(db, if (target == ImportTarget.MONUMENTS) mons else store.monuments(), rts, lang, "Mura GIS Android", store.places())
                 }
                 cr.openOutputStream(uri, "wt")?.use { o -> f.inputStream().use { it.copyTo(o) } }
                 f.delete()
@@ -1101,8 +1126,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                         else -> MonumentGeoJson.export(mons, lang, title)
                     }
                     ImportTarget.PLACES -> when (format) {
-                        ExportFormat.KML -> PlaceGeoJson.exportKml(store.places(), lang, title)
-                        else -> PlaceGeoJson.export(store.places(), lang, title)
+                        ExportFormat.KML -> PlaceGeoJson.exportKml(plcs, lang, title)
+                        else -> PlaceGeoJson.export(plcs, lang, title)
                     }
                     ImportTarget.ROUTES -> when (format) {
                         ExportFormat.GPX -> RouteFormats.toGpx(rts, lang, title, store.monuments().associateBy { it.id })

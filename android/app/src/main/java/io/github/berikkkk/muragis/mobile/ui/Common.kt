@@ -5,23 +5,23 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.composed
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.windowInsetsBottomHeight
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.window.DialogWindowProvider
-import android.view.WindowManager
 import androidx.compose.ui.focus.onFocusEvent
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Arrangement
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material3.Surface
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -76,16 +76,20 @@ fun langName(l: Lang) = if (l == Lang.KK) "Қазақша" else "Русский"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun <T> Dropdown(label: String, value: T, options: List<T>, text: (T) -> String, onChange: (T) -> Unit, modifier: Modifier = Modifier) {
+fun <T> Dropdown(label: String, value: T, options: List<T>, text: (T) -> String, onChange: (T) -> Unit, modifier: Modifier = Modifier,
+                 icon: (@Composable (T) -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }, modifier = modifier) {
         OutlinedTextField(
             value = text(value), onValueChange = {}, readOnly = true, label = { Text(label) }, singleLine = true,
+            leadingIcon = icon?.let { f -> @Composable { f(value) } },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) },
             modifier = Modifier.menuAnchor().fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            options.forEach { o -> DropdownMenuItem(text = { Text(text(o)) }, onClick = { onChange(o); open = false }) }
+            options.forEach { o ->
+                DropdownMenuItem(text = { Text(text(o)) }, leadingIcon = icon?.let { f -> @Composable { f(o) } }, onClick = { onChange(o); open = false })
+            }
         }
     }
 }
@@ -121,9 +125,9 @@ fun CoordField(label: String, text: String, onText: (String) -> Unit, error: Boo
 }
 
 /**
- * Белсенді өріс пернетақтаның үстіне көтеріледі: терезе кішірейтілмейді (тақырып пен батырмалар орнында қалады),
- * айналдырылатын тізім өрісті пернетақта биіктігі мен шағын аралық қосылған жерге дейін жылжытады.
- * Тізімнің соңында [ImeSpacer] болуы керек — пернетақта астындағы бос орын, айналдыруға жеткілікті ұзындық береді.
+ * Белсенді өріс көрінетін жерге шығарылады. Өңдеу беттері ([FullScreenPanel]) пернетақта ашылғанда imePadding
+ * арқылы кішірейеді — айналдырылатын тізім өрісті (шағын аралықпен) пернетақтаның үстіне жылжытады.
+ * Пернетақта анимациясы аяқталғанда (биіктігі өзгеруін тоқтатқанда) тағы бір рет тексеріледі.
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.bringIntoViewOnFocus(): Modifier = composed {
@@ -133,28 +137,24 @@ fun Modifier.bringIntoViewOnFocus(): Modifier = composed {
     val gap = with(density) { 16.dp.toPx() }
     var size by remember { mutableStateOf(IntSize.Zero) }
     var focused by remember { mutableStateOf(false) }
-    // Пернетақта анимациясы аяқталғанда (биіктігі өзгеруін тоқтатқанда) бір рет жылжиды
     LaunchedEffect(focused, imeBottom) {
         if (!focused) return@LaunchedEffect
-        delay(120)
-        req.bringIntoView(Rect(0f, 0f, size.width.toFloat(), size.height + imeBottom + gap))
+        delay(150)
+        req.bringIntoView(Rect(0f, -gap, size.width.toFloat(), size.height + gap))
     }
     onSizeChanged { size = it }.bringIntoViewRequester(req).onFocusEvent { focused = it.isFocused }
 }
 
-/** Айналдырылатын тізімнің соңындағы бос орын: пернетақта биіктігіндей (жабық болса — нөл). */
-@Composable
-fun ImeSpacer() = Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.ime))
-
 /**
- * Толық экранды диалогта пернетақтаның биіктігі (WindowInsets.ime) қосымшаға берілсін. Терезенің өзі кішіреймейді
- * (decorFitsSystemWindows = false) — орнын [ImeSpacer] мен [bringIntoViewOnFocus] басқарады.
+ * Толық экранды өңдеу беті (ескерткіш, өзге нысан, маршрутты сақтау). Бөлек Dialog терезесі емес — негізгі терезенің
+ * ішінде салынады: кейбір құрылғыларда (Android 15, edge-to-edge) диалог терезесіне пернетақта биіктігі келмей,
+ * өріс пернетақта астында қалатын. Мұнда бет пернетақта ашылғанда кішірейеді (imePadding), «Артқа» — [onDismiss].
  */
 @Composable
-fun DialogAdjustResize() {
-    val view = LocalView.current
-    SideEffect {
-        (view.parent as? DialogWindowProvider)?.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+fun FullScreenPanel(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    BackHandler(onBack = onDismiss)
+    Surface(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().systemBarsPadding().imePadding(), content = content)
     }
 }
 

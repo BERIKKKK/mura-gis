@@ -65,6 +65,11 @@ class Settings(context: Context) {
         get() = sp.getString("routeDraft", null)
         set(v) { sp.edit().putString("routeDraft", v).apply() }
 
+    /** Картада үнемі көрсетілетін маршруттар мен тректердің id-лері (қалғандары тек карточкасы ашылғанда көрінеді). */
+    var shownRoutes: Set<String>
+        get() = sp.getStringSet("shownRoutes", null)?.toSet() ?: emptySet()
+        set(v) { sp.edit().putStringSet("shownRoutes", v).apply() }
+
     /** Жазылып жатқан трек (қосымша кенет жабылса, келесі ашылғанда кідіртілген күйде қалпына келеді). */
     var trackDraft: String?
         get() = sp.getString("trackDraft", null)

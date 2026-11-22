@@ -1,7 +1,9 @@
 package io.github.berikkkk.muragis.mobile.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -138,12 +140,14 @@ fun <T> Segmented(options: List<Pair<T, String>>, value: T, modifier: Modifier =
     }
 }
 
-/** Тізім жолы: белгіше, тақырып, қосымша жол, оң жақта — көрсеткі не әрекет. */
+/** Тізім жолы: белгіше, тақырып, қосымша жол, оң жақта — көрсеткі не әрекет. [onLongClick] — ұзақ басу (мыс. белгілеу режимі). */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun OptionRow(title: String, sub: String? = null, modifier: Modifier = Modifier, leading: (@Composable () -> Unit)? = null,
-              trailing: (@Composable RowScope.() -> Unit)? = null, subMono: Boolean = false, onClick: () -> Unit) {
+              trailing: (@Composable RowScope.() -> Unit)? = null, subMono: Boolean = false, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(
-        modifier.fillMaxWidth().heightIn(min = 60.dp).clip(RoundedCornerShape(16.dp)).background(Chrome.bg2).clickable(onClick = onClick)
+        modifier.fillMaxWidth().heightIn(min = 60.dp).clip(RoundedCornerShape(16.dp)).background(Chrome.bg2)
+            .then(if (onLongClick != null) Modifier.combinedClickable(onLongClick = onLongClick, onClick = onClick) else Modifier.clickable(onClick = onClick))
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

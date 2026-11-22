@@ -7,17 +7,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -28,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AddLocationAlt
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -44,7 +41,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -69,8 +65,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import io.github.berikkkk.muragis.core.geo.Coords
 import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Place
@@ -78,6 +72,7 @@ import io.github.berikkkk.muragis.core.model.PlaceKind
 import io.github.berikkkk.muragis.core.model.Sorting
 import io.github.berikkkk.muragis.mobile.R
 import io.github.berikkkk.muragis.mobile.map.MapController
+import io.github.berikkkk.muragis.core.geo.LatLon
 import io.github.berikkkk.muragis.mobile.map.SymbolIcons
 
 /** Өзге нысанның белгісі — картадағы суреттің дәл өзі (SymbolIcons.place: түсі мен Lucide таңбасы түріне қарай). */
@@ -115,17 +110,6 @@ fun MarkChoiceDialog(vm: MainViewModel) {
     }
 }
 
-/** Түрлерді таңдау: белгісімен бірге чиптер (бір түр). */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun PlaceKindChips(value: PlaceKind?, onChange: (PlaceKind) -> Unit, ui: Lang) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        PlaceKind.entries.forEach { k ->
-            FilterChip(selected = k == value, onClick = { onChange(k) }, leadingIcon = { PlaceBadge(k, 20.dp) }, label = { Text(k.label(ui), fontSize = 13.sp) })
-        }
-    }
-}
-
 /** Өзге нысанды өңдеу: түрі, атауы (екі тілде, міндетті емес) және координатасы. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -140,61 +124,57 @@ fun PlaceEditorDialog(vm: MainViewModel, initial: Place, controller: MapControll
     val parsed = Coords.parsePair(latText, lonText)
     val coordOk = parsed is Coords.Pair.Ok
 
-    Dialog(onDismissRequest = { vm.closePlaceEditor() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        DialogAdjustResize()
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().systemBarsPadding()) {
-                TopAppBar(
-                    title = { Text(stringResource(if (initial.id.isEmpty()) R.string.new_place else R.string.edit_place)) },
-                    navigationIcon = { IconButton(onClick = { vm.closePlaceEditor() }) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
-                    actions = {
-                        IconButton(enabled = coordOk && !saving, onClick = {
-                            val c = parsed as Coords.Pair.Ok
-                            saving = true
-                            vm.savePlace(p.copy(lat = c.lat, lon = c.lon)) { saving = false }
-                        }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) }
-                    },
-                )
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                    SectionTitle(stringResource(R.string.f_place_kind))
-                    PlaceKindChips(p.kind, { p = p.copy(kind = it) }, ui)
+    FullScreenPanel(onDismiss = { vm.closePlaceEditor() }) {
+        TopAppBar(
+            title = { Text(stringResource(if (initial.id.isEmpty()) R.string.new_place else R.string.edit_place)) },
+            navigationIcon = { IconButton(onClick = { vm.closePlaceEditor() }) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
+            actions = {
+                IconButton(enabled = coordOk && !saving, onClick = {
+                    val c = parsed as Coords.Pair.Ok
+                    saving = true
+                    vm.savePlace(p.copy(lat = c.lat, lon = c.lon)) { saving = false }
+                }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) }
+            },
+        )
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+            // Түрі — ашылмалы тізім (ықшам: атау өрісі экранның жоғарғы жағында қалады)
+            Spacer(Modifier.height(12.dp))
+            Dropdown(stringResource(R.string.f_place_kind), p.kind, PlaceKind.entries, { it.label(ui) }, { p = p.copy(kind = it) },
+                Modifier.fillMaxWidth(), icon = { PlaceBadge(it, 24.dp) })
 
-                    SectionTitle(stringResource(R.string.f_place_name))
-                    TabRow(selectedTabIndex = tab.ordinal) {
-                        Lang.entries.forEach { l ->
-                            Tab(selected = tab == l, onClick = { tab = l }, text = { Text(langName(l) + if (p.name[l].isBlank()) " •" else "") })
-                        }
-                    }
-                    OutlinedTextField(value = p.name[tab], onValueChange = { p = p.copy(name = p.name.with(tab, it)) },
-                        label = { Text(stringResource(R.string.f_name)) }, placeholder = { Text(p.kind.label(tab)) }, singleLine = true,
-                        modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
-                    Text(stringResource(R.string.place_name_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
-
-                    SectionTitle(stringResource(R.string.coordinates))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CoordField(stringResource(R.string.lat), latText, { latText = it }, Coords.parseOne(latText) is Coords.One.Err, Modifier.weight(1f))
-                        CoordField(stringResource(R.string.lon), lonText, { lonText = it }, Coords.parseOne(lonText) is Coords.One.Err, Modifier.weight(1f))
-                    }
-                    if (parsed is Coords.Pair.Ok && parsed.swapped) Text(stringResource(R.string.coords_swapped), style = MaterialTheme.typography.labelSmall)
-                    if (parsed is Coords.Pair.Ok) Text(Coords.dmsLat(parsed.lat) + "  " + Coords.dmsLon(parsed.lon), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = {
-                            val cur = (parsed as? Coords.Pair.Ok)?.let { p.copy(lat = it.lat, lon = it.lon) } ?: p
-                            controller.moveTo(cur.lat, cur.lon, maxOf(controller.zoom(), 16.0), animate = false)
-                            vm.repickInPlaceEditor(cur)
-                        }) { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.place_on_map), fontSize = 12.sp) }
-                        OutlinedButton(onClick = {
-                            act.withLocation {
-                                vm.location.requestFix { l -> if (l != null) { latText = Coords.decimal(l.latitude, 7); lonText = Coords.decimal(l.longitude, 7) } }
-                            }
-                        }) { Icon(Icons.Filled.GpsFixed, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.from_gps), fontSize = 12.sp) }
-                    }
-                    if (initial.id.isNotEmpty()) Text(stringResource(R.string.updated_at, p.updatedAt.take(16).replace('T', ' ')), style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp))
-                    Spacer(Modifier.size(80.dp))
-                    ImeSpacer()
+            SectionTitle(stringResource(R.string.f_place_name))
+            TabRow(selectedTabIndex = tab.ordinal) {
+                Lang.entries.forEach { l ->
+                    Tab(selected = tab == l, onClick = { tab = l }, text = { Text(langName(l) + if (p.name[l].isBlank()) " •" else "") })
                 }
             }
+            OutlinedTextField(value = p.name[tab], onValueChange = { p = p.copy(name = p.name.with(tab, it)) },
+                label = { Text(stringResource(R.string.f_name)) }, placeholder = { Text(p.kind.label(tab)) }, singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus())
+            Text(stringResource(R.string.place_name_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+
+            SectionTitle(stringResource(R.string.coordinates))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CoordField(stringResource(R.string.lat), latText, { latText = it }, Coords.parseOne(latText) is Coords.One.Err, Modifier.weight(1f))
+                CoordField(stringResource(R.string.lon), lonText, { lonText = it }, Coords.parseOne(lonText) is Coords.One.Err, Modifier.weight(1f))
+            }
+            if (parsed is Coords.Pair.Ok && parsed.swapped) Text(stringResource(R.string.coords_swapped), style = MaterialTheme.typography.labelSmall)
+            if (parsed is Coords.Pair.Ok) Text(Coords.dmsLat(parsed.lat) + "  " + Coords.dmsLon(parsed.lon), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    val cur = (parsed as? Coords.Pair.Ok)?.let { p.copy(lat = it.lat, lon = it.lon) } ?: p
+                    controller.moveTo(cur.lat, cur.lon, maxOf(controller.zoom(), 16.0), animate = false)
+                    vm.repickInPlaceEditor(cur)
+                }) { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.place_on_map), fontSize = 12.sp) }
+                OutlinedButton(onClick = {
+                    act.withLocation {
+                        vm.location.requestFix { l -> if (l != null) { latText = Coords.decimal(l.latitude, 7); lonText = Coords.decimal(l.longitude, 7) } }
+                    }
+                }) { Icon(Icons.Filled.GpsFixed, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.from_gps), fontSize = 12.sp) }
+            }
+            if (initial.id.isNotEmpty()) Text(stringResource(R.string.updated_at, p.updatedAt.take(16).replace('T', ' ')), style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp))
+            Spacer(Modifier.size(24.dp))
         }
     }
 }
@@ -233,14 +213,16 @@ fun PlaceCardContent(vm: MainViewModel, p: Place, lang: Lang, dms: Boolean) {
         onConfirm = { vm.deletePlaces(listOf(p.id)) }, onDismiss = { confirmDelete = false })
 }
 
+/** [checked] берілсе — белгілеу режимі: сол жақта белгі ұяшығы, көрсеткі жоқ. */
 @Composable
-fun PlaceRow(p: Place, lang: Lang, onClick: () -> Unit) {
+fun PlaceRow(p: Place, lang: Lang, checked: Boolean? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val ui = uiLang()
     OptionRow(
         p.title(lang),
         if (p.name.display(lang).isBlank()) null else p.kind.label(ui),
-        leading = { PlaceBadge(p.kind, 26.dp) },
-        trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }, onClick = onClick,
+        leading = { if (checked != null) SelectBox(checked, onClick) else PlaceBadge(p.kind, 26.dp) },
+        trailing = { if (checked == null) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) },
+        onLongClick = onLongClick, onClick = onClick,
     )
 }
 
@@ -251,7 +233,7 @@ fun pickPlace(vm: MainViewModel, p: Place) {
 
 /** Мәзірдегі «Өзге нысандар» беті: іздеу, түрі бойынша сүзгі, қосу, импорт/экспорт, тізім. */
 @Composable
-fun PlacesPage(vm: MainViewModel) {
+fun PlacesPage(vm: MainViewModel, controller: MapController) {
     val all by vm.places.collectAsState()
     val prefs by vm.prefs.collectAsState()
     val ui = uiLang()
@@ -261,12 +243,17 @@ fun PlacesPage(vm: MainViewModel) {
     val q = f.query; val kind = f.kind
     var dataDialog by remember { mutableStateOf<DataDialog?>(null) }
     val lang = prefs.dataLang
+    // Бірнеше нысанды белгілеу (ұзақ басу не «Белгілеу» батырмасы): өшіру, экспорт, картада көрсету
+    val sel = rememberListSelection(all.map { it.id })
+    var confirmDel by remember { mutableStateOf(false) }
+    var exportSel by remember { mutableStateOf(false) }
     Column(Modifier.padding(horizontal = 16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 PageTitle(stringResource(R.string.tab_places),
                     if (list.size == all.size) stringResource(R.string.places_count, all.size) else stringResource(R.string.places_count_filtered, list.size, all.size))
             }
+            if (!sel.active && all.isNotEmpty()) IconButton(onClick = { sel.active = true }) { Icon(Icons.Filled.Checklist, stringResource(R.string.sel_mode)) }
             DataMenu(onImport = { dataDialog = DataDialog.IMPORT }, onExport = { dataDialog = DataDialog.EXPORT })
         }
         ChromeSearch(q, { vm.setPlaceFilter(f.copy(query = it)) }, stringResource(R.string.places_search_hint))
@@ -276,14 +263,23 @@ fun PlacesPage(vm: MainViewModel) {
                 FilterChip(selected = kind == k, onClick = { vm.setPlaceFilter(f.copy(kind = if (kind == k) null else k)) }, leadingIcon = { PlaceBadge(k, 18.dp) }, label = { Text(k.label(ui), fontSize = 13.sp) })
             }
         }
-        BigButton(stringResource(R.string.add_place), Modifier.fillMaxWidth().padding(top = 8.dp), icon = { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(20.dp)) }) {
+        if (sel.active) SelectionBar(sel, list.map { it.id },
+            onShow = { showOnMap(vm, controller, all.filter { it.id in sel.ids }.map { LatLon(it.lat, it.lon) }) },
+            onExport = { exportSel = true }, onDelete = { confirmDel = true })
+        else BigButton(stringResource(R.string.add_place), Modifier.fillMaxWidth().padding(top = 8.dp), icon = { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(20.dp)) }) {
             vm.setPick(Pick.PLACE)
         }
         Spacer(Modifier.height(10.dp))
         if (list.isEmpty()) Text(stringResource(R.string.list_empty), color = Chrome.dim, modifier = Modifier.padding(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 32.dp)) {
-            items(list, key = { it.id }) { p -> PlaceRow(p, lang) { pickPlace(vm, p) } }
+            items(list, key = { it.id }) { p ->
+                if (sel.active) PlaceRow(p, lang, checked = p.id in sel.ids) { sel.toggle(p.id) }
+                else PlaceRow(p, lang, onLongClick = { sel.start(p.id) }) { pickPlace(vm, p) }
+            }
         }
     }
     dataDialog?.let { DataDialogs(vm, it, ImportTarget.PLACES, false) { dataDialog = null } }
+    if (exportSel) DataDialogs(vm, DataDialog.EXPORT, ImportTarget.PLACES, false, ids = sel.ids) { exportSel = false }
+    if (confirmDel) ConfirmDialog(stringResource(R.string.confirm_delete_selected, sel.ids.size), stringResource(R.string.delete),
+        onConfirm = { vm.deletePlaces(sel.ids.toList()); sel.close() }, onDismiss = { confirmDel = false })
 }

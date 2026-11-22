@@ -56,7 +56,7 @@
       '<div class="qa-sfilter"><label class="qa-search">' + svg(IC.search, 16) + '<input type="search" id="rtQ" placeholder="Іздеу: атауы, нүктелері…" aria-label="Маршруттардан іздеу" autocomplete="off"></label>' +
         '<select id="rtFVeh" aria-label="Көлік бойынша сүзу"><option value="">Барлық көлік</option></select></div>' +
       '<div class="rt-legend" id="rtLegend"></div>' +
-      '<div class="qa-selbar"><label class="qa-check"><input type="checkbox" id="rtShow" checked> Картада көрсету</label>' +
+      '<div class="qa-selbar"><label class="qa-check"><input type="checkbox" id="rtShow"> Барлығын көрсету</label>' +
         '<label class="qa-check"><input type="checkbox" id="rtNodes"> Тораптар</label><span id="rtInfo"></span></div>' +
       '<div class="qa-slist" id="rtList"><div class="qa-empty">Жүктелуде…</div></div>' +
     '</div>' +

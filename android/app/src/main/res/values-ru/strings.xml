@@ -325,6 +325,9 @@
     <string name="draw_route">Нарисовать</string>
     <string name="kind_route">Маршрут</string>
     <string name="kind_track">Записанный трек</string>
+    <string name="route_keep_shown">Всегда показывать на карте</string>
+    <string name="route_show">Показать на карте</string>
+    <string name="route_hide">Скрыть с карты</string>
     <string name="layers_title">Слои карты</string>
 
     <string name="set_zoom_side">Положение кнопок масштаба</string>
@@ -454,6 +457,13 @@
     <string name="f_place_name">Название (необязательно)</string>
     <string name="place_name_note">Если название не указано, на карте и в списке показывается вид объекта.</string>
     <string name="confirm_delete_place">Удалить объект «%1$s»?</string>
+    <string name="confirm_delete_selected">Удалить отмеченные объекты (%1$d)? Это действие нельзя отменить (только из резервной копии).</string>
+    <string name="sel_mode">Отметить</string>
+    <string name="sel_count">Отмечено: %1$d</string>
+    <string name="sel_all">Отметить все</string>
+    <string name="sel_none">Снять отметки</string>
+    <string name="sel_done">Выйти из режима отметки</string>
+    <string name="sel_export_note">Будут экспортированы только отмеченные объекты: %1$d.</string>
     <string name="all_kinds">Все</string>
     <string name="mark_choice_title">Какую метку поставить?</string>
     <string name="mark_choice_monument">Метка памятника</string>

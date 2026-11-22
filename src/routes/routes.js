@@ -63,7 +63,20 @@ const layer = L.featureGroup();
 const nodesLayer = L.layerGroup();
 const draftLayer = L.layerGroup().addTo(map);
 const resultLayer = L.featureGroup().addTo(map);
-const lines = new Map();      // id → L.polyline
+const lines = new Map();      // id → L.polyline (тек картада көрсетілгендері)
+/* Маршрут картада тек пайдаланушы көрсеткенде салынады: «Картадан көрсету» (әр маршрутқа, есте сақталады)
+   не «Барлығын көрсету» белгісі. Әдепкіде — ешқайсысы көрінбейді. */
+const SHOWN_KEY = 'rt-shown';
+let shown = new Set();
+try { shown = new Set(JSON.parse(store.get(SHOWN_KEY) || '[]').filter(x => typeof x === 'string')); } catch (e) { /* бүлінген мән */ }
+// Маршрут сызу кезінде бар маршруттардың бәрі уақытша көрінеді (жалғастыру, жабыстыру үшін)
+const isShown = r => $('rtShow').checked || drawing || shown.has(r.id);
+function setShown(id, on) {
+  if (on) shown.add(id); else shown.delete(id);
+  store.set(SHOWN_KEY, JSON.stringify([...shown]));
+  drawLines();
+  renderList();
+}
 function lineStyle(r, hi) {
   const v = vehicleOf(r.vehicle);
   return { color: v.color, weight: hi ? 6 : 4, opacity: hi ? 1 : 0.85, dashArray: r.season === 'dry' ? '9 7' : null, lineCap: 'round', lineJoin: 'round', className: 'rt-line' };
@@ -71,6 +84,7 @@ function lineStyle(r, hi) {
 function drawLines() {
   layer.clearLayers(); lines.clear();
   for (const r of items) {
+    if (!isShown(r)) continue;
     const pl = L.polyline(r.pts, lineStyle(r));
     pl.bindTooltip('<b>' + esc(r.name) + '</b><small>' + km(lineLength(r.pts)) + ' · ' + esc(vehicleOf(r.vehicle).short) + (r.season === 'dry' ? tx(' · тек құрғақта', ' · только в сухую погоду') : '') + '</small>',
       { sticky: true, className: 'mk-tip rt-tip', direction: 'top', offset: [0, -6] });
@@ -84,9 +98,9 @@ function drawLines() {
   drawNodes();
 }
 function paintVisibility() {
-  const on = $('rtShow').checked;
-  if (on && !map.hasLayer(layer)) layer.addTo(map);
-  if (!on && map.hasLayer(layer)) map.removeLayer(layer);
+  if (!map.hasLayer(layer)) layer.addTo(map);
+  drawLines();
+  renderList();
   paintNodesVisibility();
 }
 /* Желі тораптары (қалауынша): маршруттардың ұштары, қиылыстары, ескерткіштер */
@@ -108,15 +122,16 @@ function drawNodes() {
   }
 }
 function paintNodesVisibility() {
-  const on = $('rtNodes').checked && $('rtShow').checked;
+  const on = $('rtNodes').checked;
   if (on) { drawNodes(); if (!map.hasLayer(nodesLayer)) nodesLayer.addTo(map); }
   else if (map.hasLayer(nodesLayer)) map.removeLayer(nodesLayer);
 }
 $('rtShow').addEventListener('change', paintVisibility);
 $('rtNodes').addEventListener('change', () => { store.set('rt-nodes', $('rtNodes').checked ? '1' : '0'); paintNodesVisibility(); });
 $('rtNodes').checked = store.get('rt-nodes') === '1';
-$('rtShow').checked = store.get('rt-show') !== '0';
-$('rtShow').addEventListener('change', () => store.set('rt-show', $('rtShow').checked ? '1' : '0'));
+// «Барлығын көрсету» — әдепкіде өшік (бұрынғы «rt-show» кілті әдейі оқылмайды: ескі нұсқада ол әдепкіде қосулы еді)
+$('rtShow').checked = store.get('rt-all') === '1';
+$('rtShow').addEventListener('change', () => store.set('rt-all', $('rtShow').checked ? '1' : '0'));
 
 /* Басқа режим қосулы ма (шекара нүктесі, белгі қою, сызғыш, маршрут сызу, картадан таңдау) — сызық басуды өткізеді */
 const pressed = id => { const b = $(id); return !!b && b.getAttribute('aria-pressed') === 'true'; };
@@ -134,9 +149,9 @@ function setDrawing(on) {
   if (on) {
     setPicking(null);
     for (const id of ['qaAddMode', 'mkMode', 'qaRuler']) if (pressed(id)) $(id).click();
-    if (!$('rtShow').checked) { $('rtShow').checked = true; paintVisibility(); }
   } else clearDraft();
   drawing = on;
+  drawLines();
   $('rtDraw').setAttribute('aria-pressed', on ? 'true' : 'false');
   $('rtDraw').dataset.tip = on ? 'Маршрут сызу: қосулы — картаны басыңыз (Esc — өшіру)' : 'Маршрут сызу: картаны басып жолдың нүктелерін қойыңыз';
   mapEl.classList.toggle('is-routing', on);
@@ -282,7 +297,8 @@ function openDialog(r, o = {}) {
     const btn = form.querySelector('[type=submit]');
     btn.disabled = true;
     try {
-      await api('save', { data: JSON.stringify(rec) });
+      const j = await api('save', { data: JSON.stringify(rec) });
+      if (j.id && !shown.has(j.id)) setShown(j.id, true);
       store.set(lastKey, JSON.stringify({ vehicle: rec.vehicle }));
       closeDialog();
       toast((isNew ? tx('Маршрут сақталды: «', 'Маршрут сохранён: «') : tx('Маршрут жаңартылды: «', 'Маршрут обновлён: «')) + (rec.name || tx('Атаусыз маршрут', 'Маршрут без названия')) + '» · ' + km(lineLength(pts)) + '.');
@@ -308,11 +324,11 @@ function openDialog(r, o = {}) {
 }
 async function removeRoute(r) {
   if (!(await ask(tx('«' + r.name + '» маршрутын өшіру керек пе? Бұл әрекетті қайтару мүмкін емес.', 'Удалить маршрут «' + r.name + '»? Это действие нельзя отменить.'), { ok: tx('Өшіру', 'Удалить'), danger: true }))) return;
-  try { await api('delete', { id: r.id }); closeDialog(); toast(tx('Маршрут өшірілді: «', 'Маршрут удалён: «') + r.name + '».'); }
+  try { await api('delete', { id: r.id }); if (shown.has(r.id)) setShown(r.id, false); closeDialog(); toast(tx('Маршрут өшірілді: «', 'Маршрут удалён: «') + r.name + '».'); }
   catch (e) { toast(e.message, true); }
 }
 function flyTo(r) {
-  if (!$('rtShow').checked) { $('rtShow').checked = true; paintVisibility(); }
+  if (!isShown(r)) setShown(r.id, true);
   map.flyToBounds(L.latLngBounds(r.pts).pad(0.15), { maxZoom: 16, duration: 0.6, paddingTopLeft: globalThis.QAUI?.pad?.().tl, paddingBottomRight: globalThis.QAUI?.pad?.().br });
   const pl = lines.get(r.id);
   if (pl) { pl.setStyle({ weight: 8 }); setTimeout(() => pl.setStyle({ weight: 4 }), 1600); }
@@ -424,6 +440,7 @@ function renderList() {
       '<div class="qa-sc-meta"><b>' + km(lineLength(r.pts)) + '</b> · ' + esc(v.short) + (r.season === 'dry' ? tx(' · тек құрғақта', ' · только в сухую погоду') : '') + ' · ' + checkedNote(r) + '</div>' +
       (r.note ? '<p class="qa-sc-desc">' + esc(r.note) + '</p>' : '') +
       '<div class="qa-sc-act"><button type="button" class="lnk" data-act="edit">Өңдеу</button><button type="button" class="lnk" data-act="go">Картадан көрсету</button>' +
+      (shown.has(r.id) ? '<button type="button" class="lnk" data-act="hide">Картадан жасыру</button>' : '') +
       '<button type="button" class="lnk" data-act="gpx">GPX</button><button type="button" class="lnk lnk--danger" data-act="del">Өшіру</button></div></div></div>';
   }).join('');
   paintFooter();
@@ -436,6 +453,7 @@ $('rtList').addEventListener('click', e => {
   if (b.dataset.act === 'go') flyTo(r);
   else if (b.dataset.act === 'edit') openDialog(r);
   else if (b.dataset.act === 'gpx') exportGpx([r], r.name);
+  else if (b.dataset.act === 'hide') setShown(r.id, false);
   else if (b.dataset.act === 'del') removeRoute(r);
 });
 $('rtList').addEventListener('mouseover', e => {

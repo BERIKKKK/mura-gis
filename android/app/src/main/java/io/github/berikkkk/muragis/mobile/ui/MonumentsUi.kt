@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -231,91 +230,85 @@ fun MonumentEditorDialog(vm: MainViewModel, initial: Monument, controller: MapCo
     // Жыл/аралық жазылса — екі тілдің мәні бірге қойылады («1967» → «1967 жыл» / «1967 год»)
     fun synced(x: Monument) = periodLang?.let { x.copy(period = Periods.sync(x.period, it)) } ?: x
 
-    // decorFitsSystemWindows = false: пернетақта ашылғанда терезе imePadding арқылы кішірейеді, белсенді өріс оның үстіне шығады
-    Dialog(onDismissRequest = { vm.closeEditor() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        DialogAdjustResize()
-        Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().systemBarsPadding()) {
-                TopAppBar(
-                    title = { Text(stringResource(if (initial.id.isEmpty()) R.string.new_monument else R.string.edit_monument)) },
-                    navigationIcon = { IconButton(onClick = { vm.closeEditor() }) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
-                    actions = {
-                        IconButton(enabled = coordOk && !saving, onClick = {
-                            val p = parsed as Coords.Pair.Ok
-                            saving = true
-                            m = synced(m)
-                            vm.saveMonument(m.copy(lat = p.lat, lon = p.lon)) { saving = false }
-                        }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) }
-                    },
-                )
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                    SectionTitle(stringResource(R.string.coordinates))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CoordField(stringResource(R.string.lat), latText, { latText = it }, Coords.parseOne(latText) is Coords.One.Err, Modifier.weight(1f))
-                        CoordField(stringResource(R.string.lon), lonText, { lonText = it }, Coords.parseOne(lonText) is Coords.One.Err, Modifier.weight(1f))
+    // Негізгі терезедегі толық экранды бет: пернетақта ашылғанда кішірейеді, белсенді өріс оның үстіне шығады
+    FullScreenPanel(onDismiss = { vm.closeEditor() }) {
+        TopAppBar(
+            title = { Text(stringResource(if (initial.id.isEmpty()) R.string.new_monument else R.string.edit_monument)) },
+            navigationIcon = { IconButton(onClick = { vm.closeEditor() }) { Icon(Icons.Filled.Close, stringResource(R.string.cancel)) } },
+            actions = {
+                IconButton(enabled = coordOk && !saving, onClick = {
+                    val p = parsed as Coords.Pair.Ok
+                    saving = true
+                    m = synced(m)
+                    vm.saveMonument(m.copy(lat = p.lat, lon = p.lon)) { saving = false }
+                }) { Icon(Icons.Filled.Check, stringResource(R.string.save)) }
+            },
+        )
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
+            SectionTitle(stringResource(R.string.coordinates))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CoordField(stringResource(R.string.lat), latText, { latText = it }, Coords.parseOne(latText) is Coords.One.Err, Modifier.weight(1f))
+                CoordField(stringResource(R.string.lon), lonText, { lonText = it }, Coords.parseOne(lonText) is Coords.One.Err, Modifier.weight(1f))
+            }
+            if (parsed is Coords.Pair.Ok && parsed.swapped) Text(stringResource(R.string.coords_swapped), style = MaterialTheme.typography.labelSmall)
+            if (parsed is Coords.Pair.Ok) Text(Coords.dmsLat(parsed.lat) + "  " + Coords.dmsLon(parsed.lon), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Картада белгілеу: терезе уақытша жабылып, нысанамен жаңа орын таңдалады (енгізілген мәліметтер сақталады)
+                OutlinedButton(onClick = {
+                    val cur = synced(m).let { x -> (parsed as? Coords.Pair.Ok)?.let { x.copy(lat = it.lat, lon = it.lon) } ?: x }
+                    controller.moveTo(cur.lat, cur.lon, maxOf(controller.zoom(), 16.0), animate = false)
+                    vm.repickInEditor(cur)
+                }) { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.place_on_map), fontSize = 12.sp) }
+                OutlinedButton(onClick = {
+                    act.withLocation {
+                        vm.location.requestFix { l -> if (l != null) { latText = Coords.decimal(l.latitude, 7); lonText = Coords.decimal(l.longitude, 7) } }
                     }
-                    if (parsed is Coords.Pair.Ok && parsed.swapped) Text(stringResource(R.string.coords_swapped), style = MaterialTheme.typography.labelSmall)
-                    if (parsed is Coords.Pair.Ok) Text(Coords.dmsLat(parsed.lat) + "  " + Coords.dmsLon(parsed.lon), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // Картада белгілеу: терезе уақытша жабылып, нысанамен жаңа орын таңдалады (енгізілген мәліметтер сақталады)
-                        OutlinedButton(onClick = {
-                            val cur = synced(m).let { x -> (parsed as? Coords.Pair.Ok)?.let { x.copy(lat = it.lat, lon = it.lon) } ?: x }
-                            controller.moveTo(cur.lat, cur.lon, maxOf(controller.zoom(), 16.0), animate = false)
-                            vm.repickInEditor(cur)
-                        }) { Icon(Icons.Filled.AddLocationAlt, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.place_on_map), fontSize = 12.sp) }
-                        OutlinedButton(onClick = {
-                            act.withLocation {
-                                vm.location.requestFix { l -> if (l != null) { latText = Coords.decimal(l.latitude, 7); lonText = Coords.decimal(l.longitude, 7) } }
-                            }
-                        }) { Icon(Icons.Filled.GpsFixed, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.from_gps), fontSize = 12.sp) }
-                    }
+                }) { Icon(Icons.Filled.GpsFixed, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text(stringResource(R.string.from_gps), fontSize = 12.sp) }
+            }
 
-                    SectionTitle(stringResource(R.string.texts_by_language))
-                    TabRow(selectedTabIndex = tab.ordinal) {
-                        Lang.entries.forEach { l ->
-                            Tab(selected = tab == l, onClick = { tab = l }, text = {
-                                val filled = !m.name[l].isBlank()
-                                Text(langName(l) + if (filled) "" else " •")
-                            })
-                        }
-                    }
-                    Text(stringResource(R.string.lang_fields_note, langName(tab)), style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
-                    // Әр өріс тек таңдалған тілдің мәнін өзгертеді: екінші тілдің мәні сақталады
-                    @Composable fun loc(label: Int, v: Localized, set: (Localized) -> Unit, lines: Int = 1, extra: Modifier = Modifier) {
-                        OutlinedTextField(value = v[tab], onValueChange = { set(v.with(tab, it)) }, label = { Text(stringResource(label)) },
-                            singleLine = lines == 1, minLines = lines, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus().then(extra))
-                    }
-                    loc(R.string.f_name, m.name, { m = m.copy(name = it) })
-                    var periodFocused by remember { mutableStateOf(false) }
-                    loc(R.string.f_period, m.period, { m = m.copy(period = it); periodLang = tab },
-                        extra = Modifier.onFocusChanged { f -> if (periodFocused && !f.isFocused) m = synced(m); periodFocused = f.isFocused })
-                    // Танылса — екі тілдегі мәні алдын ала көрсетіледі (өрістен шыққанда не сақтағанда қойылады)
-                    periodLang?.let { pl -> Periods.sync(m.period, pl).takeIf { it != m.period } }?.let { p ->
-                        Text("${p.kk} · ${p.ru}", style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
-                    }
-                    RegionFields(m, tab, { m = it; vm.rememberOblast(it.oblast.kk) }) { lbl, v, set -> loc(lbl, v, set) }
-                    loc(R.string.f_place, m.place, { m = m.copy(place = it) }, 2)
-                    loc(R.string.f_note, m.note, { m = m.copy(note = it) }, 2)
-
-                    SectionTitle(stringResource(R.string.classification))
-                    Dropdown(stringResource(R.string.f_type), m.type, MonumentType.entries, { it.label(ui) }, { m = m.copy(type = it) }, Modifier.fillMaxWidth())
-                    Spacer(Modifier.size(6.dp))
-                    Dropdown(stringResource(R.string.f_category), m.category, Category.entries, { it.label(ui) }, { m = m.copy(category = it) }, Modifier.fillMaxWidth())
-                    Spacer(Modifier.size(6.dp))
-                    Dropdown(stringResource(R.string.f_status), m.status, Status.entries, { it.label(ui) }, { m = m.copy(status = it) }, Modifier.fillMaxWidth())
-                    if (initial.id.isNotEmpty()) Text(stringResource(R.string.updated_at, m.updatedAt.take(16).replace('T', ' ')), style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp))
-                    Spacer(Modifier.size(80.dp))
-                    ImeSpacer()
+            SectionTitle(stringResource(R.string.texts_by_language))
+            TabRow(selectedTabIndex = tab.ordinal) {
+                Lang.entries.forEach { l ->
+                    Tab(selected = tab == l, onClick = { tab = l }, text = {
+                        val filled = !m.name[l].isBlank()
+                        Text(langName(l) + if (filled) "" else " •")
+                    })
                 }
             }
+            Text(stringResource(R.string.lang_fields_note, langName(tab)), style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+            // Әр өріс тек таңдалған тілдің мәнін өзгертеді: екінші тілдің мәні сақталады
+            @Composable fun loc(label: Int, v: Localized, set: (Localized) -> Unit, lines: Int = 1, extra: Modifier = Modifier) {
+                OutlinedTextField(value = v[tab], onValueChange = { set(v.with(tab, it)) }, label = { Text(stringResource(label)) },
+                    singleLine = lines == 1, minLines = lines, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).bringIntoViewOnFocus().then(extra))
+            }
+            loc(R.string.f_name, m.name, { m = m.copy(name = it) })
+            var periodFocused by remember { mutableStateOf(false) }
+            loc(R.string.f_period, m.period, { m = m.copy(period = it); periodLang = tab },
+                extra = Modifier.onFocusChanged { f -> if (periodFocused && !f.isFocused) m = synced(m); periodFocused = f.isFocused })
+            // Танылса — екі тілдегі мәні алдын ала көрсетіледі (өрістен шыққанда не сақтағанда қойылады)
+            periodLang?.let { pl -> Periods.sync(m.period, pl).takeIf { it != m.period } }?.let { p ->
+                Text("${p.kk} · ${p.ru}", style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
+            }
+            RegionFields(m, tab, { m = it; vm.rememberOblast(it.oblast.kk) }) { lbl, v, set -> loc(lbl, v, set) }
+            loc(R.string.f_place, m.place, { m = m.copy(place = it) }, 2)
+            loc(R.string.f_note, m.note, { m = m.copy(note = it) }, 2)
+
+            SectionTitle(stringResource(R.string.classification))
+            Dropdown(stringResource(R.string.f_type), m.type, MonumentType.entries, { it.label(ui) }, { m = m.copy(type = it) }, Modifier.fillMaxWidth())
+            Spacer(Modifier.size(6.dp))
+            Dropdown(stringResource(R.string.f_category), m.category, Category.entries, { it.label(ui) }, { m = m.copy(category = it) }, Modifier.fillMaxWidth())
+            Spacer(Modifier.size(6.dp))
+            Dropdown(stringResource(R.string.f_status), m.status, Status.entries, { it.label(ui) }, { m = m.copy(status = it) }, Modifier.fillMaxWidth())
+            if (initial.id.isNotEmpty()) Text(stringResource(R.string.updated_at, m.updatedAt.take(16).replace('T', ' ')), style = MaterialTheme.typography.labelSmall,
+                color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp))
+            Spacer(Modifier.size(24.dp))
         }
     }
 }
 
-/** Импорт/экспорт терезелері (ескерткіштер және маршруттар үшін ортақ). */
+/** Импорт/экспорт терезелері (ескерткіштер және маршруттар үшін ортақ). [ids] — тек белгіленгендерді экспорттау. */
 @Composable
-fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filtered: Boolean, routeId: String? = null, onDone: () -> Unit) {
+fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filtered: Boolean, routeId: String? = null, ids: Set<String>? = null, onDone: () -> Unit) {
     val prefs by vm.prefs.collectAsState()
     var lang by remember { mutableStateOf(if (kind == DataDialog.IMPORT) prefs.dataLang else prefs.exportLang) }
     val formats = if (target != ImportTarget.ROUTES) listOf(MainViewModel.ExportFormat.GEOJSON, MainViewModel.ExportFormat.GPKG, MainViewModel.ExportFormat.KML)
@@ -326,7 +319,7 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
     val open = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) vm.importData(uri, target, lang); onDone() }
     val savers = MainViewModel.ExportFormat.entries.associateWith { f ->
         rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument(f.mime)) { uri ->
-            if (uri != null) vm.export(uri, target, f, lang, onlyFiltered && target == ImportTarget.MONUMENTS, routeId)
+            if (uri != null) vm.export(uri, target, f, lang, onlyFiltered && target == ImportTarget.MONUMENTS, routeId, ids)
             onDone()
         }
     }
@@ -344,6 +337,7 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
                     LangRadio(lang) { lang = it }
                     Text(stringResource(R.string.import_lang_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
                 } else {
+                    if (ids != null) Text(stringResource(R.string.sel_export_note, ids.size), style = MaterialTheme.typography.bodySmall)
                     SectionTitle(stringResource(R.string.format))
                     formats.forEach { f ->
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { format = f }) {
@@ -367,7 +361,8 @@ fun DataDialogs(vm: MainViewModel, kind: DataDialog, target: ImportTarget, filte
                 if (kind == DataDialog.IMPORT) open.launch(arrayOf("*/*"))
                 else {
                     val stamp = java.text.SimpleDateFormat("yyyyMMdd", Locale.ROOT).format(java.util.Date())
-                    val base = when (target) { ImportTarget.MONUMENTS -> "eskertkishter"; ImportTarget.PLACES -> "ozge-nysandar"; ImportTarget.ROUTES -> "marshruttar" }
+                    val base = when (target) { ImportTarget.MONUMENTS -> "eskertkishter"; ImportTarget.PLACES -> "ozge-nysandar"; ImportTarget.ROUTES -> "marshruttar" } +
+                        if (ids != null) "-${ids.size}" else ""
                     savers.getValue(format).launch("$base-${lang.code}-$stamp.${format.ext}")
                 }
             }) { Text(stringResource(if (kind == DataDialog.IMPORT) R.string.choose_file else R.string.save_file)) }
