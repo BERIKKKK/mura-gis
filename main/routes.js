@@ -12,6 +12,7 @@ const LIMITS = { name: 200, a_name: 120, b_name: 120, note: 3000 };
 const VEHICLES = ['car', '4x4', 'foot'];
 const SEASONS = ['all', 'dry'];
 const MAX_PTS = 20000;
+const KNOWN = new Set(['id', 'pts', 'vehicle', 'season', 'checked', 'created_at', 'created_by', 'updated_at', 'updated_by']);
 
 class RoutesStore {
   /** table — жобаның routes қабаты ({ load(), write(items) }). */
@@ -57,10 +58,20 @@ class RoutesStore {
     const i = id ? items.findIndex(x => x.id === id) : -1;
     const old = i >= 0 ? items[i] : null;
     if (!old) id = crypto.randomBytes(8).toString('hex');
-    const rec = { id, ...f, created_at: old?.created_at || now, created_by: old?.created_by || user, updated_at: now, updated_by: user };
+    const rec = { ...RoutesStore.extras(old, f.pts), id, ...f, created_at: old?.created_at || now, created_by: old?.created_by || user, updated_at: now, updated_by: user };
     if (old) items[i] = rec; else items.push(rec);
     this.write(items);
     return id;
+  }
+
+  /** Бұл нұсқа білмейтін өрістер (Android: name_ru, a_name_ru…, mura_kind т.б.) — өңдегенде жоғалмайды.
+      pt_marks (нүкте нөмірі → ескерткіш id) тек геометрия өзгермесе ғана қалады: нүктелер өзгерсе, нөмірлер ескіреді. */
+  static extras(old, pts) {
+    if (!old) return {};
+    const o = {};
+    for (const [k, v] of Object.entries(old)) if (!(k in LIMITS) && !KNOWN.has(k)) o[k] = v;
+    if (o.pt_marks && JSON.stringify(old.pts) !== JSON.stringify(pts)) delete o.pt_marks;
+    return o;
   }
 
   remove(id) {

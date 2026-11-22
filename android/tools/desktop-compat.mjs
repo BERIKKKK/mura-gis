@@ -6,6 +6,7 @@
 //   node desktop-compat.mjs routes-export            — жұмыс үстеліндегі toGeojson() және toGpx() (stdout, JSON)
 //   node desktop-compat.mjs regions                  — src/js/regions.js: облыстар, аудандар және олардың орысша атаулары (JSON)
 //   node desktop-compat.mjs find-path <file.json>    — routes/graph.js: желі құрып, жол іздейді ({routes, marks, queries} → нәтижелер)
+//   node desktop-compat.mjs sync <dir> <gpkg> <edit.json> — main/sync/engine.js: қалтадағы «бұлтпен» синхрондау (Android ↔ жұмыс үстелі)
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import path from 'node:path';
@@ -74,6 +75,40 @@ if (cmd === 'read-gpkg') {
       offStart: r.offStart ? r.offStart.len : 0, offEnd: r.offEnd ? r.offEnd.len : 0 } : { ok: false };
   });
   process.stdout.write(JSON.stringify({ nodes: net.nodes.length, edges: net.edges.length, results: out }));
+} else if (cmd === 'sync') {
+  // Синхрондау: <dir> — «бұлт» (файлдар қалтасы), <gpkg> — жұмыс үстелінің жобасы (жоқ болса құрылады), <edit> — JSON
+  // { project, device, marks?: [жаңа/өзгерген белгілер], del?: [id] }. Жұмыс үстелінің ӨЗ қозғалтқышы (main/sync/engine.js)
+  // Android жазған файлдарды оқиды, өз өзгерісін жариялайды; stdout — жобаның marks/routes қабаттары мен күйі.
+  const fs = require('node:fs');
+  const [gpkgFile, editFile] = process.argv.slice(4);
+  const E = require(path.join(repo, 'main', 'sync', 'engine.js'));
+  const { gpkgLocal } = require(path.join(repo, 'main', 'sync', 'index.js'));
+  const { Project } = require(path.join(repo, 'main', 'gpkg.js'));
+  const { MarksStore } = require(path.join(repo, 'main', 'marks.js'));
+  const edit = JSON.parse(fs.readFileSync(editFile, 'utf8'));
+  const dir = file;
+  const crypto = require('node:crypto');
+  const rev = t => crypto.createHash('sha1').update(t).digest('hex');      // нұсқа — мазмұн хеші (Kotlin тестіндегідей)
+  const cloud = {
+    list: async () => fs.readdirSync(dir).filter(n => n.endsWith('.json')).map(n => ({ name: n, rev: rev(fs.readFileSync(path.join(dir, n))) })),
+    read: async f => fs.readFileSync(path.join(dir, f.name), 'utf8'),
+    write: async (name, text) => { fs.writeFileSync(path.join(dir, name), text); return { name, rev: rev(Buffer.from(text)) }; },
+  };
+  const p = fs.existsSync(gpkgFile) ? Project.open(gpkgFile) : Project.create(gpkgFile, { name: 'Жұмыс үстелі', sync_id: edit.project });
+  const stFile = gpkgFile + '.state.json';
+  const state = E.fixState(fs.existsSync(stFile) ? JSON.parse(fs.readFileSync(stFile, 'utf8')) : null, edit.project, edit.device);
+  const persist = s => fs.writeFileSync(stFile, JSON.stringify(s));
+  const run = async () => E.syncProject({ cloud, files: await cloud.list(), local: gpkgLocal(p), state, device: { id: edit.device, name: 'PC', platform: 'desktop' }, persist });
+  const r1 = await run();
+  const ms = new MarksStore(p.table('marks'), p.table('imports'));
+  for (const m of edit.marks || []) {
+    const cur = ms.list().find(x => x.id === m.id);
+    ms.save(JSON.stringify({ ...(cur || {}), ...m }));
+  }
+  if ((edit.del || []).length) ms.remove(edit.del.join(','));
+  const r2 = await run();
+  process.stdout.write(JSON.stringify({ marks: p.load('marks'), routes: p.load('routes'), meta: p.meta(), conflicts: Object.keys(state.conflicts), r1, r2 }));
+  p.close();
 } else {
   console.error('Белгісіз команда'); process.exit(2);
 }

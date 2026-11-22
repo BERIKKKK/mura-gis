@@ -77,6 +77,8 @@ fun SettingsContent(vm: MainViewModel, act: MainActivity) {
             OptionRow(stringResource(R.string.bg_title), stringResource(R.string.bg_settings_sub), Modifier.padding(top = 8.dp),
                 trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }) { bgGuide = true }
 
+            SyncSection(vm, act)
+
             SectionTitle(stringResource(R.string.backups))
             Text(stringResource(R.string.backups_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             OutlinedButton(onClick = { vm.createBackup() }, modifier = Modifier.padding(vertical = 4.dp)) { Text(stringResource(R.string.backup_now)) }

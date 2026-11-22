@@ -25,9 +25,16 @@ import io.github.berikkkk.muragis.core.model.Vehicle
  */
 class LocalStore(val db: SqlDb, private val user: String = "") {
 
+    /** Жаңа ескерткіш пен маршрут қай жобаға жазылады (синхрондау: «Баптаулар → Синхрондау → Белсенді жоба»). Бос — жобасыз. */
+    @Volatile var defaultProject: String = ""
+
+    /** Ескерткіш не маршрут өзгергенде (сақтау, өшіру, импорт) — синхрондау кезегі үшін. Синхрондаудың өз жазуы шақырмайды. */
+    @Volatile var onChange: (() -> Unit)? = null
+    private fun changed() { runCatching { onChange?.invoke() } }
+
     companion object {
-        /** 1 — бастапқы схема; 2 — өзге нысандар (places). */
-        const val SCHEMA_VERSION = 2
+        /** 1 — бастапқы схема; 2 — өзге нысандар (places); 3 — синхрондау: жоба байланысы (project_id) және жобалар (sync_projects). */
+        const val SCHEMA_VERSION = 3
         private val LOC = listOf("name", "period", "oblast", "district", "place", "note")
         private val ROUTE_LOC = listOf("name", "a_name", "b_name", "note")
     }
@@ -86,6 +93,16 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                     extra TEXT NOT NULL DEFAULT '', deleted INTEGER NOT NULL DEFAULT 0)""")
                 db.exec("CREATE INDEX IF NOT EXISTS places_updated ON places(updated_at)")
             }
+            if (v < 3) {
+                // Синхрондау: тек жаңа баған (әдепкі бос — «жобасыз») және жаңа кесте; бар жазбалар өзгермейді
+                for (t in listOf("monuments", "routes")) {
+                    if ("project_id" !in db.columnsOf(t)) db.exec("ALTER TABLE $t ADD COLUMN project_id TEXT NOT NULL DEFAULT ''")
+                    db.exec("CREATE INDEX IF NOT EXISTS ${t}_project ON $t(project_id)")
+                }
+                db.exec("""CREATE TABLE IF NOT EXISTS sync_projects (
+                    id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL DEFAULT '', oblast TEXT NOT NULL DEFAULT '', district TEXT NOT NULL DEFAULT '',
+                    created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')""")
+            }
             db.exec("PRAGMA user_version = $SCHEMA_VERSION")
         }
     }
@@ -101,7 +118,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
             type = MonumentType.of(r.string("type")), category = Category.of(r.string("category")), status = Status.of(r.string("status")),
             createdAt = r.string("created_at") ?: "", createdBy = r.string("created_by") ?: "",
             updatedAt = r.string("updated_at") ?: "", updatedBy = r.string("updated_by") ?: "",
-            extra = r.string("extra") ?: "",
+            extra = r.string("extra") ?: "", projectId = r.string("project_id") ?: "",
         )
     }
 
@@ -113,24 +130,30 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
 
     private fun writeMonument(m: Monument) {
         val cols = listOf("id", "lat", "lon") + LOC.flatMap { listOf(it + "_kk", it + "_ru") } +
-            listOf("type", "category", "status", "created_at", "created_by", "updated_at", "updated_by", "extra", "deleted")
+            listOf("type", "category", "status", "created_at", "created_by", "updated_at", "updated_by", "extra", "deleted", "project_id")
         val locVals = listOf(m.name, m.period, m.oblast, m.district, m.place, m.note).flatMap { listOf(it.kk, it.ru) }
         val vals = listOf<Any?>(m.id, m.lat, m.lon) + locVals +
-            listOf(m.type.code, m.category.code, m.status.code, m.createdAt, m.createdBy, m.updatedAt, m.updatedBy, m.extra, 0L)
+            listOf(m.type.code, m.category.code, m.status.code, m.createdAt, m.createdBy, m.updatedAt, m.updatedBy, m.extra, 0L, m.projectId)
         db.exec("INSERT OR REPLACE INTO monuments (" + cols.joinToString(",") + ") VALUES (" + cols.joinToString(",") { "?" } + ")", vals)
     }
 
-    /** Сақтау (жаңа не бар жазба). Тексеріледі; created_* сақталады, updated_* жаңарады. */
+    /** Бар жазбаның жобасы (жоқ болса — null). */
+    private fun projectOf(table: String, id: String): String? = db.scalarString("SELECT project_id FROM $table WHERE id = ?", listOf(id))
+
+    /** Сақтау (жаңа не бар жазба). Тексеріледі; created_* сақталады, updated_* жаңарады; бар жазбаның жобасы өзгермейді. */
     fun saveMonument(m: Monument): Monument {
         val c = Validation.clean(m)
         val now = Ids.now()
-        val old = db.query("SELECT created_at, created_by FROM monuments WHERE id = ?", listOf(c.id)) { (it.string("created_at") ?: "") to (it.string("created_by") ?: "") }.firstOrNull()
+        val old = db.query("SELECT created_at, created_by, project_id FROM monuments WHERE id = ?", listOf(c.id)) {
+            Triple(it.string("created_at") ?: "", it.string("created_by") ?: "", it.string("project_id") ?: "") }.firstOrNull()
         val rec = c.copy(
             createdAt = old?.first?.ifEmpty { null } ?: c.createdAt.ifEmpty { now },
             createdBy = old?.second?.ifEmpty { null } ?: c.createdBy.ifEmpty { user },
             updatedAt = now, updatedBy = user,
+            projectId = old?.third ?: c.projectId.ifEmpty { defaultProject },
         )
         db.tx { writeMonument(rec) }
+        changed()
         return rec
     }
 
@@ -145,6 +168,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                 db.exec("UPDATE monuments SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?", listOf(now, user, id))
             }
         }
+        if (n > 0) changed()
         return n
     }
 
@@ -163,7 +187,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                 val local = if (im.hasId) db.query("SELECT * FROM monuments WHERE id = ?", listOf(inc.id), ::monumentFrom).firstOrNull() else null
                 val stamp = inc.updatedAt.ifEmpty { now }
                 if (local == null) {
-                    writeMonument(inc.copy(createdAt = inc.createdAt.ifEmpty { now }, updatedAt = stamp, updatedBy = inc.updatedBy))
+                    writeMonument(inc.copy(createdAt = inc.createdAt.ifEmpty { now }, updatedAt = stamp, updatedBy = inc.updatedBy, projectId = defaultProject))
                     added++
                     continue
                 }
@@ -184,6 +208,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                 updated++
             }
         }
+        if (added + updated > 0) changed()
         return ImportResult(added, updated, skipped)
     }
 
@@ -268,7 +293,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
             points = pts,
             createdAt = r.string("created_at") ?: "", createdBy = r.string("created_by") ?: "",
             updatedAt = r.string("updated_at") ?: "", updatedBy = r.string("updated_by") ?: "",
-            extra = r.string("extra") ?: "",
+            extra = r.string("extra") ?: "", projectId = r.string("project_id") ?: "",
         )
     }
 
@@ -289,9 +314,9 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
 
     private fun writeRoute(r: Route) {
         val cols = listOf("id") + ROUTE_LOC.flatMap { listOf(it + "_kk", it + "_ru") } +
-            listOf("vehicle", "season", "checked", "created_at", "created_by", "updated_at", "updated_by", "extra", "deleted")
+            listOf("vehicle", "season", "checked", "created_at", "created_by", "updated_at", "updated_by", "extra", "deleted", "project_id")
         val vals = listOf<Any?>(r.id) + listOf(r.name, r.aName, r.bName, r.note).flatMap { listOf(it.kk, it.ru) } +
-            listOf(r.vehicle.code, r.season.code, r.checked, r.createdAt, r.createdBy, r.updatedAt, r.updatedBy, r.extra, 0L)
+            listOf(r.vehicle.code, r.season.code, r.checked, r.createdAt, r.createdBy, r.updatedAt, r.updatedBy, r.extra, 0L, r.projectId)
         db.exec("INSERT OR REPLACE INTO routes (" + cols.joinToString(",") + ") VALUES (" + cols.joinToString(",") { "?" } + ")", vals)
         db.exec("DELETE FROM route_points WHERE route_id = ?", listOf(r.id))
         r.points.forEachIndexed { i, p ->
@@ -302,13 +327,16 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
     fun saveRoute(r: Route): Route {
         val c = Validation.clean(r)
         val now = Ids.now()
-        val old = db.query("SELECT created_at, created_by FROM routes WHERE id = ?", listOf(c.id)) { (it.string("created_at") ?: "") to (it.string("created_by") ?: "") }.firstOrNull()
+        val old = db.query("SELECT created_at, created_by, project_id FROM routes WHERE id = ?", listOf(c.id)) {
+            Triple(it.string("created_at") ?: "", it.string("created_by") ?: "", it.string("project_id") ?: "") }.firstOrNull()
         val rec = c.copy(
             createdAt = old?.first?.ifEmpty { null } ?: c.createdAt.ifEmpty { now },
             createdBy = old?.second?.ifEmpty { null } ?: c.createdBy.ifEmpty { user },
             updatedAt = now, updatedBy = user,
+            projectId = old?.third ?: c.projectId.ifEmpty { defaultProject },
         )
         db.tx { writeRoute(rec) }
+        changed()
         return rec
     }
 
@@ -317,6 +345,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
             db.exec("UPDATE routes SET deleted = 1, updated_at = ?, updated_by = ? WHERE id = ?", listOf(Ids.now(), user, id))
             db.exec("DELETE FROM route_points WHERE route_id = ?", listOf(id))
         }
+        changed()
     }
 
     fun importRoutes(list: List<ImportedRoute>): ImportResult {
@@ -328,7 +357,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                 val local = if (ir.hasId) route(inc.id) else null
                 val stamp = inc.updatedAt.ifEmpty { now }
                 if (local == null) {
-                    writeRoute(inc.copy(createdAt = inc.createdAt.ifEmpty { now }, updatedAt = stamp)); added++; continue
+                    writeRoute(inc.copy(createdAt = inc.createdAt.ifEmpty { now }, updatedAt = stamp, projectId = defaultProject)); added++; continue
                 }
                 if (stamp <= local.updatedAt) { skipped++; continue }
                 fun merge(a: Localized, b: Localized): Localized { var x = a; for (l in ir.langs) x = x.with(l, b[l]); return x }
@@ -340,8 +369,81 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                 updated++
             }
         }
+        if (added + updated > 0) changed()
         return ImportResult(added, updated, skipped)
     }
+
+    /* ======================= Синхрондау (core/sync/StoreSyncLocal) ======================= */
+
+    data class SyncProject(val id: String, val name: String = "", val oblast: String = "", val district: String = "", val createdAt: String = "", val updatedAt: String = "")
+
+    private fun projectFrom(r: Row) = SyncProject(r.string("id")!!, r.string("name") ?: "", r.string("oblast") ?: "", r.string("district") ?: "",
+        r.string("created_at") ?: "", r.string("updated_at") ?: "")
+
+    fun syncProjects(): List<SyncProject> = db.query("SELECT * FROM sync_projects ORDER BY name COLLATE NOCASE", emptyList(), ::projectFrom)
+    fun syncProject(id: String): SyncProject? = db.query("SELECT * FROM sync_projects WHERE id = ?", listOf(id), ::projectFrom).firstOrNull()
+    fun saveSyncProject(p: SyncProject) = db.exec("INSERT OR REPLACE INTO sync_projects (id, name, oblast, district, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        listOf(p.id, p.name, p.oblast, p.district, p.createdAt.ifEmpty { Ids.now() }, p.updatedAt.ifEmpty { Ids.now() }))
+
+    /** Жобаның тірі жазбалары (өшірілгендері — синхрондау күйіндегі «tombstone» арқылы танылады). */
+    fun monumentsIn(project: String): List<Monument> = db.query("SELECT * FROM monuments WHERE project_id = ? AND deleted = 0", listOf(project), ::monumentFrom)
+    fun routesIn(project: String): List<Route> {
+        val pts = HashMap<String, MutableList<RoutePoint>>()
+        db.forEach("SELECT p.route_id, p.lat, p.lon, p.monument_id FROM route_points p JOIN routes r ON r.id = p.route_id WHERE r.project_id = ? AND r.deleted = 0 ORDER BY p.route_id, p.seq", listOf(project)) {
+            pts.getOrPut(it.string("route_id")!!) { ArrayList() } += RoutePoint(it.double("lat")!!, it.double("lon")!!, it.string("monument_id"))
+        }
+        return db.query("SELECT * FROM routes WHERE project_id = ? AND deleted = 0", listOf(project)) { routeFrom(it, pts[it.string("id")] ?: emptyList()) }
+    }
+
+    /**
+     * Басқа құрылғыдан келген жазбаларды жобаға жазу (уақыт белгілері өзгермейді, [onChange] шақырылмайды).
+     * id басқа жобада бар жазба қабылданбайды (бір id екі жобада болса, біреуі жоғалмауы үшін); саны — жазылғаны.
+     */
+    fun applySynced(project: String, monuments: List<Monument>, routes: List<Route>, delMonuments: List<String>, delRoutes: List<String>): Int {
+        var n = 0
+        db.tx {
+            for (m in monuments) {
+                val p = projectOf("monuments", m.id)
+                if (p != null && p.isNotEmpty() && p != project) continue
+                if (!Validation.validCoord(m.lat, m.lon)) continue
+                writeMonument(m.copy(projectId = project)); n++
+            }
+            for (r in routes) {
+                val p = projectOf("routes", r.id)
+                if (p != null && p.isNotEmpty() && p != project) continue
+                if (r.points.size < 2) continue
+                writeRoute(r.copy(projectId = project)); n++
+            }
+            for (id in delMonuments) db.exec("UPDATE monuments SET deleted = 1 WHERE id = ? AND project_id = ?", listOf(id, project))
+            for (id in delRoutes) {
+                if (projectOf("routes", id) != project) continue
+                db.exec("UPDATE routes SET deleted = 1 WHERE id = ?", listOf(id))
+                db.exec("DELETE FROM route_points WHERE route_id = ?", listOf(id))
+            }
+        }
+        return n
+    }
+
+    /** Жобасыз жазбаларды жобаға алу: [ids] берілсе — тек солар (бұлтта бар id-лер), берілмесе — барлығы (пайдаланушы келісімімен). */
+    fun assignToProject(project: String, monumentIds: Collection<String>? = null, routeIds: Collection<String>? = null): Int {
+        var n = 0
+        db.tx {
+            for ((t, ids) in listOf("monuments" to monumentIds, "routes" to routeIds)) {
+                if (ids == null) {
+                    n += (db.scalarLong("SELECT count(*) FROM $t WHERE project_id = '' AND deleted = 0") ?: 0L).toInt()
+                    db.exec("UPDATE $t SET project_id = ? WHERE project_id = '' AND deleted = 0", listOf(project))
+                } else for (id in ids) {
+                    if (projectOf(t, id) != "") continue
+                    db.exec("UPDATE $t SET project_id = ? WHERE id = ? AND project_id = '' AND deleted = 0", listOf(project, id)); n++
+                }
+            }
+        }
+        return n
+    }
+
+    /** Жобасыз (тек осы телефондағы) ескерткіштер мен маршруттар саны. */
+    fun unassignedCount(): Int = ((db.scalarLong("SELECT count(*) FROM monuments WHERE project_id = '' AND deleted = 0") ?: 0L) +
+        (db.scalarLong("SELECT count(*) FROM routes WHERE project_id = '' AND deleted = 0") ?: 0L)).toInt()
 
     /* ======================= Баптаулар / мета ======================= */
 

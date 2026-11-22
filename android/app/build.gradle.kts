@@ -109,6 +109,8 @@ dependencies {
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    // Синхрондау: Google аккаунтымен кіру (AuthorizationClient, тек drive.appdata рұқсаты); Drive API — тікелей HTTPS (sync/GoogleDrive.kt)
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
 
     // Карта қозғалтқышы: MapLibre Native (BSD-2-Clause), офлайн/растр/вектор қабаттары, GPU арқылы көрсету
     implementation("org.maplibre.gl:android-sdk:11.8.0")

@@ -25,6 +25,13 @@ class MainActivity : AppCompatActivity() {
         afterLocationGrant = null
     }
     private val notifPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    /** Google рұқсат терезесі (синхрондау: drive.appdata) — нәтижесі ViewModel-ге. */
+    private val authLauncher = registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { r ->
+        if (r.resultCode == RESULT_OK) vm.syncAuthResult(r.data) else vm.toast(io.github.berikkkk.muragis.mobile.R.string.sync_err_denied)
+    }
+    fun launchAuth(pi: android.app.PendingIntent) {
+        runCatching { authLauncher.launch(androidx.activity.result.IntentSenderRequest.Builder(pi.intentSender).build()) }
+    }
     private val bgPerm = registerForActivityResult(ActivityResultContracts.RequestPermission()) { resumes.intValue++ }
     /** onResume саны — жүйелік баптаулардан қайтқанда рұқсат күйін қайта тексеру үшін. */
     val resumes = androidx.compose.runtime.mutableIntStateOf(0)
