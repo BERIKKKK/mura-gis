@@ -422,7 +422,8 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
     }
 
     /**
-     * Навигация режимі: орын экранның төменгі бөлігінде (алдағы жол көбірек көрінеді) — камераның жоғарғы шегінісі.
+     * Навигация режимі: орын экранның төменгі бөлігінде (алдағы жол көбірек көрінеді) — камераның жоғарғы шегінісі;
+     * [navCenter] қосулы болса — экранның дәл ортасында.
      * Шегініс пен бұрылу тегіс өзгереді; режим өшкенде карта солтүстікке қайтады.
      */
     var navigation = false
@@ -434,7 +435,15 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             if (map?.uiSettings?.focalPoint != null) setFollowFocus(true)
             kick()
         }
-    private fun navTop(): Float = if (navigation) view.height * 0.35f else 0f
+    /** Навигация режимінде орын экранның дәл ортасында (шегініссіз); өзгергенде шегініс тегіс ауысады. */
+    var navCenter = false
+        set(v) {
+            if (field == v) return
+            field = v
+            if (map?.uiSettings?.focalPoint != null) setFollowFocus(true)
+            kick()
+        }
+    private fun navTop(): Float = if (navigation && !navCenter) view.height * 0.35f else 0f
 
     /**
      * Камера орынға ереді ([on]; масштаб өзгермейді) және, [bearing] берілсе, навигация режимінде карта бұрылады.

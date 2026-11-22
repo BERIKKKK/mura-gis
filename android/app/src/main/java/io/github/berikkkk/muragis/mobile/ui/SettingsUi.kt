@@ -137,6 +137,9 @@ private fun MapSettings(vm: MainViewModel, act: MainActivity) {
         else { vm.updatePrefs { it.copy(showLocation = false) }; vm.location.setTracking(false) }
     }
     Text(stringResource(R.string.gps_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+    ChromeLabel(stringResource(R.string.set_nav_pos))
+    Segmented(listOf(false to stringResource(R.string.bar_bottom), true to stringResource(R.string.nav_center)), prefs.navCenter) { v -> vm.updatePrefs { it.copy(navCenter = v) } }
+    Text(stringResource(R.string.set_nav_pos_note), style = MaterialTheme.typography.labelSmall, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
     OptionRow(stringResource(R.string.bg_title), stringResource(R.string.bg_settings_sub), Modifier.padding(top = 8.dp),
         trailing = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Chrome.dim) }) { bgGuide = true }
 
