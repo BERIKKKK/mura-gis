@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 const require = createRequire(import.meta.url);
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const M = require(ROOT + '/plugin-sdk/lib/manifest.cjs');
@@ -13,7 +13,7 @@ const Z = require(ROOT + '/plugin-sdk/lib/zip.cjs');
 const G = require(ROOT + '/plugin-sdk/lib/geo.js');
 const A = require(ROOT + '/plugin-sdk/lib/attrs.js');
 const { PluginManager } = require(ROOT + '/main/plugins/manager.js');
-const { run } = await import(ROOT + '/plugin-sdk/tools/run.mjs');
+const { run } = await import(pathToFileURL(path.join(ROOT, 'plugin-sdk', 'tools', 'run.mjs')).href);   // Windows: абсолют жол емес, file:// URL
 
 let ok = 0, bad = 0;
 const t = async (name, fn) => { try { await fn(); ok++; console.log('✓ ' + name); } catch (e) { bad++; console.log('✗ ' + name + '\n   ' + (e.stack || e.message)); } };
