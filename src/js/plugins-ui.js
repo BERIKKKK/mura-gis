@@ -152,6 +152,38 @@
     [].forEach.call(box.querySelectorAll('button'), function (b) { b.disabled = g.disabled; });
   }
   if ($('qaGeo')) new MutationObserver(mirrorZone).observe($('qaGeo'), { attributes: true, attributeFilter: ['disabled'] });
+
+  /* Ескерткіш белгісі → ұсыныстар (mark.suggest). Белгі терезесі (marks/marks.js) ашылғанда не атау жазылғанда
+     шақырылады: көрінетін батырма жоқ, қате болса — үнсіз (плагин журналына жазылады). Плагин тек ұсыныс қайтарады;
+     өрістерді белгі терезесінің өзі толтырады, сақтауды пайдаланушы басады. Плагиннен келген мәтін тек мәтін ретінде
+     көрсетіледі, өрістер тізімі мен ұзындығы осы жерде шектеледі. */
+  var SUG_FIELDS = { name: 200, name_ru: 200, period: 120, period_ru: 120, place: 1500, place_ru: 1500, district: 80, oblast: 80, note: 3000, note_ru: 3000 };
+  var SUG_ENUM = { type: ['archeo', 'arch', 'ensemble', 'sacred', 'art'], category: ['', 'intl', 'rep', 'local'], status: ['state', 'prelim', 'archreg', 'excluded'] };
+  var cut = function (v, n) { return Array.from(String(v == null ? '' : v)).slice(0, n).join('').trim(); };
+  function cleanSuggest(r) {
+    var items = r && Array.isArray(r.items) ? r.items : [];
+    return items.slice(0, 10).map(function (x) {
+      if (!x || typeof x !== 'object') return null;
+      var f = x.fields && typeof x.fields === 'object' ? x.fields : {}, fields = {};
+      Object.keys(SUG_FIELDS).forEach(function (k) { if (f[k] != null && String(f[k]).trim()) fields[k] = cut(f[k], SUG_FIELDS[k]); });
+      Object.keys(SUG_ENUM).forEach(function (k) { if (typeof f[k] === 'string' && SUG_ENUM[k].indexOf(f[k]) >= 0) fields[k] = f[k]; });
+      var title = cut(x.title, 200);
+      if (!title || !Object.keys(fields).length) return null;
+      return { title: title, detail: cut(x.detail, 300), fields: fields };
+    }).filter(Boolean);
+  }
+  globalThis.MuraPluginSuggest = {
+    has: function () { return contrib.some(function (c) { return c.point === 'mark.suggest'; }); },
+    /** m: { id, saved, lat, lon, fields } → Promise<[{ plugin, pluginName, items: [{ title, detail, fields }] }]>. */
+    mark: function (m) {
+      var list = contrib.filter(function (c) { return c.point === 'mark.suggest'; });
+      var sel = { layer: 'marks', id: m && m.id || null, saved: !!(m && m.saved), lat: m && m.lat, lon: m && m.lon, fields: m && m.fields || {} };
+      return Promise.all(list.map(function (c) {
+        return P.invoke(c.plugin, c.command, { point: 'mark.suggest', docLang: I18N.docLang ? I18N.docLang() : LANG }, sel)
+          .then(function (r) { return r && r.ok ? { plugin: c.plugin, pluginName: loc(c.pluginName), items: cleanSuggest(r.value) } : null; }, function () { return null; });
+      })).then(function (a) { return a.filter(function (x) { return x && x.items.length; }); });
+    },
+  };
   if (P.onChanged) P.onChanged(function () { loadContrib(); if (pane) paint(); });
   loadContrib();
 

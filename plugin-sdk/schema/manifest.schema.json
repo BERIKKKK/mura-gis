@@ -26,10 +26,11 @@
     "entry": { "type": "string", "pattern": "\\.js$" },
     "icon": { "type": "string", "pattern": "\\.(svg|png)$" },
     "platforms": { "type": "array", "items": { "enum": ["desktop", "tablet", "mobile", "web"] }, "minItems": 1, "uniqueItems": true },
-    "permissions": { "type": "array", "uniqueItems": true, "items": { "enum": ["geometry.read", "geometry.write", "attributes.read", "attributes.write", "map.layers", "files.export", "network.access", "project.metadata"] } },
+    "permissions": { "type": "array", "uniqueItems": true, "items": { "enum": ["geometry.read", "geometry.write", "attributes.read", "attributes.write", "map.layers", "files.export", "network.access", "project.metadata", "files.import"] } },
     "contributes": { "type": "object", "properties": {
       "zone.export": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } },
-      "tools.menu": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } } }, "additionalProperties": false },
+      "tools.menu": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } },
+      "mark.suggest": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } } }, "additionalProperties": false },
     "settings": { "type": "array", "maxItems": 40, "items": { "type": "object", "required": ["key", "type", "title"], "properties": {
       "key": { "type": "string" }, "type": { "enum": ["string", "text", "number", "boolean", "select"] }, "title": { "$ref": "#/definitions/text" }, "description": { "$ref": "#/definitions/text" },
       "options": { "type": "array" }, "default": {} } } }

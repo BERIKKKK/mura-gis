@@ -27,8 +27,17 @@ const DEF = {
 const geometry = (layer, r) => DEF[layer].geom(r);
 const attributes = (layer, r) => DEF[layer].attrs(r);
 
-/** Бағдарлама терезесі берген ағымдағы аймақ (сақталмаған болуы мүмкін) → { layer, id, saved, geometry, attributes }. */
+const MARK_FIELDS = ['name', 'name_ru', 'period', 'period_ru', 'oblast', 'district', 'place', 'place_ru', 'type', 'category', 'status', 'note', 'note_ru'];
+/** Бағдарлама терезесі берген ағымдағы аймақ (сақталмаған болуы мүмкін) не ашық тұрған белгі (mark.suggest) →
+    { layer, id, saved, geometry, attributes }. */
 function selection(s) {
+  if (s && typeof s === 'object' && s.layer === 'marks') {
+    const id = HEX16.test(String(s.id || '')) ? s.id : null;
+    const f = s.fields && typeof s.fields === 'object' ? s.fields : {};
+    const attributes = { id };
+    for (const k of MARK_FIELDS) attributes[k] = [...String(f[k] ?? '')].slice(0, 3000).join('');
+    return { layer: 'marks', id, saved: !!(id && s.saved), geometry: pt(s.lon, s.lat), attributes };
+  }
   if (!s || typeof s !== 'object' || s.layer !== 'zones') return null;
   const id = HEX16.test(String(s.id || '')) ? s.id : null;
   return { layer: 'zones', id, saved: !!(id && s.saved), geometry: polygon(s.pts),

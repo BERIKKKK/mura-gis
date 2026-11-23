@@ -105,6 +105,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           node plugin-sdk/tools/pack.mjs plugin-sdk/examples/nipd-exporter dist-plugins/
+          node plugin-sdk/tools/pack.mjs plugin-sdk/examples/decree-matcher dist-plugins/
           gh release upload "$TAG" dist-plugins/*.muraplug --clobber
 
       # Жұмыс үстеліндегі бағдарлама жаңартуды GitHub-тағы «Latest» релизден (latest.yml) іздейді: «Latest» белгісі

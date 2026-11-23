@@ -241,6 +241,10 @@ function openDialog(m, o = {}) {
       '<div class="qa-f mk-zlink" id="mkZoneBox" hidden><label for="mkZoneSel">' + tx('Қорғау аймағымен сәйкестендіру', 'Сопоставить с охранной зоной') +
         ' <small class="mk-law">' + tx('(мәліметтер аймақтан алынады, сақтағанда байланысады)', '(сведения берутся из зоны, при сохранении связываются)') + '</small></label>' +
         '<select id="mkZoneSel"><option value="">' + tx('— таңдалмаған —', '— не выбрано —') + '</option></select><p class="qa-hint" id="mkZoneHint" hidden></p></div>' +
+      // Плагин ұсынысы (mark.suggest, мыс. «Атау сәйкестендіргіш» — ресми тізімнен): ұсыныс болса ғана көрінеді
+      '<div class="qa-f mk-zlink" id="mkSugBox" hidden><label for="mkSugSel">' + tx('Плагин ұсынысы', 'Предложение плагина') +
+        ' <small class="mk-law" id="mkSugSrc"></small></label>' +
+        '<select id="mkSugSel"><option value="">' + tx('— таңдалмаған —', '— не выбрано —') + '</option></select><p class="qa-hint" id="mkSugHint" hidden></p></div>' +
       // Мәтіндік өрістер екі тілде: ҚАЗ / РУС (құжат қай тілде шықса, сол тілдегісі алынады)
       I18N.biField({ id: 'mkName', name: 'name', label: tx('Атауы', 'Наименование'), req: true, kk: v.name, ru: v.name_ru, max: 200,
         ph: 'Мысалы: Қабантау-V қорғаны', phRu: 'Например: Курган Кабантау-V', hint: '<p class="qa-hint mk-key" id="mkKey" hidden></p>' }) +
@@ -347,12 +351,62 @@ function openDialog(m, o = {}) {
         'Выбрана охранная зона, внутри границы которой метка: «' + zones[0].name + '». При необходимости исправьте или выберите «— не выбрано —».'));
     }
   })();
+  /* Плагин ұсынысы (mark.suggest — js/plugins-ui.js): терезе ашылғанда, атау не координата өзгергенде сұралады.
+     Таңдалса, өрістер толтырылады; сақтауды пайдаланушы өзі басады. Плагин жоқ не ұсыныс болмаса — өріс көрінбейді. */
+  const sBox = back.querySelector('#mkSugBox'), sSel = back.querySelector('#mkSugSel'), sHint = back.querySelector('#mkSugHint');
+  let sugs = [], sugSeq = 0, sugTimer = null, filling = false;
+  const sugHint = t => { sHint.textContent = t || ''; sHint.hidden = !t; };
+  function sugSnapshot() {
+    const c = parseLatLon(F.lat.value, F.lon.value);
+    const fields = {};
+    for (const k of ['name', 'name_ru', 'period', 'period_ru', 'oblast', 'district', 'place', 'place_ru', 'type', 'category', 'status']) fields[k] = F[k] ? F[k].value : '';
+    return { id: m.id || null, saved: !!m.id, lat: c.err ? null : c.lat, lon: c.err ? null : c.lon, fields };
+  }
+  async function askSuggest() {
+    const S = globalThis.MuraPluginSuggest;
+    if (!S || !S.has()) return;
+    const my = ++sugSeq;
+    let res;
+    try { res = await S.mark(sugSnapshot()); } catch (e) { return; }
+    if (my !== sugSeq || !back.isConnected) return;
+    const keep = sugs[+sSel.value - 1];
+    sugs = res.flatMap(g => g.items.map(it => ({ ...it, plugin: g.pluginName })));
+    sSel.length = 1;
+    sugs.forEach((s, i) => sSel.add(new Option(s.title + (s.detail ? ' — ' + s.detail : ''), String(i + 1))));
+    const again = keep ? sugs.findIndex(s => s.title === keep.title) : -1;
+    sSel.value = again >= 0 ? String(again + 1) : '';
+    back.querySelector('#mkSugSrc').textContent = res.length ? '(' + tx('плагин: ', 'плагин: ') + [...new Set(res.map(g => g.pluginName))].join(', ') + ')' : '';
+    sBox.hidden = !sugs.length;
+    if (again < 0) sugHint(sugs.length ? tx('Таңдасаңыз, атауы, мерзімі, түрі, орналасқан жері толтырылады — сақтау алдында тексеріңіз.', 'При выборе заполнятся наименование, датировка, вид, местонахождение — проверьте перед сохранением.') : '');
+  }
+  const askLater = () => { if (filling) return; clearTimeout(sugTimer); sugTimer = setTimeout(askSuggest, 450); };
+  sSel.addEventListener('change', () => {
+    const s = sugs[+sSel.value - 1];
+    if (!s) { sugHint(''); return; }
+    const f = s.fields, setv = (el, val, ev = 'input') => { if (!el) return; el.value = val; el.dispatchEvent(new Event(ev, { bubbles: true })); };
+    filling = true;
+    try {
+      for (const k of ['name', 'name_ru', 'period', 'period_ru', 'place', 'place_ru']) if (String(f[k] ?? '').trim()) setv(F[k], String(f[k]).trim());
+      if (f.oblast && !F.oblast.disabled && F.oblast.value !== f.oblast && (F.oblast.tagName !== 'SELECT' || hasOpt(F.oblast, f.oblast))) setv(F.oblast, f.oblast, 'change');
+      if (f.district && !F.district.disabled && hasOpt(F.district, f.district)) setv(F.district, f.district, 'change');
+      for (const k of ['type', 'category', 'status']) if (f[k] != null && hasOpt(F[k], f[k])) setv(F[k], f[k], 'change');
+      for (const k of ['note', 'note_ru']) if (String(f[k] ?? '').trim() && !F[k].value.trim()) setv(F[k], String(f[k]).trim());
+    } finally { filling = false; }
+    sugHint(tx('Мәліметтер плагин ұсынысынан толтырылды («' + s.plugin + '»): ', 'Сведения заполнены из предложения плагина («' + s.plugin + '»): ') + s.title +
+      tx('. Тексеріп, «Сақтау» басыңыз.', '. Проверьте и нажмите «Сохранить».'));
+  });
+  F.name.addEventListener('input', askLater);
+  F.name_ru.addEventListener('input', askLater);
+  setTimeout(askSuggest, 150);
   if (REG) {
     F.oblast.addEventListener('change', () => { F.district.innerHTML = REG.unitOptions(F.oblast.value, ''); REG.lock(F.district); });
     REG.lock(F.oblast); REG.lock(F.district);       // жобаның облысы / ауданы — бекітілген
   }
   F.lat.addEventListener('input', paintCoord);
   F.lon.addEventListener('input', paintCoord);
+  F.lat.addEventListener('input', askLater);
+  F.lon.addEventListener('input', askLater);
+  F.district.addEventListener('change', askLater);
   const paintSym = () => { back.querySelector('#mkSym').innerHTML = symbolSvg(F.type.value, F.category.value, 26); };
   F.type.addEventListener('change', () => { paintCoord(); paintSym(); });
   F.status.addEventListener('change', () => { paintCoord(); paintSym(); });

@@ -1,7 +1,7 @@
 {
   "name": "mura-gis",
   "productName": "Mura GIS",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "description": "Mura GIS — тарихи-мәдени мұра объектілеріне арналған ГАЖ бағдарламасы: ескерткіштерді белгілеу, тізімдер, қорғау аймақтарын есептеу",
   "main": "main/main.js",
   "author": "BERIKKKK",
@@ -25,7 +25,7 @@
     "smoke:sync": "electron scripts/smoke-sync.js",
     "smoke:perf": "electron scripts/smoke-perf.js",
     "smoke:plugins": "electron scripts/smoke-plugins.js",
-    "plugins:pack": "node plugin-sdk/tools/pack.mjs plugin-sdk/examples/nipd-exporter && node plugin-sdk/tools/pack.mjs plugin-sdk/template"
+    "plugins:pack": "node plugin-sdk/tools/pack.mjs plugin-sdk/examples/nipd-exporter && node plugin-sdk/tools/pack.mjs plugin-sdk/examples/decree-matcher && node plugin-sdk/tools/pack.mjs plugin-sdk/template"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"

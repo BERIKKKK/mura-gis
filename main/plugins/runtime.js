@@ -148,6 +148,10 @@
         return call('export.saveFile', [payload]);
       },
     }),
+    files: Object.freeze({
+      /** Файлдарды пайдаланушы таңдайды (files.import): { multiple?, filters?, title? } → [{ name, size, data: Uint8Array }] (бас тартса — []). */
+      open: function (o) { o = o || {}; return call('files.open', [{ multiple: !!o.multiple, filters: o.filters, title: o.title }]); },
+    }),
     ui: Object.freeze({
       notify: function (text, opts) { return call('ui.notify', [String(text), opts || {}]); },
       confirm: function (text, opts) { return call('ui.confirm', [String(text), opts || {}]); },
