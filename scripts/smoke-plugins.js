@@ -192,6 +192,11 @@ async function run(win) {
   const dmr = await js("mura.plugins.inspectCatalog('kz.mura.decree-matcher').then(r => r.report)");
   eq([dmr.ok, dmr.source], [true, 'official'], 'атау сәйкестендіргіш тексерілді');
   await js(`mura.plugins.install('${dmr.token}', ['files.import', 'attributes.read', 'geometry.read'])`); await wait(500);
+  // Кең терезеде құралдар сыйса да, «⋯» батырмасы плагин әрекеттері үшін көрінеді (2.4.3)
+  win.setSize(1920, 1080); await wait(800);
+  const overflow = await js("[...document.querySelectorAll('#qaTmain .qa-tbtn[data-prio]')].some(b => b.hidden && !b.closest('.mura-off'))");
+  out.wideOverflow = overflow;
+  eq(await js("!document.getElementById('qaMoreBtn').hidden && document.querySelectorAll('#muraPlMenu button[data-plugin=\"kz.mura.decree-matcher\"]').length"), 1, '«⋯» көрінеді, ішінде «Қаулылар…»');
   // Бір файл — қабылданбайды
   openPaths = [kkFile];
   const mg1 = js("mura.plugins.invoke('kz.mura.decree-matcher', 'manage', { point: 'tools.menu' }, null)");
@@ -279,6 +284,8 @@ async function run(win) {
   await js("mura.plugins.uninstall('kz.mura.decree-matcher', { data: true })"); await wait(500);
   eq(await js("mura.plugins.contributions().then(r => r.items.length)"), 0, 'жойылғаннан кейін кеңейту жоқ');
   eq(await js("!document.getElementById('muraPlMenu') || document.getElementById('muraPlMenu').hidden"), true, '⋯ мәзірі тазартылды');
+  if (!(await js("[...document.querySelectorAll('#qaTmain .qa-tbtn[data-prio]')].some(b => b.hidden && !b.closest('.mura-off'))")) && (await js("MuraSvc.get()")) !== 'zone')
+    eq(await js("document.getElementById('qaMoreBtn').hidden"), true, 'плагинсіз, құралдар сыйса — «⋯» жасырын');
   eq(await js("fetch(QA_API + '&op=list', { method: 'POST', body: new FormData() }).then(r => r.json()).then(r => r.items.length)"), before, 'аймақтар сақталды');
   eq(await js("__marks.api('list', {}).then(r => r.items.length)"), 1, 'ескерткіштер сақталды');
   eq(fs.existsSync(path.join(tmp, 'plugins', 'installed', 'kz.mura.nipd-exporter')), false, 'плагин файлдары жойылды');
