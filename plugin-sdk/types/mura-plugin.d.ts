@@ -31,6 +31,8 @@ declare namespace MuraPlugin {
     docLang: Lang;
     /** zone.export: ағымдағы аймақ (id — сақталмаса null). */
     zone?: { id: string | null; markId: string | null; saved: boolean };
+    /** zone.export: қайдан шақырылды — 'current' (Нәтиже және экспорт) не 'all' («Қорғау аймақтары» тізімі). */
+    scope?: 'current' | 'all';
     /** tools.menu: белсенді қызмет (marks | routes | zone | plan …). */
     service?: string;
   }

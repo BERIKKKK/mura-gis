@@ -93,6 +93,30 @@
       }
       mirrorZone();
     }
+    // «Қорғау аймақтары» тізімі (сақталған аймақтар): сол zone.export әрекеттері, бірақ әдепкі қамту — барлық сақталғандар
+    var sfoot = document.querySelector('#qaPanelSaved .qa-df');
+    var sbox = $('muraPlSavedExp');
+    if (sfoot && !sbox && list.length) {
+      sbox = el('div', 'mura-pl-pt mura-pl-saved'); sbox.id = 'muraPlSavedExp';
+      sfoot.insertBefore(sbox, sfoot.querySelector('.qa-combine'));
+      sbox.addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-plugin]');
+        if (!b) return;
+        var c = contrib.filter(function (x) { return x.plugin === b.dataset.plugin && x.command === b.dataset.command && x.point === 'zone.export'; })[0];
+        if (!c) return;
+        var sel = zoneSelection();
+        run(c, { point: 'zone.export', scope: 'all', docLang: I18N.docLang ? I18N.docLang() : LANG, zone: sel ? { id: sel.id, markId: sel.markId, saved: sel.saved } : null },
+          sel && sel.pts && sel.pts.length >= 4 ? sel : null);
+      });
+    }
+    if (sbox) {
+      sbox.hidden = !list.length;
+      sbox.innerHTML = '';
+      if (list.length) {
+        sbox.appendChild(el('span', 'mura-pl-lbl', tx('Плагиндер:', 'Плагины:')));
+        list.forEach(function (c) { sbox.appendChild(itemBtn(c, 'btn btn--ghost btn--sm mura-pl-btn')); });
+      }
+    }
     // ⋯ Қосымша құралдар
     var menu = $('qaMoreMenu');
     var grp = $('muraPlMenu');
@@ -652,7 +676,9 @@
       busy = false;
       if (!r.ok) { err = r.error; draw(); return; }
       report = null; sub = 'installed'; openItem[r.plugin.id] = '';
-      toast(tx('Плагин орнатылды: ', 'Плагин установлен: ') + loc(r.plugin.name));
+      // Әрекеті қайда пайда болғанын бірден айтамыз (кеңейту нүктелерінің атауы)
+      var where = Object.keys(r.plugin.contributes || {}).map(function (k) { var d = INFO && INFO.points[k]; return d ? (LANG === 'ru' ? d.ru : d.kk) : k; });
+      toast(tx('Плагин орнатылды: ', 'Плагин установлен: ') + loc(r.plugin.name) + (where.length ? tx('. Әрекеті: ', '. Где найти: ') + where.join('; ') : ''));
       paint();
     });
   }
