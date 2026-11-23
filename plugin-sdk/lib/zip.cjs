@@ -104,11 +104,11 @@ function readPlugin(buf, limits = LIMITS) {
   return { files };
 }
 
-/** ZIP жазу (SDK: tools/pack.mjs). files: [[жол, Buffer]…] — UTF-8 атаулар, deflate. */
-function writeZip(files) {
+/** ZIP жазу (SDK: tools/pack.mjs). files: [[жол, Buffer]…] — UTF-8 атаулар, deflate. opts.date — файлдардың уақыты (әдепкі: қазір). */
+function writeZip(files, opts = {}) {
   const locals = [], centrals = [];
   let off = 0;
-  const now = new Date();
+  const now = opts.date instanceof Date ? opts.date : new Date();
   const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
   const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
   for (const [name, data0] of files) {

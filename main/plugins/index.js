@@ -8,6 +8,7 @@ const path = require('node:path');
 const M = require('../../plugin-sdk/lib/manifest.cjs');
 const { PluginManager } = require('./manager');
 const { PluginHost, SCHEME, LAYERS } = require('./host');
+const catalog = require('./catalog');
 
 const SDK_DIR = path.join(__dirname, '..', '..', 'plugin-sdk');
 
@@ -61,7 +62,7 @@ function setup(o) {
       homepage: m ? m.homepage || m.repository || '' : '', apiVersion: m ? m.apiVersion : '', minAppVersion: m ? m.minAppVersion : '', platforms: m ? m.platforms : [],
       permissions: m ? m.permissions : [], granted: p.granted, reasons: p.reasons, settingsSchema: m ? m.settings : [], settings: p.settings,
       contributes: m ? m.contributes : {}, icon: mgr.iconOf(p), installed_at: p.installed_at, updated_at: p.updated_at,
-      sha256: p.integrity && p.integrity.archive_sha256 || '', status: host.status(p.id),
+      sha256: p.integrity && p.integrity.archive_sha256 || '', status: host.status(p.id), source: p.source,
     };
   };
   const listView = () => ({ suspended: mgr.state.suspended, safeMode: mgr.safeMode, plugins: mgr.list().map(view) });
@@ -94,7 +95,28 @@ function setup(o) {
       if (r.canceled || !r.filePaths[0]) return { canceled: true };
       file = r.filePaths[0];
     }
-    return { report: mgr.inspect(path.resolve(String(file))) };
+    const report = mgr.inspect(path.resolve(String(file)));
+    // Ұсынылған плагиннің id-ін бөтен файл иемденбейді: мәртебесі «тәуелсіз әзірлеуші» болып қалады, ескерту шығады
+    if (report.manifest && catalog.ids().has(report.manifest.id)) {
+      report.warnings.push(tx('Бұл id Mura GIS ұсынған плагинге тиесілі, бірақ файл бағдарламаның өз каталогынан емес. Сенімді көзден алынғанына көз жеткізіңіз; ресми нұсқасы — «Ұсынылған плагиндер».',
+        'Этот id принадлежит плагину, рекомендованному Mura GIS, но файл не из каталога программы. Убедитесь в надёжности источника; официальная версия — в «Рекомендуемых плагинах».'));
+    }
+    return { report };
+  });
+  /** Ұсынылған плагиндер (бағдарламамен бірге келеді, Mura GIS әзірлеушісі жасаған) және олардың орнату күйі. */
+  handle('mura:plugins-catalog', () => ({
+    items: catalog.list().map(c => {
+      const p = mgr.get(c.id), m = c.manifest;
+      const inst = p && p.manifest ? { version: p.manifest.version, source: p.source, cmp: M.compareVersions(m.version, p.manifest.version) } : null;
+      return { id: c.id, name: m.name, version: m.version, description: m.description || '', author: m.author, license: m.license || '', permissions: m.permissions,
+        contributes: m.contributes, tags: c.tags, compat: M.compatibility(m, mgr.env), installed: inst,
+        icon: m.icon ? (() => { try { const b = fs.readFileSync(path.join(c.dir, ...m.icon.split('/'))); return 'data:' + (/\.svg$/i.test(m.icon) ? 'image/svg+xml' : 'image/png') + ';base64,' + b.toString('base64'); } catch (e) { return null; } })() : null };
+    }),
+  }));
+  handle('mura:plugins-inspect-catalog', id => {
+    const c = catalog.list().find(x => x.id === String(id || ''));
+    if (!c) throw new Error(tx('Ұсынылған плагин табылмады.', 'Рекомендуемый плагин не найден.'));
+    return { report: mgr.inspectBuffer(catalog.pack(c.dir), c.id + '-' + c.manifest.version + '.muraplug', 'official') };
   });
   handle('mura:plugins-install', (token, grants) => { const p = mgr.install(token, grants); after(p.id); return { plugin: view(mgr.get(p.id)) }; });
   handle('mura:plugins-enable', (id, on) => { mgr.setEnabled(String(id), !!on); after(String(id)); return listView(); });

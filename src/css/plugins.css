@@ -66,3 +66,9 @@
 .mura-pl-pick { position: absolute; inset: 0; z-index: 1100; cursor: crosshair; }
 .mura-pl-pickmsg { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 7px 12px; border-radius: 9px; background: rgba(34, 29, 22, .88); color: #fff; font-size: 13px; cursor: default; }
 .mura-pl-sym { background: none; border: 0; }
+/* Мәртебе: Mura GIS әзірлеушісі (ұсынылған) / тәуелсіз әзірлеуші; ұсынылған плагиндер тізімі */
+.mura-pl-src { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 10px; padding: 1px 8px; vertical-align: 1px; color: var(--soft); border: 1px solid var(--line); background: #fff; }
+.mura-pl-src.is-official { color: #fff; background: var(--steppe); border-color: var(--steppe); }
+.mura-pl-tag { display: inline-block; font-size: 11px; color: var(--steppe); border: 1px dashed var(--steppe); border-radius: 10px; padding: 0 7px; vertical-align: 1px; }
+.mura-pl-cat { background: #fbf9f4; }
+.mura-pl-catb { flex: none; align-self: center; }

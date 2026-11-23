@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('mura', {
     contributions: () => ipcRenderer.invoke('mura:plugins-contrib'),
     info: () => ipcRenderer.invoke('mura:plugins-info'),
     inspect: file => ipcRenderer.invoke('mura:plugins-inspect', file || ''),
+    /** Ұсынылған плагиндер (Mura GIS әзірлеушісі, бағдарламамен бірге келеді): тізім және орнатуға тексеру. */
+    catalog: () => ipcRenderer.invoke('mura:plugins-catalog'),
+    inspectCatalog: id => ipcRenderer.invoke('mura:plugins-inspect-catalog', id),
     install: (token, grants) => ipcRenderer.invoke('mura:plugins-install', token, grants),
     enable: (id, on) => ipcRenderer.invoke('mura:plugins-enable', id, !!on),
     grants: (id, list) => ipcRenderer.invoke('mura:plugins-grants', id, list),

@@ -93,22 +93,39 @@ async function run(win) {
   await js("document.getElementById('qaSample').click(), 0"); await wait(1200);
   eq(await js('!!(__qa.R && !__qa.R.error)'), true, 'плагинсіз: аймақ есептеледі');
 
-  // 2. Интерфейс арқылы орнату
-  const nipdFile = path.join(tmp, 'nipd.muraplug');
-  fs.writeFileSync(nipdFile, packDir(path.join(__dirname, '..', 'plugin-sdk', 'examples', 'nipd-exporter')));
-  openPath = nipdFile;
-  await js("MuraProject.openSettings('plugins'), 0"); await wait(500);
+  // 2. Интерфейс арқылы орнату: (а) «Ұсынылған плагиндер» — NIPD (Mura GIS әзірлеушісі), (ә) файлдан — тәуелсіз әзірлеуші
+  await js("MuraProject.openSettings('plugins'), 0"); await wait(600);
   eq(await js("[...document.querySelectorAll('.mura-pl-sub [data-sub]')].map(b => b.dataset.sub).join()"), 'installed,install,dev', 'үш бөлім');
-  await js("document.querySelector('[data-sub=install]').click(), 0"); await wait(200);
-  await js("document.querySelector('[data-pick]').click(), 0");
+  await js("document.querySelector('.mura-pl-sub [data-sub=install]').click(), 0"); await wait(300);
+  eq(await js("[...document.querySelectorAll('[data-cat]')].map(b => b.dataset.cat).join()"), 'kz.mura.nipd-exporter', 'ұсынылған плагиндер');
+  if (!/Mura GIS әзірлеушісі/.test(await js("document.querySelector('.mura-pl-cat').innerText"))) throw new Error('ұсынылған плагин мәртебесі жоқ');
+  await js("document.querySelector('[data-cat]').click(), 0");
   await until("!!document.querySelector('.mura-pl-disc')", 8000, 'тексеру нәтижесі');
   const disc = await js("document.querySelector('.mura-pl-disc').innerText");
-  if (!/тәуелсіз әзірлеуші жасаған/.test(disc) || !/geometry\.read/.test(disc) || !/Mura GIS \(үлгі плагин\)/.test(disc)) throw new Error('ескертуде әзірлеуші / рұқсаттар жоқ: ' + disc);
+  if (!/Mura GIS әзірлеушісі жасаған ұсынылған/.test(disc) || !/geometry\.read/.test(disc)) throw new Error('ресми плагин ескертуі: ' + disc);
   eq(await js("document.querySelector('[data-install]').disabled"), true, 'келісімсіз орнату батырмасы сөнік');
   await js("document.getElementById('muraPlAgree').click(), 0");
   await js("document.querySelector('[data-install]').click(), 0");
-  await until("document.querySelectorAll('.mura-pl-it').length === 1", 8000, 'орнатылған тізім');
+  await until("document.querySelectorAll('.mura-pl-list .mura-pl-it').length === 1", 8000, 'орнатылған тізім');
   out.installed = await js("document.querySelector('.mura-pl-it').innerText.split('\\n')[0]");
+  eq(await js("!!document.querySelector('.mura-pl-it .mura-pl-src.is-official')"), true, 'мәртебе: Mura GIS әзірлеушісі');
+  // Файлдан: шаблон плагин → «Тәуелсіз әзірлеуші»; ресми id-ді иемденген файл — ескерту
+  const helloFile = path.join(tmp, 'hello.muraplug');
+  fs.writeFileSync(helloFile, packDir(path.join(__dirname, '..', 'plugin-sdk', 'template')));
+  openPath = helloFile;
+  await js("document.querySelector('.mura-pl-sub [data-sub=install]').click(), 0"); await wait(300);
+  eq(await js("document.querySelector('.mura-pl-cat').innerText.includes('Орнатылған')"), true, 'каталогта «Орнатылған»');
+  await js("document.querySelector('[data-pick]').click(), 0");
+  await until("!!document.querySelector('.mura-pl-disc')", 8000, 'файл тексерісі');
+  if (!/тәуелсіз әзірлеуші жасаған/.test(await js("document.querySelector('.mura-pl-disc').innerText"))) throw new Error('тәуелсіз әзірлеуші ескертуі жоқ');
+  await js("document.getElementById('muraPlAgree').click(); document.querySelector('[data-install]').click(), 0");
+  await until("document.querySelectorAll('.mura-pl-list .mura-pl-it').length === 2", 8000, 'екі плагин');
+  eq(await js("[...document.querySelectorAll('.mura-pl-list .mura-pl-it')].map(li => li.querySelector('.mura-pl-src').classList.contains('is-official')).join()"), 'false,true', 'мәртебелер (hello, nipd)');
+  const fake = path.join(tmp, 'fake-nipd.muraplug');
+  fs.writeFileSync(fake, packDir(path.join(__dirname, '..', 'plugin-sdk', 'examples', 'nipd-exporter')));
+  const fr = await js(`mura.plugins.inspect(${JSON.stringify(fake)}).then(r => r.report)`);
+  eq(fr.source, 'file', 'файлдың көзі'); if (!fr.warnings.some(w => /каталогынан емес/.test(w))) throw new Error('ресми id ескертуі жоқ');
+  await js("mura.plugins.uninstall('kz.example.hello', {})");
   await js("document.querySelector('.mura-set [data-x]').click(), 0"); await wait(300);
 
   // 3. Кеңейту нүктесі: «Қорғау аймағы → Нәтиже және экспорт → NIPD GeoJSON»

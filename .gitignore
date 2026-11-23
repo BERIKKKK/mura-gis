@@ -6,3 +6,4 @@ main/sync/google-oauth.local.json
 # Plugin SDK: жиналған .muraplug және тестілеу құралының нәтижелері
 plugin-sdk/**/dist/
 plugin-sdk/**/out/
+dist-plugins/

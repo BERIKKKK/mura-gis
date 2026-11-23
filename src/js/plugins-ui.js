@@ -383,12 +383,16 @@
   });
 
   /* ======================= «Баптаулар → Плагиндер» ======================= */
-  var pane = null, sub = 'installed', data = null, report = null, openItem = {}, busy = false, err = '';
+  var pane = null, sub = 'installed', data = null, report = null, openItem = {}, busy = false, err = '', cat = [];
   function mount(p) { pane = p; info().then(paint); }
   function unmount() { pane = null; report = null; }
   function paint() {
     if (!pane) return;
-    P.list().then(function (r) { data = r && r.ok ? r : { plugins: [], suspended: false }; draw(); });
+    Promise.all([P.list(), P.catalog ? P.catalog() : null]).then(function (a) {
+      data = a[0] && a[0].ok ? a[0] : { plugins: [], suspended: false };
+      cat = a[1] && a[1].ok ? a[1].items : [];
+      draw();
+    });
   }
   function draw() {
     if (!pane) return;
@@ -414,6 +418,12 @@
     if (p.status.running) return ['on', tx('Жұмыс істеп тұр', 'Работает')];
     return ['on', tx('Қосулы', 'Включён')];
   }
+  /** Мәртебе: «Mura GIS әзірлеушісі» — тек бағдарламамен бірге келген ұсынылған плагин (каталог), қалғаны — «Тәуелсіз әзірлеуші». */
+  function sourceBadge(src) {
+    return src === 'official'
+      ? '<span class="mura-pl-src is-official" title="' + tx('Бағдарламамен бірге келген ұсынылған плагин. Ядроға кірмейді: міндетті емес, өшіруге және жоюға болады.', 'Рекомендуемый плагин из комплекта программы. Не входит в ядро: необязателен, можно отключить и удалить.') + '">' + tx('Mura GIS әзірлеушісі', 'Разработчик Mura GIS') + '</span>'
+      : '<span class="mura-pl-src" title="' + tx('Файлдан орнатылған үшінші тарап плагині', 'Сторонний плагин, установленный из файла') + '">' + tx('Тәуелсіз әзірлеуші', 'Независимый разработчик') + '</span>';
+  }
   function authorHtml(a) {
     if (!a) return '';
     return esc(a.name) + (a.email ? ' &lt;' + esc(a.email) + '&gt;' : '') + (a.url ? ' · <a href="' + esc(a.url) + '" target="_blank" rel="noopener">' + esc(a.url) + '</a>' : '');
@@ -432,13 +442,14 @@
       tx('Барлық плагиндерді уақытша тоқтату (бағдарлама плагинсіз жұмыс істейді; баптаулары сақталады)', 'Временно приостановить все плагины (программа работает без них; настройки сохраняются)') + '</span></label></div>';
     if (data.safeMode) h += '<p class="mura-hint">' + tx('Бағдарлама қауіпсіз режимде іске қосылған (--no-plugins): плагиндер орындалмайды.', 'Программа запущена в безопасном режиме (--no-plugins): плагины не выполняются.') + '</p>';
     if (!data.plugins.length) return h + '<p class="mura-hint">' + tx('Плагин орнатылмаған. Плагиндер міндетті емес: Mura GIS олардың ешқайсысынсыз толық жұмыс істейді. Орнату — «Плагин орнату» бөлімінде.',
-      'Плагины не установлены. Плагины не обязательны: Mura GIS полностью работает без них. Установка — в разделе «Установка плагина».') + '</p>';
+      'Плагины не установлены. Плагины не обязательны: Mura GIS полностью работает без них. Установка — в разделе «Установка плагина».') + '</p>' +
+      (cat.length ? '<div class="mura-dlg-btns" style="justify-content:flex-start"><button type="button" class="btn btn--ghost btn--sm" data-sub="install">' + tx('Ұсынылған плагиндер (' + cat.length + ')', 'Рекомендуемые плагины (' + cat.length + ')') + '</button></div>' : '');
     h += '<ul class="mura-pl-list">';
     data.plugins.forEach(function (p) {
       var st = statusOf(p), op = openItem[p.id] || '';
       h += '<li class="mura-pl-it" data-id="' + esc(p.id) + '">' +
         '<div class="mura-pl-row">' + (p.icon ? '<img class="mura-pl-ic" src="' + esc(p.icon) + '" alt="">' : '<span class="mura-pl-ic">' + svg(IC.plug, 22) + '</span>') +
-          '<div class="mura-pl-main"><b>' + esc(loc(p.name)) + '</b> <span class="mura-pl-ver">' + esc(p.version) + '</span> <span class="mura-pl-st is-' + st[0] + '">' + st[1] + '</span>' +
+          '<div class="mura-pl-main"><b>' + esc(loc(p.name)) + '</b> <span class="mura-pl-ver">' + esc(p.version) + '</span> <span class="mura-pl-st is-' + st[0] + '">' + st[1] + '</span> ' + sourceBadge(p.source) +
             '<div class="mura-pl-auth">' + tx('Әзірлеуші: ', 'Разработчик: ') + authorHtml(p.author) + '</div>' +
             (p.description ? '<div class="mura-pl-desc">' + esc(loc(p.description)) + '</div>' : '') +
             (!p.compat.ok || !p.ok ? '<div class="mura-err">' + esc(!p.ok ? p.errors.join(' ') : (LANG === 'ru' ? p.compat.reason_ru : p.compat.reason)) + '</div>' : '') +
@@ -488,8 +499,27 @@
     }
     return '';
   }
+  function catalogHtml() {
+    if (!cat.length) return '';
+    return '<h4 class="mura-set-h">' + tx('Ұсынылған плагиндер', 'Рекомендуемые плагины') + '</h4>' +
+      '<p class="mura-hint">' + tx('Mura GIS әзірлеушісі жасаған үлгі плагиндер. Бағдарламамен бірге келеді (интернет керек емес), бірақ ядроға кірмейді: орнату міндетті емес, кез келген уақытта өшіруге не жоюға болады.',
+        'Плагины-образцы от разработчика Mura GIS. Поставляются вместе с программой (интернет не нужен), но не входят в ядро: установка необязательна, их можно в любой момент отключить или удалить.') + '</p>' +
+      '<ul class="mura-pl-list">' + cat.map(function (c) {
+        var inst = c.installed, btn;
+        if (!c.compat.ok) btn = '<span class="mura-pl-st is-bad">' + tx('Үйлесімсіз', 'Несовместим') + '</span>';
+        else if (inst && inst.source === 'official' && inst.cmp <= 0) btn = '<span class="mura-pl-st is-on">' + tx('Орнатылған', 'Установлен') + '</span>';
+        else btn = '<button type="button" class="btn btn--primary btn--sm" data-cat="' + esc(c.id) + '"' + (busy ? ' disabled' : '') + '>' +
+          (inst ? (inst.cmp > 0 ? tx('Жаңарту', 'Обновить') + ' (' + esc(inst.version) + ' → ' + esc(c.version) + ')' : tx('Ресми нұсқаны орнату', 'Установить официальную версию')) : tx('Орнату', 'Установить')) + '</button>';
+        return '<li class="mura-pl-it mura-pl-cat"><div class="mura-pl-row">' + (c.icon ? '<img class="mura-pl-ic" src="' + esc(c.icon) + '" alt="">' : '<span class="mura-pl-ic">' + svg(IC.plug, 22) + '</span>') +
+          '<div class="mura-pl-main"><b>' + esc(loc(c.name)) + '</b> <span class="mura-pl-ver">' + esc(c.version) + '</span> ' + sourceBadge('official') + ' <span class="mura-pl-tag">' + tx('үлгі', 'образец') + '</span>' +
+          (c.description ? '<div class="mura-pl-desc">' + esc(loc(c.description)) + '</div>' : '') +
+          '<div class="mura-pl-auth">' + tx('Рұқсаттар: ', 'Разрешения: ') + esc(c.permissions.join(', ') || tx('жоқ', 'нет')) + (c.license ? ' · ' + esc(c.license) : '') + '</div></div>' +
+          '<div class="mura-pl-catb">' + btn + '</div></div></li>';
+      }).join('') + '</ul>';
+  }
   function installHtml() {
-    var h = '<p class="mura-hint">' + tx('Плагин — үшінші тарап әзірлеушісі жасаған .muraplug файлы. Орнату алдында архивтің құрылымы, тұтастығы (CRC-32, SHA-256), манифесі және бағдарлама нұсқасымен үйлесімділігі тексеріледі. Орнату кезінде ешқандай код не жүйелік команда орындалмайды.',
+    var h = catalogHtml() + '<h4 class="mura-set-h">' + tx('Файлдан орнату', 'Установка из файла') + '</h4>' +
+      '<p class="mura-hint">' + tx('Плагин — үшінші тарап әзірлеушісі жасаған .muraplug файлы. Орнату алдында архивтің құрылымы, тұтастығы (CRC-32, SHA-256), манифесі және бағдарлама нұсқасымен үйлесімділігі тексеріледі. Орнату кезінде ешқандай код не жүйелік команда орындалмайды.',
       'Плагин — файл .muraplug от стороннего разработчика. Перед установкой проверяются структура и целостность архива (CRC-32, SHA-256), манифест и совместимость с версией программы. При установке не выполняется никакой код или системные команды.') + '</p>' +
       '<div class="mura-dlg-btns" style="justify-content:flex-start"><button type="button" class="btn btn--primary btn--sm" data-pick' + (busy ? ' disabled' : '') + '>' + tx('Құрылғыдан файл таңдау…', 'Выбрать файл на устройстве…') + '</button></div>';
     if (!report) return h;
@@ -500,7 +530,7 @@
     if (r.warnings.length) h += '<div class="mura-pl-warn"><ul>' + r.warnings.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul></div>';
     if (!m) return h + '</section>';
     h += '<div class="mura-pl-row">' + (r.icon ? '<img class="mura-pl-ic" src="' + esc(r.icon) + '" alt="">' : '<span class="mura-pl-ic">' + svg(IC.plug, 22) + '</span>') +
-      '<div class="mura-pl-main"><b>' + esc(loc(m.name)) + '</b> <span class="mura-pl-ver">' + esc(m.version) + '</span>' +
+      '<div class="mura-pl-main"><b>' + esc(loc(m.name)) + '</b> <span class="mura-pl-ver">' + esc(m.version) + '</span> ' + sourceBadge(r.source) +
       '<div class="mura-pl-auth">' + tx('Әзірлеуші: ', 'Разработчик: ') + authorHtml(m.author) + '</div>' +
       (m.description ? '<div class="mura-pl-desc">' + esc(loc(m.description)) + '</div>' : '') +
       '<div class="mura-pl-auth"><code>' + esc(m.id) + '</code> · Plugin API ' + esc(m.apiVersion) + ' · Mura GIS ≥ ' + esc(m.minAppVersion) + ' · ' + esc(m.platforms.join(', ')) + (m.license ? ' · ' + esc(m.license) : '') + '</div></div></div>';
@@ -513,8 +543,11 @@
         : '<p class="mura-hint">' + tx('Плагин ешқандай рұқсат сұрамайды.', 'Плагин не запрашивает разрешений.') + '</p>') +
       (hi.length ? '<p class="mura-pl-warn">' + svg(IC.warn, 14) + ' ' + tx('Жоғары тәуекелді рұқсат (' + hi.join(', ') + ') әдепкі бойынша берілмейді — қажет болса, белгіні өзіңіз қойыңыз. Ол плагинге деректерді интернетке жіберуге мүмкіндік береді.',
         'Разрешение с высоким риском (' + hi.join(', ') + ') по умолчанию не выдаётся — при необходимости отметьте его сами. Оно позволяет плагину передавать данные в интернет.') + '</p>' : '');
-    h += '<div class="mura-pl-disc"><p><b>' + tx('Ескерту', 'Предупреждение') + '.</b> ' + tx('Бұл плагинді тәуелсіз әзірлеуші жасаған. Оның функционалдығы мен есептеулерінің дұрыстығына плагин авторы жауап береді. Орнату арқылы сіз оның сұратқан рұқсаттарымен және ықтимал тәуекелдерімен танысқаныңызды растайсыз.',
-      'Этот плагин создан независимым разработчиком. За его функциональность и правильность расчётов отвечает автор плагина. Устанавливая его, вы подтверждаете, что ознакомились с запрашиваемыми разрешениями и возможными рисками.') + '</p>' +
+    h += '<div class="mura-pl-disc"><p><b>' + tx('Ескерту', 'Предупреждение') + '.</b> ' + (r.source === 'official'
+      ? tx('Бұл — Mura GIS әзірлеушісі жасаған ұсынылған үлгі плагин. Ол бағдарламаның ядросына кірмейді: орнату міндетті емес, кәдімгі плагин сияқты оқшауланған ортада жұмыс істейді. Нәтижесін (мыс. сыртқы жүйенің талаптарына сәйкестігін) пайдаланушы тексереді. Орнату арқылы сіз оның сұратқан рұқсаттарымен танысқаныңызды растайсыз.',
+        'Это рекомендуемый плагин-образец от разработчика Mura GIS. Он не входит в ядро программы: установка необязательна, он работает в изолированной среде как обычный плагин. Результат (например, соответствие требованиям внешней системы) проверяет пользователь. Устанавливая его, вы подтверждаете, что ознакомились с запрашиваемыми разрешениями.')
+      : tx('Бұл плагинді тәуелсіз әзірлеуші жасаған. Оның функционалдығы мен есептеулерінің дұрыстығына плагин авторы жауап береді. Орнату арқылы сіз оның сұратқан рұқсаттарымен және ықтимал тәуекелдерімен танысқаныңызды растайсыз.',
+        'Этот плагин создан независимым разработчиком. За его функциональность и правильность расчётов отвечает автор плагина. Устанавливая его, вы подтверждаете, что ознакомились с запрашиваемыми разрешениями и возможными рисками.')) + '</p>' +
       '<p>' + tx('Әзірлеуші: ', 'Разработчик: ') + authorHtml(m.author) + '. ' + tx('Сұратылған рұқсаттар: ', 'Запрашиваемые разрешения: ') + esc(m.permissions.length ? m.permissions.join(', ') : tx('жоқ', 'нет')) + '.</p>' +
       '<p class="mura-hint">' + tx('Mura GIS сыртқы плагиндердің дұрыстығына, есептеулеріне, құқықтық сәйкестігіне автоматты түрде кепілдік бермейді. Жауапкершіліктің нақты шегі қолданыстағы заңнамаға және пайдаланушы келісіміне сәйкес белгіленеді.',
         'Mura GIS автоматически не гарантирует правильность, расчёты и правовое соответствие сторонних плагинов. Точные границы ответственности определяются действующим законодательством и пользовательским соглашением.') + '</p>' +
@@ -561,6 +594,7 @@
         return;
       }
       if (t.closest('[data-pick]')) { pickFile(false); return; }
+      if (t.closest('[data-cat]')) { pickCatalog(t.closest('[data-cat]').dataset.cat); return; }
       if (t.closest('[data-check]')) { sub = 'install'; pickFile(true); return; }
       if (t.closest('[data-cancel]')) { report = null; draw(); return; }
       if (t.closest('[data-install]')) { doInstall(); return; }
@@ -590,6 +624,16 @@
     renderBody(box, p.settingsSchema.map(function (s) {
       return { type: 'field', key: s.key, kind: s.type === 'string' ? 'string' : s.type, label: loc(s.title), description: loc(s.description), options: s.options, rows: 8 };
     }), p.settings);
+  }
+  function pickCatalog(id) {
+    busy = true; err = ''; draw();
+    P.inspectCatalog(id).then(function (r) {
+      busy = false;
+      if (!r.ok) { err = r.error; report = null; } else report = r.report;
+      sub = 'install'; draw();
+      var rep0 = pane && pane.querySelector('.mura-pl-rep');
+      if (rep0 && rep0.scrollIntoView) rep0.scrollIntoView({ block: 'start' });
+    });
   }
   function pickFile(checkOnly) {
     busy = true; err = ''; draw();

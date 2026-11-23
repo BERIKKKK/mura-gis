@@ -68,7 +68,7 @@ class PluginManager {
       const granted = manifest ? (Array.isArray(st.granted) ? st.granted : []).filter(p => manifest.permissions.includes(p) && M.PERMISSIONS[p].available) : [];
       const settings = {};
       if (manifest) for (const s of manifest.settings) settings[s.key] = M.settingValue(s, st.settings ? st.settings[s.key] : undefined);
-      out.push({ id: name, dir, manifest, errors, integrity, compat, enabled: st.enabled !== false, granted, settings,
+      out.push({ id: name, dir, manifest, errors, integrity, compat, enabled: st.enabled !== false, granted, settings, source: st.source === 'official' ? 'official' : 'file',
         reasons: integrity && integrity.reasons || {}, installed_at: st.installed_at || '', updated_at: st.updated_at || '' });
     }
     this.cache = out;
@@ -105,7 +105,8 @@ class PluginManager {
     if (st.size > Z.LIMITS.archive) throw new Error('Архив тым үлкен (шегі ' + Math.round(Z.LIMITS.archive / 1048576) + ' МБ).');
     return this.inspectBuffer(fs.readFileSync(file), path.basename(file));
   }
-  inspectBuffer(buf, fileName) {
+  /** source: 'official' — бағдарламамен бірге келген ұсынылған плагин (catalog.js), 'file' — пайдаланушы таңдаған файл. */
+  inspectBuffer(buf, fileName, source = 'file') {
     const { files } = Z.readPlugin(buf);
     for (const n of files.keys()) if (n.startsWith('__mura/')) throw new Error('«__mura/» — бағдарламаның қызметтік жолы, архивте болмауы керек: ' + n);
     if (!files.has('manifest.json')) throw new Error('Архивтің түбінде manifest.json жоқ.');
@@ -124,7 +125,7 @@ class PluginManager {
     const archiveSha = sha256(buf);
     const res = {
       fileName, sha256: archiveSha, size: buf.length, count: files.size, ok: v.ok && !v.errors.length, errors: v.errors, warnings: v.warnings,
-      manifest: v.ok ? v.manifest : null, reasons, compat: null, existing: null, token: null, icon: null,
+      manifest: v.ok ? v.manifest : null, reasons, compat: null, existing: null, token: null, icon: null, source,
     };
     if (!res.ok) return res;
     const m = v.manifest;
@@ -136,7 +137,7 @@ class PluginManager {
     // Растауға дейін тек жадта сақталады
     const token = crypto.randomBytes(16).toString('hex');
     for (const [k, s] of this.staged) if (Date.now() - s.at > STAGE_TTL) this.staged.delete(k);
-    this.staged.set(token, { at: Date.now(), files, manifest: m, sha: archiveSha, reasons });
+    this.staged.set(token, { at: Date.now(), files, manifest: m, sha: archiveSha, reasons, source });
     res.token = token;
     return res;
   }
@@ -173,7 +174,7 @@ class PluginManager {
     }
     const prev = this.state.plugins[m.id] || {};
     const now = new Date().toISOString();
-    this.state.plugins[m.id] = { enabled: true, granted, settings: prev.settings || {}, installed_at: prev.installed_at || now, updated_at: now, version: m.version, sha256: s.sha };
+    this.state.plugins[m.id] = { enabled: true, granted, settings: prev.settings || {}, installed_at: prev.installed_at || now, updated_at: now, version: m.version, sha256: s.sha, source: s.source === 'official' ? 'official' : 'file' };
     this.writeState();
     return this.get(m.id);
   }

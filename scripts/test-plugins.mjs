@@ -124,6 +124,20 @@ await t('менеджер: қосу/өшіру, рұқсат, баптау, жа
   eq(fs.existsSync(path.join(tmp, 'plugins', 'state.json.bak')), true, 'күйдің .bak көшірмесі');
 });
 
+await t('каталог: ұсынылған NIPD, архиві тұрақты, орнатқанда мәртебесі official; файлдан — file', () => {
+  const C = require(ROOT + '/main/plugins/catalog.js');
+  const l = C.list();
+  eq(l.map(x => x.id), ['kz.mura.nipd-exporter']);
+  const b = C.pack(l[0].dir);
+  eq(b.equals(C.pack(l[0].dir)), true, 'бірдей архив');
+  const m2 = new PluginManager(path.join(tmp, 'plugins2'), { appVersion: '2.3.0' });
+  const r = m2.inspectBuffer(b, 'nipd.muraplug', 'official');
+  eq(r.ok && r.source, 'official');
+  eq(m2.install(r.token, ['geometry.read']).source, 'official');
+  const r2 = m2.inspectBuffer(b, 'nipd.muraplug');
+  eq(m2.install(r2.token, []).source, 'file', 'файлмен қайта орнатылса — мәртебе файлдікі');
+});
+
 /* ---------- Геометрия, атрибуттар ---------- */
 await t('geo: аудан, бағыт (RFC 7946), тексеру, түрлендіру', () => {
   const sq = [[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]];
