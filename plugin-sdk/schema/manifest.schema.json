@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/BERIKKKK/mura-gis/plugin-sdk/schema/manifest.schema.json",
+  "title": "Mura GIS plugin manifest (Plugin API 1)",
+  "description": "Редакторда көмек үшін. Нақты тексеріс — lib/manifest.cjs (tools/validate.mjs).",
+  "type": "object",
+  "required": ["id", "name", "version", "apiVersion", "minAppVersion", "author", "entry"],
+  "definitions": {
+    "text": { "oneOf": [ { "type": "string", "minLength": 1 }, { "type": "object", "patternProperties": { "^[a-z]{2}$": { "type": "string" } }, "additionalProperties": false } ] },
+    "semver": { "type": "string", "pattern": "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-[0-9A-Za-z.-]+)?$" },
+    "contribution": { "type": "object", "required": ["command", "title"], "properties": { "command": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$" }, "title": { "$ref": "#/definitions/text" }, "tooltip": { "$ref": "#/definitions/text" } }, "additionalProperties": false }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*(\\.[a-z0-9][a-z0-9-]*)+$", "maxLength": 100 },
+    "name": { "$ref": "#/definitions/text" },
+    "version": { "$ref": "#/definitions/semver" },
+    "apiVersion": { "type": "string", "enum": ["1"] },
+    "minAppVersion": { "$ref": "#/definitions/semver" },
+    "maxAppVersion": { "$ref": "#/definitions/semver" },
+    "author": { "oneOf": [ { "type": "string" }, { "type": "object", "required": ["name"], "properties": { "name": { "type": "string" }, "url": { "type": "string", "pattern": "^https://" }, "email": { "type": "string" } } } ] },
+    "description": { "$ref": "#/definitions/text" },
+    "license": { "type": "string" },
+    "homepage": { "type": "string", "pattern": "^https://" },
+    "repository": { "type": "string", "pattern": "^https://" },
+    "entry": { "type": "string", "pattern": "\\.js$" },
+    "icon": { "type": "string", "pattern": "\\.(svg|png)$" },
+    "platforms": { "type": "array", "items": { "enum": ["desktop", "tablet", "mobile", "web"] }, "minItems": 1, "uniqueItems": true },
+    "permissions": { "type": "array", "uniqueItems": true, "items": { "enum": ["geometry.read", "geometry.write", "attributes.read", "attributes.write", "map.layers", "files.export", "network.access", "project.metadata"] } },
+    "contributes": { "type": "object", "properties": {
+      "zone.export": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } },
+      "tools.menu": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } } }, "additionalProperties": false },
+    "settings": { "type": "array", "maxItems": 40, "items": { "type": "object", "required": ["key", "type", "title"], "properties": {
+      "key": { "type": "string" }, "type": { "enum": ["string", "text", "number", "boolean", "select"] }, "title": { "$ref": "#/definitions/text" }, "description": { "$ref": "#/definitions/text" },
+      "options": { "type": "array" }, "default": {} } } }
+  }
+}

@@ -27,8 +27,15 @@ const SRC = path.join(__dirname, '..', 'src');
 const REPO_URL = 'https://github.com/BERIKKKK/mura-gis';
 const UA = 'MuraGIS/' + app.getVersion() + ' (+' + REPO_URL + ')';
 
+/* Плагиндер (міндетті емес; main/plugins/, docs/PLUGINS.md): модуль жүктелмесе де бағдарлама толық жұмыс істейді.
+   --no-plugins не MURA_NO_PLUGINS=1 — қауіпсіз режим: орнатылған плагиндердің ешқайсысы іске қосылмайды. */
+let pluginsMod = null;
+try { pluginsMod = require('./plugins'); } catch (e) { console.error('Plugins:', e.message); }
+const PLUGINS_SAFE = process.argv.includes('--no-plugins') || process.env.MURA_NO_PLUGINS === '1';
+
 protocol.registerSchemesAsPrivileged([
   { scheme: 'mura', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true } },
+  ...(pluginsMod ? [pluginsMod.schemePrivileges] : []),
 ]);
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
@@ -325,6 +332,7 @@ function buildMenu() {
         { type: 'separator' },
         // Баптаулар жоба ашылмаса да қолжетімді: интерфейс тілі жобаға байланысты емес
         { label: tx('Баптаулар…', 'Настройки…'), accelerator: 'CmdOrCtrl+,', click: () => ui('settings') },
+        ...(pluginsMod ? [{ label: tx('Плагиндер…', 'Плагины…'), click: () => ui('plugins') }] : []),
         { label: tx('Жоба қалтасын ашу', 'Открыть папку проекта'), enabled: !!(projects && projects.current), click: () => shell.showItemInFolder(projects.current.file) },
         { label: tx('Жобаны жабу', 'Закрыть проект'), enabled: !!(projects && projects.current), click: () => { if (!confirmPending()) return; projects.close(); afterSwitch(); } },
         { type: 'separator' },
@@ -538,6 +546,15 @@ app.whenReady().then(() => {
   }
   bindStores();
   sync = createSync();
+  if (pluginsMod) {
+    try {
+      pluginsMod.setup({
+        electron: require('electron'), userData: app.getPath('userData'), appVersion: app.getVersion(), safeMode: PLUGINS_SAFE,
+        mainWindow: () => win, lang: () => lang.get(), fromApp,
+        data: () => ({ marks, store, routes, places, plans, projects }),
+      });
+    } catch (e) { console.error(tx('Плагиндер жүйесі іске қосылмады:', 'Система плагинов не запущена:'), e.message); }
+  }
 
   protocol.handle('mura', req => {
     const u = new URL(req.url);

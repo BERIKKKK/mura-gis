@@ -62,6 +62,10 @@ jobs:
         shell: bash
         run: node scripts/test-graph.mjs
 
+      - name: Плагиндер тесті (манифест, архив, NIPD үлгісі)
+        shell: bash
+        run: node scripts/test-plugins.mjs
+
       # electron-builder орнатқыш пен портативті нұсқаны қатар жүктейді: релиз әлі жоқ болса, әрқайсысы өз релизін
       # жасап, файлдар екі бөлек релизге бөлініп кетеді. Сондықтан релиз алдын ала бір рет жасалады.
       - name: GitHub релизін алдын ала жасау
@@ -93,6 +97,15 @@ jobs:
         run: node scripts/build-win.js --win --publish always   # NSIS-ке қазақ тілі қосылады (build/nsis-lang)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Ұсынылған плагиндер бағдарламаның ішінде бар; .muraplug файлы бөлек те жүктеледі (басқа компьютерге көшіру, тексеру)
+      - name: Ұсынылған плагиндерді релизге тіркеу (.muraplug)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node plugin-sdk/tools/pack.mjs plugin-sdk/examples/nipd-exporter dist-plugins/
+          gh release upload "$TAG" dist-plugins/*.muraplug --clobber
 
       # Жұмыс үстеліндегі бағдарлама жаңартуды GitHub-тағы «Latest» релизден (latest.yml) іздейді: «Latest» белгісі
       # әрқашан жұмыс үстелі релизінде (v*) тұруы керек, Android (android/v*) не карта релиздерінде — ешқашан.

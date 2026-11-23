@@ -1,0 +1,74 @@
+/* Mura GIS: плагиндер — «Баптаулар → Плагиндер», кеңейту нүктелері, плагин диалогтары мен панельдері (js/plugins-ui.js). */
+.mura-pl-sub { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+.mura-pl-sub button { border: 1px solid var(--line); background: var(--white); border-radius: 999px; padding: 5px 12px; font: 600 12.5px/1.2 inherit; font-family: inherit; color: var(--soft); cursor: pointer; }
+.mura-pl-sub button[aria-selected="true"] { background: var(--steppe); border-color: var(--steppe); color: #fff; }
+.mura-pl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.mura-pl-it { border: 1px solid rgba(34, 29, 22, .12); border-radius: 10px; background: #fff; padding: 10px 12px; }
+.mura-pl-row { display: flex; gap: 10px; align-items: flex-start; }
+.mura-pl-ic { flex: none; width: 36px; height: 36px; border-radius: 8px; background: var(--paper2); display: inline-flex; align-items: center; justify-content: center; color: var(--steppe); object-fit: contain; }
+.mura-pl-main { flex: 1 1 auto; min-width: 0; font-size: 13px; }
+.mura-pl-main b { font-size: 14px; }
+.mura-pl-ver { color: var(--soft); font: 12px ui-monospace, Consolas, monospace; }
+.mura-pl-auth, .mura-pl-desc { margin-top: 2px; font-size: 12.5px; color: var(--soft); overflow-wrap: anywhere; }
+.mura-pl-desc { color: var(--ink); }
+.mura-pl-st { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 10px; padding: 1px 8px; color: #fff; background: #8b8478; vertical-align: 1px; }
+.mura-pl-st.is-on { background: #2f8a4a; }
+.mura-pl-st.is-bad { background: var(--terr); }
+.mura-pl-tog { flex: none; font-size: 12.5px; }
+.mura-pl-acts { display: flex; gap: 4px 14px; flex-wrap: wrap; margin: 8px 0 0 46px; font-size: 12.5px; }
+.mura-pl-more { margin: 10px 0 0 46px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 13px; }
+.mura-pl-perms { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+.mura-pl-perm.is-high code { color: var(--terr); }
+.mura-pl-risk { color: var(--soft); }
+.mura-pl-perm.is-high .mura-pl-risk { color: var(--terr); font-weight: 600; }
+.mura-pl-dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0 0 10px; font-size: 12.5px; }
+.mura-pl-dl dt { color: var(--soft); }
+.mura-pl-dl dd { margin: 0; overflow-wrap: anywhere; }
+.mura-pl-sha { font-size: 11px; word-break: break-all; }
+.mura-pl-code { margin: 0 0 10px; padding: 8px 10px; background: #f6f3ec; border: 1px solid var(--line); border-radius: 8px; font: 11.5px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
+.mura-pl-log { max-height: 220px; }
+.mura-pl-tbl { width: 100%; min-width: 0 !important; font-size: 12px; margin: 0 0 10px; }
+.mura-pl-tbl td { overflow-wrap: break-word; word-break: normal; min-width: 4em; }
+.mura-pl-tbl td, .mura-pl-tbl th { padding: 4px 6px; vertical-align: top; text-align: left; }
+.mura-pl-warn { margin: 6px 0 10px; padding: 8px 10px; border-radius: 8px; background: #fff4dc; border: 1px solid #ecd39a; font-size: 12.5px; }
+.mura-pl-warn ul, .mura-err ul { margin: 4px 0 0; padding-left: 18px; }
+.mura-pl-disc { margin: 10px 0; padding: 10px 12px; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); font-size: 12.5px; }
+.mura-pl-disc p { margin: 0 0 6px; }
+.mura-pl-rep { margin-top: 12px; }
+/* Кеңейту нүктелері */
+.mura-pl-pt { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line); }
+.mura-pl-pt[hidden], .mura-pl-menu[hidden] { display: none; }
+.mura-pl-lbl { font-size: 12px; color: var(--soft); }
+.mura-pl-btn { display: inline-flex; align-items: center; gap: 6px; }
+.mura-pl-mh { padding: 4px 12px 2px; font-size: 11px; font-weight: 700; color: var(--soft); text-transform: uppercase; letter-spacing: .03em; }
+/* Плагин терезелері: әрқайсысында плагин атауы бар белгі */
+.mura-pl-back { z-index: 3700; }
+.mura-dlg.mura-pl-dlg { width: min(560px, 100%); display: flex; flex-direction: column; }
+.mura-dlg.mura-pl-dlg.is-wide { width: min(860px, 100%); }
+.mura-pl-dh { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.mura-pl-dh h3 { margin: 0; flex: 1 1 auto; min-width: 0; font-size: 15px; }
+.mura-pl-dh .mura-start-x { order: 3; margin-left: 0; }
+.mura-pl-badge { flex: 0 0 100%; display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--steppe); }
+.mura-pl-db { min-height: 0; overflow: auto; }
+.mura-pl-h { margin: 10px 0 6px; font-size: 13.5px; }
+.mura-pl-t { margin: 0 0 8px; white-space: pre-wrap; }
+.mura-pl-t.is-warn { color: #8a5a00; } .mura-pl-t.is-error { color: var(--terr); font-weight: 600; } .mura-pl-t.is-muted { color: var(--soft); } .mura-pl-t.is-ok { color: #2f8a4a; font-weight: 600; }
+.mura-pl-ul { margin: 0 0 8px; padding-left: 18px; }
+.mura-pl-tw { overflow: auto; max-height: 320px; margin-bottom: 8px; }
+.mura-pl-f { display: block; margin: 0 0 10px; font-size: 12.5px; font-weight: 600; }
+.mura-pl-f > span { display: block; }
+.mura-pl-f.mura-cb > span { display: inline; }
+.mura-pl-f input:not([type=checkbox]), .mura-pl-f select, .mura-pl-f textarea { display: block; width: 100%; margin-top: 4px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 7px; background: #fff; font: 400 13px/1.35 inherit; font-family: inherit; }
+.mura-pl-f textarea { font-family: ui-monospace, Consolas, monospace; font-size: 12px; }
+.mura-pl-f small { display: block; font-weight: 400; color: var(--soft); margin-top: 3px; }
+.mura-pl-panel { position: absolute; z-index: 1200; right: var(--qa-gap, 10px); top: var(--qa-top, 70px); width: min(380px, calc(100% - 20px)); max-height: calc(100% - var(--qa-top, 70px) - 80px);
+  display: flex; flex-direction: column; padding: 12px 14px; border-radius: 14px; font-size: 13px; overflow: hidden; }
+.mura-pl-pick { position: absolute; inset: 0; z-index: 1100; cursor: crosshair; }
+.mura-pl-pickmsg { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); max-width: calc(100% - 40px); padding: 7px 12px; border-radius: 9px; background: rgba(34, 29, 22, .88); color: #fff; font-size: 13px; cursor: default; }
+.mura-pl-sym { background: none; border: 0; }
+/* Мәртебе: Mura GIS әзірлеушісі (ұсынылған) / тәуелсіз әзірлеуші; ұсынылған плагиндер тізімі */
+.mura-pl-src { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 10px; padding: 1px 8px; vertical-align: 1px; color: var(--soft); border: 1px solid var(--line); background: #fff; }
+.mura-pl-src.is-official { color: #fff; background: var(--steppe); border-color: var(--steppe); }
+.mura-pl-tag { display: inline-block; font-size: 11px; color: var(--steppe); border: 1px dashed var(--steppe); border-radius: 10px; padding: 0 7px; vertical-align: 1px; }
+.mura-pl-cat { background: #fbf9f4; }
+.mura-pl-catb { flex: none; align-self: center; }

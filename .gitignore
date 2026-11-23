@@ -3,3 +3,7 @@ dist/
 *.log
 # Google OAuth клиенті — жергілікті әзірлеу үшін; релизде GitHub Actions құпияларынан жазылады (docs/SYNC.md)
 main/sync/google-oauth.local.json
+# Plugin SDK: жиналған .muraplug және тестілеу құралының нәтижелері
+plugin-sdk/**/dist/
+plugin-sdk/**/out/
+dist-plugins/
