@@ -5,8 +5,10 @@
      8-т. құрылыс салуды реттеу аймағы — қорғау аймағының шетінен сол шамамен;
      9-т. қорғалатын табиғи ландшафт аймағы — реттеу аймағының шетінен сол шамамен.
    Аймақтар ескерткіш шекарасынан сыртқа қарай тұрақты қашықтыққа ығысқан полигон ретінде есептеледі
-   (жергілікті метрлік проекцияда; дөңес бұрыштар — шеңберге сырттай сызылған сынық сызықпен, сондықтан
-   шекараның еш нүктесі белгіленген қашықтықтан жақын емес). Экспорт: GeoJSON, PNG сызба, DOCX.
+   (жергілікті метрлік проекцияда — солтүстікке бағытталған, нақты метрмен, меридиандар жинақталуынсыз; Орталықтың
+   үлгісі де осылай жасалған). Әр аймақ нүктесі ескерткіштің бір бұрылыс нүктесінен шығады, нөмірлеу барлық шекарада
+   бірдей. Әдепкі тәсіл — Орталық үлгісі (centerOffset), баламасы — әр қабырға дәл d метрде (offsetRing); nwIndex().
+   Координаттар — WGS 84 географиялық (° ' "). Экспорт: GeoJSON, PNG сызба, DOCX.
    Өлшеу құралдары: азимут көрсеткіші, қабырғаны дәл бұрышқа (45°, 90° т.б.) туралау, сызықтарға
    магниттелетін перпендикуляр сызғыш, циркуль. Бәрі браузерде жүреді. */
 import { compareNames, matchesText } from '../marks/sort.js';
@@ -137,6 +139,14 @@ function dms(v) {
   if (m >= 60) { m = 0; d++; }
   return d + '°' + String(m).padStart(2, '0') + '′' + comma(s.toFixed(2).padStart(5, '0')) + '″';
 }
+/** Орталық үлгісіндегі координата пішімі: 50°06'08,8704" (секунд — 4 ондық таңба, ASCII ' пен "). */
+function dmsDoc(v) {
+  const a = Math.abs(v);
+  let d = Math.floor(a), mf = (a - d) * 60, m = Math.floor(mf), s = Number(((mf - m) * 60).toFixed(4));
+  if (s >= 60) { s = 0; m++; }
+  if (m >= 60) { m = 0; d++; }
+  return (v < 0 ? '-' : '') + d + '°' + String(m).padStart(2, '0') + "'" + comma(s.toFixed(4).padStart(7, '0')) + '"';
+}
 
 /* ======================= Геометрия ======================= */
 function makeProj(pts) {
@@ -168,7 +178,53 @@ function cleanRing(P) {
   return out;
 }
 
-/** Сағат тіліне қарсы (CCW) полигонды d метрге сыртқа ығыстыру. */
+/*
+ * Аймақ нүктелерін салу тәсілі (екеуінде де аймақтың әр нүктесі ескерткіш шекарасының бір бұрылыс нүктесінен шығады):
+ *  'center' — Орталық үлгісі (әдепкі; Ақтөбе облысы әкімдігінің 2024 ж. № 66 қаулысына әзірленген жобадағы 94 ескерткіш
+ *             координаттарын талдау бойынша): әр бұрылыс нүктесі солтүстікке бағытталған дұрыс сегізбұрыштың бір
+ *             бағытымен (0°, 45°, 90° … — сыртқы биссектрисаға ең жақыны) дәл d метрге жылжиды; бұрылысы 85°-тан
+ *             көп бұрышта (қорғанның тік бұрышты аумағы т.б.) — ығысқан қабырғалардың қиылысы, сондықтан шаршы аумақтың
+ *             аймақтары да шаршы. Аймақтар бір негізден (ескерткіш шекарасынан) d1, d1+d2, d1+d2+d3 қашықтықпен
+ *             салынады. Қабырғалардың алдыңғы шекарадан қашықтығы d·cos 22,5° ≈ 0,92d-дан кем емес.
+ *  'exact'  — әр қабырға алдыңғы шекарадан дәл d метрде (ығысқан қабырғалардың қиылысы).
+ */
+const METHOD_KEY = 'qa-zone-method-v1';
+const METHODS = ['center', 'exact'];
+let zoneMethod = 'center';
+try { const v = localStorage.getItem(METHOD_KEY); if (METHODS.includes(v)) zoneMethod = v; } catch (e) { /* елемейміз */ }
+const CORNER_TH = 85 * Math.PI / 180;
+const OCT = Math.PI / 4;
+
+/** 'center' тәсілі: CCW полигонның d метрдегі аймағы. .v — P-дағы бастапқы нүктенің индексі. */
+function centerOffset(P, d) {
+  const n = P.length, out = [];
+  let spike = false;
+  for (let i = 0; i < n; i++) {
+    const a = P[(i - 1 + n) % n], p = P[i], b = P[(i + 1) % n];
+    const t1 = unit(p[0] - a[0], p[1] - a[1]), t2 = unit(b[0] - p[0], b[1] - p[1]);
+    const n1 = [t1[1], -t1[0]], n2 = [t2[1], -t2[0]];
+    const th = Math.atan2(t1[0] * t2[1] - t1[1] * t2[0], t1[0] * t2[0] + t1[1] * t2[1]);
+    const tag = q => { q.v = i; out.push(q); };
+    if (th > CORNER_TH) {                  // бұрыш: ығысқан қабырғалардың қиылысы (өте сүйір болса — кесіледі)
+      const m = Math.max(1, Math.ceil(th / (2 * Math.PI / 3) - 1e-9));
+      const al = th / m, r = d / Math.cos(al / 2);
+      for (let k = 0; k < m; k++) { const v = rot(n1, (k + 0.5) * al); tag([p[0] + r * v[0], p[1] + r * v[1]]); }
+    } else if (Math.abs(th) > 1e-6) {      // қалғаны: сегізбұрыш бағытымен дәл d
+      if (th < 0 && 1 + n1[0] * n2[0] + n1[1] * n2[1] < 0.15) spike = true;
+      const az = Math.round(Math.atan2(n1[0] + n2[0], n1[1] + n2[1]) / OCT) * OCT;
+      tag([p[0] + d * Math.sin(az), p[1] + d * Math.cos(az)]);
+    }
+  }
+  return { ring: cleanRing(out), spike };
+}
+
+/**
+ * 'exact' тәсілі: сағат тіліне қарсы (CCW) полигонды d метрге сыртқа ығыстыру — ығысқан екі қабырғаның қиылысы
+ * (бір нүкте; тік бұрышты аумақтың аймақтары да тік бұрышты). Тек өте сүйір бұрышта (бұрылысы 120°-тан көп, яғни қиылыс
+ * бұрыштан 2d-дан алыс — ГАЖ-дағы әдепкі «miter limit 2») ұшы шеңбер доғасына сырттай сызылған сынықпен кесіледі.
+ * Барлық қабырға алдыңғы шекарадан дәл d метрде өтеді. 'center' тәсілі жарамсыз пішін берсе де осы қолданылады.
+ * Әр шыққан нүктенің .v өрісі — P-дағы бастапқы бұрылыс нүктесінің индексі (нөмірлеуді аймақтан аймаққа жалғастыру үшін).
+ */
 function offsetRing(P, d) {
   const n = P.length, out = [];
   let spike = false;
@@ -177,15 +233,16 @@ function offsetRing(P, d) {
     const t1 = unit(p[0] - a[0], p[1] - a[1]), t2 = unit(b[0] - p[0], b[1] - p[1]);
     const n1 = [t1[1], -t1[0]], n2 = [t2[1], -t2[0]];
     const th = Math.atan2(t1[0] * t2[1] - t1[1] * t2[0], t1[0] * t2[0] + t1[1] * t2[1]);
-    if (th > 1e-6) {                       // дөңес бұрыш: шеңбер доғасына сырттай сызылған сынық
-      const m = Math.max(1, Math.ceil(th / (Math.PI / 4) - 1e-9));
+    const tag = q => { q.v = i; out.push(q); };
+    if (th > 1e-6) {                       // дөңес бұрыш
+      const m = Math.max(1, Math.ceil(th / (2 * Math.PI / 3) - 1e-9));
       const al = th / m, r = d / Math.cos(al / 2);
-      for (let k = 0; k < m; k++) { const v = rot(n1, (k + 0.5) * al); out.push([p[0] + r * v[0], p[1] + r * v[1]]); }
+      for (let k = 0; k < m; k++) { const v = rot(n1, (k + 0.5) * al); tag([p[0] + r * v[0], p[1] + r * v[1]]); }
     } else if (th < -1e-6) {               // ойыс бұрыш: ығысқан сызықтардың қиылысы
       const dt = n1[0] * n2[0] + n1[1] * n2[1];
       if (1 + dt < 0.15) spike = true;
       const k = d / (1 + dt);
-      out.push([p[0] + (n1[0] + n2[0]) * k, p[1] + (n1[1] + n2[1]) * k]);
+      tag([p[0] + (n1[0] + n2[0]) * k, p[1] + (n1[1] + n2[1]) * k]);
     }
   }
   return { ring: cleanRing(out), spike };
@@ -212,27 +269,45 @@ function hull(P) {
   for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
   return lo.slice(0, -1).concat(up.slice(0, -1));
 }
-/** Нөмірлеу реті: сағат тілімен, батыс-солтүстік-батыстағы нүктеден бастап (үлгідегідей). */
-function numbered(P) {
-  const R = P.slice().reverse();                       // CCW → CW
-  const cx = R.reduce((s, p) => s + p[0], 0) / R.length, cy = R.reduce((s, p) => s + p[1], 0) / R.length;
-  let best = 0, bd = 1e9;
-  R.forEach((p, i) => {
-    const b = (Math.atan2(p[0] - cx, p[1] - cy) * 180 / Math.PI + 360) % 360;
-    const dd = Math.min(Math.abs(b - 285), 360 - Math.abs(b - 285));
-    if (dd < bd) { bd = dd; best = i; }
+/*
+ * Нөмірлеу (Орталық үлгісі бойынша): әр шекара сағат тілімен нөмірленеді; ескерткіш шекарасының 1-нүктесі — ауырлық
+ * центрінен қарағанда 300° азимуттан (батыс-солтүстік-батыс) бастап сағат тілімен бірінші кездесетін бұрылыс нүктесі
+ * (үлгідегі көпбұрыштардың ~3/4-інде, тік бұрыштылардың бәрінде дәл осылай), әр аймақтың 1-нүктесі — сол нүктеден
+ * шыққан нүкте. Сонда аймақтардың k-нүктесі ескерткіштің k-нүктесіне сәйкес келеді (сүйір бұрыштан бірнеше нүкте
+ * шықса, олар қатар нөмірленеді).
+ */
+const START_AZ = 300;
+/** 1-нүктенің индексі: центрден START_AZ азимуттан бастап сағат тілімен бірінші нүкте. */
+function nwIndex(P) {
+  let A = 0, cx = 0, cy = 0;
+  for (let i = 0, n = P.length; i < n; i++) { const a = P[i], b = P[(i + 1) % n], c = a[0] * b[1] - b[0] * a[1]; A += c; cx += (a[0] + b[0]) * c; cy += (a[1] + b[1]) * c; }
+  if (Math.abs(A) > 1e-9) { cx /= 3 * A; cy /= 3 * A; }
+  else { cx = P.reduce((s, p) => s + p[0], 0) / P.length; cy = P.reduce((s, p) => s + p[1], 0) / P.length; }
+  let best = 0, bd = Infinity;
+  P.forEach((p, i) => {
+    const az = ((Math.atan2(p[0] - cx, p[1] - cy) * 180 / Math.PI - START_AZ) % 360 + 720) % 360;
+    if (az < bd - 1e-9) { bd = az; best = i; }
   });
-  return R.slice(best).concat(R.slice(0, best));
+  return best;
+}
+/** CCW сақинаның s-нүктесінен бастап сағат тілімен. */
+const cwFrom = (P, s) => P.map((_, k) => P[(s - k + P.length) % P.length]);
+/** Ығыстырылған сақинаның 1-нүктесі: src-тың s-нүктесінен шыққан нүктелердің сағат тілімен алғашқысы. */
+function startFrom(ring, s) {
+  let best = -1;
+  ring.forEach((p, i) => { if (p.v === s) best = i; });   // CCW ретте соңғысы = CW ретте алғашқысы
+  return best >= 0 ? best : nwIndex(ring);
 }
 
 /** Негізгі есеп. pts — [{lat, lon}], dists — [d1, d2, d3] метр.
     custom — импортталған дайын аймақ полигондары { rings: [қорғау, реттеу, ландшафт] (әрқайсысы [{lat, lon}] не null), source }:
     берілген аймақ есептелмей, сол полигон алынады; берілмегені алдыңғы аймақтан есептеледі. */
-export function computeZones(pts, dists, custom) {
+export function computeZones(pts, dists, custom, method = zoneMethod) {
   if (pts.length < MIN_POINTS) return { error: 'few' };
   const proj = makeProj(pts);
   let P = pts.map(proj.fwd);
   if (selfIntersects(P)) return { error: 'self' };
+  P.forEach((q, i) => { q.v = i; });                    // ескерткіш нүктесінің бастапқы (енгізілген) индексі
   const userCW = signedArea(P) < 0;
   let C = userCW ? P.slice().reverse() : P.slice();
   C = cleanRing(C);
@@ -240,23 +315,46 @@ export function computeZones(pts, dists, custom) {
   if (C.length < 3 || monArea < 1) return { error: 'flat' };
   const notes = [];
   const rings = [C];
+  // Ескерткіш шекарасы: енгізілген нүктелердің бәрі, сағат тілімен, 1-нүктесі — nwIndex()
+  const s0 = nwIndex(P), dir = userCW ? 1 : -1;
+  const monNum = pts.map((_, k) => pts[((s0 + dir * k) % pts.length + pts.length) % pts.length]);
+  const starts = [Math.max(0, C.findIndex(q => q.v === s0))];   // әр сақинадағы 1-нүктенің (CCW) индексі
+  if (C[starts[0]].v !== s0) starts[0] = nwIndex(C);
   let src = C;
   let usedCustom = false;
+  // 'center': аймақ әрдайым негізден (ескерткіш шекарасы не соңғы импортталған полигон) жиынтық қашықтықпен салынады
+  let iter = method !== 'center', base = C, baseStart = starts[0], acc = 0;
   for (let i = 0; i < 3; i++) {
     const cr = custom && Array.isArray(custom.rings) ? custom.rings[i] : null;
     if (Array.isArray(cr) && cr.length >= 3) {
       let Q = cleanRing(cr.map(p => proj.fwd({ lat: +p.lat, lon: +p.lon })));
       if (signedArea(Q) < 0) Q.reverse();
-      if (Q.length >= 3 && !selfIntersects(Q)) { rings.push(Q); src = Q; usedCustom = true; continue; }
+      if (Q.length >= 3 && !selfIntersects(Q)) { rings.push(Q); starts.push(nwIndex(Q)); src = base = Q; baseStart = starts[starts.length - 1]; acc = 0; usedCustom = true; continue; }
       notes.push(ZONES[i + 1].feature + tx(': импортталған полигон жарамсыз (өзін-өзі қиып өтеді) — аймақ ескерткіш шекарасынан есептелді.', ': импортированный полигон недопустим (самопересекается) — зона рассчитана от границы памятника.'));
     }
     const d = dists[i];
+    if (!iter) {
+      acc += d;
+      const res = centerOffset(base, acc);
+      if (!res.spike && res.ring.length >= 3 && !selfIntersects(res.ring) && signedArea(res.ring) > signedArea(src) && src.every(q => pointInRing(q, res.ring))) {
+        rings.push(res.ring);
+        starts.push(startFrom(res.ring, baseStart));
+        src = res.ring;
+        continue;
+      }
+      iter = true;
+      notes.push(ZONES[i + 1].feature + tx(': ескерткіш пішіні Орталық үлгісінің тәсілімен салуға келмеді — аймақтың әр қабырғасы алдыңғы шекарадан дәл ' + fmtM(d) + ' м-де салынды.',
+        ': форма памятника не позволяет построить зону способом образца Центра — каждая сторона зоны построена ровно в ' + fmtM(d) + ' м от предыдущей границы.'));
+    }
     let res = offsetRing(src, d);
     if (res.spike || res.ring.length < 3 || selfIntersects(res.ring) || signedArea(res.ring) <= signedArea(src)) {
-      res = offsetRing(hull(src), d);
+      const H = hull(src);
+      res = offsetRing(H, d);
+      res.ring.forEach(q => { q.v = src.indexOf(H[q.v]); });   // .v — src-тағы индекс
       notes.push(ZONES[i + 1].feature + tx(': ескерткіш шекарасы тым ойыс болғандықтан аймақ оның дөңес қабықшасынан есептелді.', ': граница памятника слишком вогнутая, поэтому зона рассчитана от её выпуклой оболочки.'));
     }
     rings.push(res.ring);
+    starts.push(startFrom(res.ring, starts[i]));
     src = res.ring;
   }
   if (usedCustom) notes.push(tx('Аймақтар импортталған полигондардан алынды', 'Зоны взяты из импортированных полигонов') + (custom.source ? ' (' + custom.source + ')' : '') + tx(', ескерткіш шекарасынан есептелмеген.', ', а не рассчитаны от границы памятника.'));
@@ -266,7 +364,7 @@ export function computeZones(pts, dists, custom) {
   return {
     proj, notes, custom: usedCustom,
     ccw: rings.map(toLL),                                        // GeoJSON үшін (RFC 7946: сыртқы шекара CCW)
-    num: [pts.slice(), ...rings.slice(1).map(r => toLL(numbered(r)))], // сызба мен кесте үшін
+    num: [monNum, ...rings.slice(1).map((r, i) => toLL(cwFrom(r, starts[i + 1])))], // сызба мен кесте үшін
     outer, ringArea, dists: [0, ...dists],
   };
 }
@@ -371,7 +469,8 @@ export function checkLegal(pts, custom, f) {
     const req = d == null ? null : d * (i + 1);
     let status = 'ok';
     if (!M.every(p => pointInRing(p, Z))) status = 'outside';
-    else if (req != null && min < req - Math.max(1, req * 0.05)) status = 'narrow';
+    // Орталық үлгісінде қабырға шекарадан d·cos 22,5° ≈ 0,92d-ға дейін жақын өтеді — бұл тар саналмайды
+    else if (req != null && min < req * Math.cos(Math.PI / 8) - Math.max(1, req * 0.02)) status = 'narrow';
     else if (req != null && med > req + Math.max(2, req * 0.1)) status = 'wide';
     items.push({ zone: i + 1, name: ZONES[i + 1].feature, min, med, req, status });
   });
@@ -1450,17 +1549,30 @@ function sectionXml(T, Rx, img, idx, o = {}) {
     ZONES.map((z, i) => para(run(zl(z, 'area', l) + ' – ' + fmtHa(H.parts[i]) + ' га', { sz }), { align: 'left' })).join('');
   b += tableXml([4950, CONTENT_W - 4950], [[{ xml: left }, { xml: right }]], false);
 
-  if (o.coordTable) {
-    b += para(run(dl(l, 'Бұрылыс нүктелерінің координаттары (WGS 84)', 'Координаты поворотных точек (WGS 84)'), { b: true }), { align: 'center', pageBreak: true, after: 160 });
-    const cols = [800, 1900, 1900, 2377, 2377];
-    const c = (t, oo = {}) => ({ xml: para(run(t, { sz: 22, b: oo.b }), { align: oo.align || 'center' }), span: oo.span, shade: oo.shade });
-    const rows = [[c('№', { b: true, shade: 'EDEDED' }), c(dl(l, 'Ендік, °', 'Широта, °'), { b: true, shade: 'EDEDED' }), c(dl(l, 'Бойлық, °', 'Долгота, °'), { b: true, shade: 'EDEDED' }), c(dl(l, 'Ендік (° ′ ″)', 'Широта (° ′ ″)'), { b: true, shade: 'EDEDED' }), c(dl(l, 'Бойлық (° ′ ″)', 'Долгота (° ′ ″)'), { b: true, shade: 'EDEDED' })]];
-    ZONES.forEach((z, i) => {
-      rows.push([c(zl(z, 'feature', l) + (i ? ' (' + fmtM(Rx.dists[i]) + ' м)' : ''), { b: true, span: 5, align: 'left', shade: 'F7F7F7' })]);
-      Rx.num[i].forEach((p, k) => rows.push([c(String(k + 1)), c(comma(p.lat.toFixed(6))), c(comma(p.lon.toFixed(6))), c(dms(p.lat) + ' N'), c(dms(p.lon) + ' E')]));
-    });
-    b += tableXml(cols, rows, true);
-  }
+  if (o.coordTable) b += coordTableXml(Rx, l);
+  return b;
+}
+
+/*
+ * Бұрыштық нүктелердің координаттары — Орталық үлгісі бойынша («Географические координаты угловых точек охранных зон»):
+ * әр шекараға жеке кесте «Нүкте | Солтүстік ендік | Шығыс бойлық», WGS 84 географиялық координаттары градус-минут-секундпен
+ * (секунд — 4 ондық таңба), нөмірлеу — computeZones() ретімен (сағат тілімен, ескерткіштің солтүстік-батыс нүктесінен).
+ */
+const COORD_HEADS = {
+  kk: ['Ескерткіштің аумағы', 'Қорғау аймағы', 'Құрылыс салуды реттеу аймағы', 'Қорғалатын табиғи ландшафт аймағы'],
+  ru: ['Территория памятника', 'Охранная зона', 'Зона регулирования застройки', 'Зона охраняемого природного ландшафта'],
+};
+function coordTableXml(Rx, l = docLang()) {
+  let b = para(run(dl(l, 'Қорғау аймақтарының бұрыштық нүктелерінің географиялық координаттары', 'Географические координаты угловых точек охранных зон'), { b: true }), { align: 'center', pageBreak: true, after: 240 });
+  const cols = [2943, 3229, 3182];
+  const c = (t, bold) => ({ xml: para(run(t, { b: bold }), { align: 'center' }) });
+  const heads = COORD_HEADS[l === 'ru' ? 'ru' : 'kk'];
+  ZONES.forEach((z, i) => {
+    b += para(run(heads[i], { b: true }), { align: 'center', keepNext: true, after: 60 });
+    const rows = [[c(dl(l, 'Нүкте', 'Точка'), true), c(dl(l, 'Солтүстік ендік', 'Северной широты'), true), c(dl(l, 'Шығыс бойлық', 'Восточной долготы'), true)]];
+    Rx.num[i].forEach((p, k) => rows.push([c(String(k + 1)), c(dmsDoc(p.lat)), c(dmsDoc(p.lon))]));
+    b += tableXml(cols, rows, true) + para('', { after: 120 });
+  });
   return b;
 }
 
@@ -1898,6 +2010,13 @@ for (const k of ['d1', 'd2', 'd3']) F[k].addEventListener('input', () => recompu
 F.d1.addEventListener('change', () => { // 8–9-тармақ: реттеу мен ландшафт аймақтары қорғау аймағына тең
   if (F.type.value === 'custom') { F.d2.value = F.d1.value; F.d3.value = F.d1.value; recompute(true); }
 });
+// Нүктелерді салу тәсілі — бағдарлама баптауы (барлық жоба мен сақталған аймаққа ортақ)
+$('qaMethod').value = zoneMethod;
+$('qaMethod').addEventListener('change', e => {
+  zoneMethod = METHODS.includes(e.target.value) ? e.target.value : 'center';
+  try { localStorage.setItem(METHOD_KEY, zoneMethod); } catch (err) { /* елемейміз */ }
+  recompute(true);
+});
 
 $('qaAddMode').addEventListener('click', () => setMode(tool.mode === 'add' ? 'none' : 'add'));
 $('qaUndo').addEventListener('click', () => { if (state.pts.length) { state.pts.pop(); recompute(true, true); } });
@@ -1906,8 +2025,8 @@ $('qaSort').addEventListener('click', () => {
   const cx = state.pts.reduce((s, p) => s + p.lon, 0) / state.pts.length, cy = state.pts.reduce((s, p) => s + p.lat, 0) / state.pts.length;
   const k = Math.cos(cy * Math.PI / 180);
   const bearing = p => (Math.atan2((p.lon - cx) * k, p.lat - cy) * 180 / Math.PI + 360) % 360;
-  // Ортасынан қарағандағы азимут бойынша — сағат тілімен; батыс-солтүстік-батыстағы нүктеден бастап
-  const off = b => (b - 285 + 360) % 360;
+  // Ортасынан қарағандағы азимут бойынша — сағат тілімен; құжаттағыдай START_AZ (батыс-солтүстік-батыс) бағытынан бастап
+  const off = b => (b - START_AZ + 360) % 360;
   state.pts.sort((a, b) => off(bearing(a)) - off(bearing(b)));
   recompute(true, true);
   toast(tx('Нүктелер сағат тілімен ретке келтірілді.', 'Точки упорядочены по часовой стрелке.'));
