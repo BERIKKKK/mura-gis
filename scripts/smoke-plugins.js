@@ -177,6 +177,12 @@ async function run(win) {
   await until("!!document.querySelector('.mura-pl-dlg [data-key=included_by_authority]')", 15000, 'диалог 1 (қайта)');
   eq(await js("document.querySelector('.mura-pl-dlg [data-key=included_by_authority]').value"), 'Акимат Туркестанской области', 'ортақ өріс есте қалды');
   await js("document.querySelector('.mura-pl-dlg [data-btn=cancel]').click(), 0"); await inv2;
+  // «Қорғау аймақтары» тізіміндегі батырма: әдепкі қамту — барлық сақталған аймақтар
+  eq(await js("document.querySelectorAll('#muraPlSavedExp button[data-plugin]').length"), 1, 'тізімдегі NIPD батырмасы');
+  await js("document.querySelector('#muraPlSavedExp button').click(), 0");
+  await until("!!document.querySelector('.mura-pl-dlg [data-key=__scope]')", 15000, 'тізімнен шақырылған диалог');
+  eq(await js("document.querySelector('.mura-pl-dlg [data-key=__scope]').value"), 'all', 'қамту — барлық сақталғандар');
+  await js("document.querySelector('.mura-pl-dlg [data-btn=cancel]').click(), 0"); await wait(300);
 
   // 4. Оқшаулау
   const evilFile = path.join(tmp, 'evil.muraplug');
