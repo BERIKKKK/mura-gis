@@ -1,7 +1,7 @@
 {
   "name": "mura-gis",
   "productName": "Mura GIS",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Mura GIS — тарихи-мәдени мұра объектілеріне арналған ГАЖ бағдарламасы: ескерткіштерді белгілеу, тізімдер, қорғау аймақтарын есептеу",
   "main": "main/main.js",
   "author": "BERIKKKK",

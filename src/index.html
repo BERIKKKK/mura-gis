@@ -356,6 +356,11 @@ document.documentElement.classList.add('qa-full');
             <div><label for="qaD2">Құрылыс реттеу, м</label><input type="number" id="qaD2" min="1" step="0.5" value="40"></div>
             <div><label for="qaD3">Ландшафт, м</label><input type="number" id="qaD3" min="1" step="0.5" value="40"></div>
           </div>
+          <div class="qa-f"><label for="qaMethod">Аймақ нүктелерін салу</label>
+            <select id="qaMethod">
+              <option value="center">Орталық үлгісі (сегізбұрыш бағыттары, нүкте — дәл осы қашықтықта)</option>
+              <option value="exact">Әр қабырға алдыңғы шекарадан дәл осы қашықтықта</option>
+            </select></div>
         </section>
 
         <section class="qa-sec" id="qaResSec" aria-labelledby="qaResTitle">
