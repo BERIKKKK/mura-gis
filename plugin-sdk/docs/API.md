@@ -30,7 +30,7 @@
 | `icon` | жоқ | `.svg` не `.png` (≤ 256 КБ) |
 | `platforms` | жоқ | Жоғарыдағы тізім |
 | `permissions` | жоқ | Төмендегі рұқсаттар |
-| `contributes` | жоқ | `{ "zone.export" \| "tools.menu" \| "mark.suggest": [{ command, title, tooltip? }] }` (әр нүктеге ≤ 10) |
+| `contributes` | жоқ | `{ "zone.export" \| "tools.menu" \| "mark.suggest" \| "zone.suggest": [{ command, title, tooltip? }] }` (әр нүктеге ≤ 10) |
 | `settings` | жоқ | `[{ key, type: string\|text\|number\|boolean\|select, title, description?, options?, default? }]` — «Баптаулар → Плагиндер» бөлімінде салынады |
 
 `permissions.json` (міндетті емес): `{ "geometry.read": "не үшін керек" }` — орнату терезесінде рұқсаттың жанында көрсетіледі.
@@ -69,7 +69,16 @@ mura.commands.register('export', async (ctx) => { … return нәтиже; });
 пайдаланушы таңдаса — `fields` бойынша белгі терезесінің өрістерін **өзі** толтырады (мәтін өрістері: name, name_ru,
 period, period_ru, place, place_ru, district, oblast, note, note_ru; тізімдер: type, category, status — тек рұқсат етілген
 мәндер). Жоба деректерін плагин өзгертпейді: сақтауды пайдаланушы басады. Қате не ұзақ жауап үнсіз еленеді.
-Мысал — `examples/decree-matcher`.
+2.4.4-тен: ұсыныс жоқ болса, `{ items: [], hint }` қайтаруға болады — `hint` (≤ 200 таңба) өрістің астында кеңес болып шығады
+(мыс. «Атауын жаза бастаңыз…»). Мысал — `examples/decree-matcher`.
+
+### `zone.suggest` (Mura GIS 2.4.4+)
+
+`mark.suggest`-пен бірдей, бірақ қорғау аймағының мәліметтер терезесінде (шекара белгіленіп, «Аяқтау» басылғанда; атауы
+жазылғанда, ауданы өзгергенде қайта сұралады). `mura.attributes.selection()` — `layer: 'zones'` (атауы, мерзімі, облыс,
+аудан, орны, түрі), `mura.geometry.selection()` — шекараның Polygon-ы. `fields` бойынша аймақтың өрістері толтырылады:
+name, name_ru, period, period_ru, place, place_ru, district, oblast, note → сипаттамасы (бос болса), type → ескерткіш түрі
+(аймақ өлшемдері соған сай есептеледі).
 
 ## Деректер қабаттары
 

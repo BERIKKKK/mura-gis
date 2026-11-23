@@ -108,6 +108,7 @@ paintFinish();
 let dlg = null;
 function closeDialog() {
   if (!dlg) return;
+  dlg.sugCtl?.abort();                              // плагин ұсынысының өріс тыңдаушылары алынады
   for (const m of dlg.moved.reverse()) m.parent.insertBefore(m.node, m.next);   // өрістер «Мәліметтер» панеліне қайтады
   dlg.back.remove();
   document.removeEventListener('keydown', dlg.onKey, true);
@@ -171,6 +172,65 @@ function openDialog() {
     }
   }
   pendingMark = null;
+  // Плагин ұсынысы (zone.suggest, мыс. «Атау сәйкестендіргіш» — ресми тізімнен): терезе ашылғанда және атау жазылғанда сұралады.
+  // Таңдалса, өрістер белгіден толтырғандағыдай толтырылады (fillFromMark); сақтауды пайдаланушы басады.
+  const sugCtl = new AbortController();
+  const SG = globalThis.MuraPluginSuggest;
+  if (SG && SG.has('zone.suggest')) {
+    const sb = document.createElement('section');
+    sb.className = 'qa-sec zd-mark zd-sug'; sb.hidden = true;
+    sb.innerHTML = '<div class="qa-f"><label for="zdSug">' + tx('Плагин ұсынысы', 'Предложение плагина') + ' <small class="mk-law" id="zdSugSrc"></small></label>' +
+      '<select id="zdSug"><option value="">' + tx('— таңдалмаған —', '— не выбрано —') + '</option></select><p class="qa-hint" id="zdSugHint" hidden></p></div>';
+    body.appendChild(sb);
+    const sel = sb.querySelector('select'), hint = sb.querySelector('#zdSugHint');
+    const setHint = t => { hint.textContent = t || ''; hint.hidden = !t; };
+    let sugs = [], seq = 0, timer = null, filling = false;
+    const val = id => ($(id) ? $(id).value : '');
+    const snap = () => ({ id: QA.state.loadedId || null, saved: !!QA.state.loadedId, markId: QA.state.markId || null, pts: (QA.state.pts || []).slice(),
+      fields: { name: val('qaName'), name_ru: val('qaNameRu'), period: val('qaPeriod'), period_ru: val('qaPeriodRu'), oblast: val('qaOblast'), district: val('qaDistrict'),
+        place: val('qaPlace'), place_ru: val('qaPlaceRu'), type: val('qaType') } });
+    const askZone = async () => {
+      const my = ++seq;
+      let res;
+      try { res = await SG.zone(snap()); } catch (e) { return; }
+      if (my !== seq || !back.isConnected) return;
+      const keep = sugs[+sel.value - 1];
+      sugs = res.flatMap(g => g.items.map(it => ({ ...it, plugin: g.pluginName })));
+      sel.length = 1;
+      sugs.forEach((s, i) => sel.add(new Option(s.title + (s.detail ? ' — ' + s.detail : ''), String(i + 1))));
+      const again = keep ? sugs.findIndex(s => s.title === keep.title) : -1;
+      sel.value = again >= 0 ? String(again + 1) : '';
+      sb.querySelector('#zdSugSrc').textContent = res.length ? '(' + tx('плагин: ', 'плагин: ') + [...new Set(res.map(g => g.pluginName))].join(', ') + ')' : '';
+      const hints = res.filter(g => !g.items.length && g.hint).map(g => g.hint);
+      sb.hidden = !sugs.length && !hints.length;
+      sel.hidden = !sugs.length;
+      if (again < 0) setHint(sugs.length ? tx('Таңдасаңыз, атауы, мерзімі, орналасқан жері, ауданы, түрі толтырылады — сақтау алдында тексеріңіз.', 'При выборе заполнятся наименование, датировка, местонахождение, район, вид — проверьте перед сохранением.') : hints.join(' '));
+    };
+    const later = () => { if (filling) return; clearTimeout(timer); timer = setTimeout(askZone, 450); };
+    for (const id of ['qaName', 'qaNameRu']) $(id)?.addEventListener('input', later, { signal: sugCtl.signal });
+    $('qaDistrict')?.addEventListener('change', later, { signal: sugCtl.signal });
+    sel.addEventListener('change', () => {
+      const s = sugs[+sel.value - 1];
+      if (!s) { setHint(''); return; }
+      // Тек ұсыныста бар өрістер жазылады (бос мән бұрынғыны өшірмейді)
+      const f = s.fields;
+      const set = (id, v, ev = 'input') => { const el = $(id); if (!el || el.disabled) return; el.value = v; el.dispatchEvent(new Event(ev, { bubbles: true })); };
+      const has = (id, v) => { const el = $(id); return !!el && (el.tagName !== 'SELECT' || [...el.options].some(o => o.value === v)); };
+      filling = true;
+      try {
+        if (f.name || f.name_ru) { set('qaNameGen', ''); set('qaNameGenRu', ''); }   // ілік септігі атаудан қайта құрастырылады
+        for (const [k, id] of [['name', 'qaName'], ['name_ru', 'qaNameRu'], ['period', 'qaPeriod'], ['period_ru', 'qaPeriodRu'], ['place', 'qaPlace'], ['place_ru', 'qaPlaceRu']]) if (f[k]) set(id, f[k]);
+        if (f.oblast && val('qaOblast') !== f.oblast && has('qaOblast', f.oblast)) set('qaOblast', f.oblast, 'change');
+        if (f.district && has('qaDistrict', f.district)) set('qaDistrict', f.district, 'change');
+        if (f.type && has('qaType', f.type)) set('qaType', f.type, 'change');   // аймақ өлшемдері түріне сай
+        if (f.note && !val('qaDesc').trim()) set('qaDesc', f.note);
+        if (f.note_ru && !val('qaDescRu').trim()) set('qaDescRu', f.note_ru);
+      } finally { filling = false; }
+      setHint(tx('Мәліметтер плагин ұсынысынан толтырылды («' + s.plugin + '»): ', 'Сведения заполнены из предложения плагина («' + s.plugin + '»): ') + s.title +
+        tx('. Тексеріп, «Сақтау» басыңыз.', '. Проверьте и нажмите «Сохранить».'));
+    });
+    setTimeout(askZone, 150);
+  }
   // «Мәліметтер» панеліндегі бөлімдерді уақытша көшіреміз: ескерткіш, аймақ өлшемдері, нәтиже кестесі
   const nodes = [$('qaInfoTitle')?.closest('section'), $('qaRuleTitle')?.closest('section'), $('qaRes')?.closest('.qa-tablewrap')].filter(Boolean);
   const moved = nodes.map(node => ({ node, parent: node.parentNode, next: node.nextSibling }));
@@ -208,7 +268,7 @@ function openDialog() {
     else if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); doSave(false); }
   };
   document.addEventListener('keydown', onKey, true);
-  dlg = { back, moved, onKey, prev: document.activeElement };
+  dlg = { back, moved, onKey, prev: document.activeElement, sugCtl };
   app.appendChild(back);
   const nm = globalThis.MuraI18n?.ru && $('qaNameRu') ? $('qaNameRu') : $('qaName');
   (nm && !nm.value.trim() ? nm : back.querySelector('#zdSave')).focus({ preventScroll: true });

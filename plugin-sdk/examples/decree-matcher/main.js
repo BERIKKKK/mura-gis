@@ -1,10 +1,11 @@
-/* Атау сәйкестендіргіш — Mura GIS үлгі плагині (Plugin API 1, Mura GIS 2.4.2+).
+/* Атау сәйкестендіргіш — Mura GIS үлгі плагині (Plugin API 1, Mura GIS 2.4.4+).
    1) «⋯ → Қаулылар (атау сәйкестендіру)…»: ескерткіштер тізімін бекіткен қаулының қазақша және орысша файлдары
       (DOCX не мәтіні бар PDF, кемінде 2 файл) таңдалады → lib/files.js оқиды, lib/decree.js кестені талдайды (тіл, қаулының
       нөмірі мен күні, аудандар, атау / мерзім / түр / орны) → екі тіл нөмір бойынша жұптасады → тексеру терезесі →
       тізім плагиннің жадында (mura.storage) сақталады. Файлдың өзі сақталмайды; тізімді кез келген уақытта өшіруге болады.
-   2) mark.suggest: белгі терезесі ашылғанда / атауы жазылғанда lib/match.js тізімнен ұқсас ескерткіштерді табады
-      (атау, аудан, «ауылдан N км» бойынша шамамен орны) — бағдарлама оларды «Плагин ұсынысы» тізімінде көрсетеді.
+   2) mark.suggest / zone.suggest: белгі терезесі не қорғау аймағының мәліметтер терезесі ашылғанда, атауы жазылғанда
+      lib/match.js тізімнен ұқсас ескерткіштерді табады (атау, аудан, «ауылдан N км» бойынша шамамен орны; аймақта —
+      шекараның ортасы) — бағдарлама оларды «Плагин ұсынысы» тізімінде көрсетеді; ұсыныс жоқ болса — кеңес (hint).
    Плагин оқшауланған ортада жұмыс істейді: тек globalThis.mura API-і және өз файлдары. */
 'use strict';
 
@@ -206,16 +207,29 @@ mura.commands.register('suggest', async ctx => {
   if (ctx && ctx.lang) LANG.cur = ctx.lang;
   const decs = await decrees();
   if (!decs.length) return { items: [] };
+  // mark.suggest — белгі (Point); zone.suggest — қорғау аймағы (Polygon: шекараның ортасы алынады)
   const sel = mura.hasPermission('attributes.read') ? await mura.attributes.selection() : null;
   const a = (sel && sel.attributes) || {};
   let lat = null, lon = null;
   if (mura.hasPermission('geometry.read')) {
     const g = await mura.geometry.selection();
-    if (g && g.geometry && g.geometry.type === 'Point') { lon = g.geometry.coordinates[0]; lat = g.geometry.coordinates[1]; }
+    const geo = g && g.geometry;
+    if (geo && geo.type === 'Point') { lon = geo.coordinates[0]; lat = geo.coordinates[1]; }
+    else if (geo && geo.type === 'Polygon' && geo.coordinates[0] && geo.coordinates[0].length > 3) {
+      const r = geo.coordinates[0].slice(0, -1);
+      lon = r.reduce((s, p) => s + p[0], 0) / r.length; lat = r.reduce((s, p) => s + p[1], 0) / r.length;
+    }
   }
   const idx = mura.hasPermission('geometry.read') && mura.hasPermission('attributes.read') ? await placeIdx() : new Map();
   const res = DMMatch.suggest(decs, { name: a.name, name_ru: a.name_ru, district: a.district, oblast: a.oblast, lat, lon }, idx, { limit: 6 });
   const ru = LANG.cur === 'ru';
+  // Ұсыныс жоқ кездегі кеңес: атауы әлі жазылмаған не тізімде табылмады
+  if (!res.length) {
+    const list = await index();
+    const src = list.map(d => t('decree', { no: d.number || '?', date: fmtDate(d.date) || '—' }) + ' — ' + d.rows).join('; ');
+    const typed = String(a.name || a.name_ru || '').trim();
+    return { items: [], hint: typed ? t('hint.none', { name: typed, src }) : t('hint.type', { src }) };
+  }
   return {
     items: res.map(x => {
       const r = x.row, m = x.dec.meta || {};

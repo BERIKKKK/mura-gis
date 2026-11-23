@@ -11,7 +11,7 @@ Mura GIS олардың ешқайсысынсыз толық жұмыс іст�
 | `schema/manifest.schema.json` | `manifest.json` үшін JSON Schema (редактордағы көмек) |
 | `template/` | Жаңа плагиннің шаблоны («⋯ Қосымша құралдар» мәзіріндегі әрекет) |
 | `examples/nipd-exporter/` | Үлгі: NIPD GeoJSON Exporter («Қорғау аймағы → Экспорт»): НИПД үлгісі бойынша ескерткіш аумақтары, ортақ өрістер бір рет енгізіледі |
-| `examples/decree-matcher/` | Үлгі: Атау сәйкестендіргіш (Mura GIS 2.4.2+, `files.import`, `mark.suggest`): қаулыны (DOCX/PDF) талдап, белгі терезесінде ресми тізімнен ұсыныс береді; плагин өз файлдарын `<script src="lib/…">` арқылы қосады |
+| `examples/decree-matcher/` | Үлгі: Атау сәйкестендіргіш (Mura GIS 2.4.4+, `files.import`, `mark.suggest`, `zone.suggest`): қаулыны (DOCX/PDF) талдап, белгі мен қорғау аймағының терезесінде ресми тізімнен ұсыныс береді; плагин өз файлдарын `<script src="lib/…">` арқылы қосады |
 | `tools/validate.mjs` | Манифест валидаторы (Mura GIS орнату кезіндегі тексерістің өзі) |
 | `tools/pack.mjs` | `.muraplug` архив жинақтаушы |
 | `tools/run.mjs` | Жергілікті тестілеу: плагинді Mura GIS-сіз, жалған деректермен іске қосу |

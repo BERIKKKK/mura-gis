@@ -376,8 +376,11 @@ function openDialog(m, o = {}) {
     const again = keep ? sugs.findIndex(s => s.title === keep.title) : -1;
     sSel.value = again >= 0 ? String(again + 1) : '';
     back.querySelector('#mkSugSrc').textContent = res.length ? '(' + tx('плагин: ', 'плагин: ') + [...new Set(res.map(g => g.pluginName))].join(', ') + ')' : '';
-    sBox.hidden = !sugs.length;
-    if (again < 0) sugHint(sugs.length ? tx('Таңдасаңыз, атауы, мерзімі, түрі, орналасқан жері толтырылады — сақтау алдында тексеріңіз.', 'При выборе заполнятся наименование, датировка, вид, местонахождение — проверьте перед сохранением.') : '');
+    // Ұсыныс жоқ болса — плагиннің кеңесі (мыс. «Атауын жаза бастаңыз…»); тізім жасырылады
+    const hints = res.filter(g => !g.items.length && g.hint).map(g => g.hint);
+    sBox.hidden = !sugs.length && !hints.length;
+    sSel.hidden = !sugs.length;
+    if (again < 0) sugHint(sugs.length ? tx('Таңдасаңыз, атауы, мерзімі, түрі, орналасқан жері толтырылады — сақтау алдында тексеріңіз.', 'При выборе заполнятся наименование, датировка, вид, местонахождение — проверьте перед сохранением.') : hints.join(' '));
   }
   const askLater = () => { if (filling) return; clearTimeout(sugTimer); sugTimer = setTimeout(askSuggest, 450); };
   sSel.addEventListener('change', () => {
