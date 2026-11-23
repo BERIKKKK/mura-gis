@@ -1,14 +1,17 @@
 /* Mura GIS Plugin API: атрибуттар көмекшілері (Attributes API-дің рұқсат талап етпейтін бөлігі, mura.attributes.*).
    Сыртқы жүйенің өрістер схемасы бойынша жазба құру (map) және тексеру (validate). Схема — плагиннің өз конфигурациясы:
-   { "fields": [ { "name", "type": "string|number|integer|boolean|date", "required", "maxLength", "min", "max", "enum",
-                   "pattern", "source": "mark.name" | ["mark.name", "zone.name"], "value": тұрақты мән, "default" } ] }
-   source — дереккөздер нысанындағы нүктелі жол; тізім болса — бірінші бос еместігі алынады. */
+   { "fields": [ { "name", "type": "string|number|integer|boolean|date|datetime", "required", "maxLength", "min", "max", "enum",
+                   "pattern", "source": "mark.name" | ["mark.name", "zone.name"], "valueMap": { "local": "Местного значения" },
+                   "value": тұрақты мән, "default" } ] }
+   source — дереккөздер нысанындағы нүктелі жол; тізім болса — бірінші бос еместігі алынады.
+   valueMap — Mura GIS кодын сыртқы жүйенің мәніне айналдыру (кодты сөздікте болмаса — мән өзгермейді).
+   datetime — «ЖЖЖЖ-АА-ККTСС:ММ:ССZ» (мыс. 2020-08-18T00:00:00Z); тек күн берілсе — T00:00:00Z қосылады. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.MuraAttrs = factory();
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
-  var TYPES = ['string', 'number', 'integer', 'boolean', 'date'];
+  var TYPES = ['string', 'number', 'integer', 'boolean', 'date', 'datetime'];
   var empty = function (v) { return v === undefined || v === null || (typeof v === 'string' && v.trim() === ''); };
 
   function get(src, path) {
@@ -29,6 +32,10 @@
     }
     if (t === 'boolean') { if (typeof v === 'boolean') return v; var s = String(v).toLowerCase(); return s === 'true' || s === '1' || s === 'иә' || s === 'да' ? true : s === 'false' || s === '0' || s === 'жоқ' || s === 'нет' ? false : v; }
     if (t === 'date') { var d = new Date(v); return isNaN(d) ? v : d.toISOString().slice(0, 10); }
+    if (t === 'datetime') {
+      if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v.trim())) return v.trim() + 'T00:00:00Z';
+      var dt = new Date(v); return isNaN(dt) ? v : dt.toISOString().replace(/\.\d{3}Z$/, 'Z');
+    }
     return typeof v === 'string' ? v.trim() : (typeof v === 'object' ? JSON.stringify(v) : String(v));
   }
   /** Схемаңың өзін тексеру: { ok, errors }. */
@@ -56,6 +63,7 @@
         for (var i = 0; i < list.length && empty(v); i++) v = get(sources, list[i]);
       }
       if (empty(v) && f.default !== undefined) v = f.default;
+      if (f.valueMap && typeof f.valueMap === 'object' && (typeof v === 'string' || typeof v === 'number') && Object.prototype.hasOwnProperty.call(f.valueMap, String(v))) v = f.valueMap[String(v)];
       out[f.name] = coerce(v, f.type || 'string');
     });
     return out;
@@ -76,6 +84,7 @@
       if (t === 'integer' && typeof v === 'number' && !Number.isInteger(v)) add(f.name, 'бүтін сан болуы керек');
       if (t === 'boolean' && typeof v !== 'boolean') add(f.name, 'true / false болуы керек');
       if (t === 'date' && (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v))) add(f.name, 'күн ЖЖЖЖ-АА-КК пішімінде болуы керек');
+      if (t === 'datetime' && (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/.test(v))) add(f.name, 'уақыт ЖЖЖЖ-АА-ККTСС:ММ:ССZ пішімінде болуы керек');
       if (typeof v === 'string' && f.maxLength && [].concat(Array.from(v)).length > f.maxLength) add(f.name, 'ұзындығы ' + f.maxLength + ' таңбадан аспауы керек');
       if (typeof v === 'number' && f.min != null && v < f.min) add(f.name, f.min + '-ден кем болмауы керек');
       if (typeof v === 'number' && f.max != null && v > f.max) add(f.name, f.max + '-ден аспауы керек');

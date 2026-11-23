@@ -2,7 +2,7 @@
 /* Жергілікті тестілеу құралы: плагинді Mura GIS-сіз іске қосып, команданы орындау.
      node tools/run.mjs <плагин қалтасы> <команда> [--fixture деректер.json] [--point zone.export] [--grant all|p1,p2] [--out қалта]
    Плагинге Plugin API 1-дің жалған (mock) нұсқасы беріледі: деректер — fixture-ден, диалогтар автоматты жауап береді
-   (answers.dialog: "primary" не батырма id-і), export.saveFile файлды --out қалтасына жазады, барлық шақыру журналға шығады.
+   (answers.dialog: "primary" не батырма id-і; answers.values — диалог өрістерінің мәндері), export.saveFile файлды --out қалтасына жазады, барлық шақыру журналға шығады.
    Рұқсаттар Mura GIS-тегідей тексеріледі (әдепкі — манифестте сұралғанның бәрі берілген). Желі — тек network.access берілсе.
    НАЗАР: бұл құрал плагинді node:vm ішінде орындайды — бұл ҚАУІПСІЗДІК ШЕКАРАСЫ ЕМЕС, тек өз кодыңызды тексеруге арналған.
    Нағыз оқшаулау (бөлек процесс, sandbox, желі бұғаты) — тек Mura GIS бағдарламасының ішінде. */
@@ -35,17 +35,19 @@ export async function run({ dir, command, fixture, point, grant, out, quiet }) {
   const pt = point || Object.keys(m.contributes).find(k => m.contributes[k].some(c => c.command === command)) || 'tools.menu';
   if (!(m.contributes[pt] || []).some(c => c.command === command)) throw new Error('«' + command + '» командасы манифестте ' + pt + ' үшін жарияланбаған.');
   const calls = [], saved = [], storage = {};
+  const key = k => { if (typeof k !== 'string' || !/^[\w.\-:]{1,128}$/.test(k)) throw new Error('storage: кілт — 1–128 таңбалы жол (латын әріп, сан, _ . - :)'); return k; };
   const need = p => { if (!granted.includes(p)) { const e = new Error('Рұқсат жоқ: ' + p); e.code = 'permission'; throw e; } };
   const rows = l => { if (!LY.LAYERS.includes(l)) throw new Error('Белгісіз қабат: ' + l); return (fx.layers && fx.layers[l]) || []; };
   const clone = o => JSON.parse(JSON.stringify(o === undefined ? null : o));
   const sel = () => LY.selection(fx.selection);
   const call = async (name, fn) => { calls.push(name); log('  → mura.' + name); return clone(await fn()); };
-  const ans = fx.answers || {};
+  const ans = JSON.parse(JSON.stringify(fx.answers || {}));
   const dialogAnswer = spec => {
     const btns = (spec && spec.buttons) || [{ id: 'ok', primary: true }];
-    const id = ans.dialog === 'primary' || !ans.dialog ? (btns.find(b => b.primary) || btns[0]).id : ans.dialog;
+    const seq = Array.isArray(ans.buttons) && ans.buttons.length ? ans.buttons.shift() : null;     // answers.buttons — диалогтар бойынша кезек
+    const id = seq || (ans.dialog === 'primary' || !ans.dialog ? (btns.find(b => b.primary) || btns[0]).id : ans.dialog);
     const values = {};
-    for (const b of (spec && spec.body) || []) if (b.type === 'field') values[b.key] = b.value;
+    for (const b of (spec && spec.body) || []) if (b.type === 'field') values[b.key] = ans.values && Object.prototype.hasOwnProperty.call(ans.values, b.key) ? ans.values[b.key] : b.value;
     log('    [диалог] ' + M.localize(spec && spec.title, fx.lang) + ' → ' + id);
     for (const b of (spec && spec.body) || []) if (b.type === 'text' || b.type === 'heading') log('      ' + b.text); else if (b.type === 'list') b.items.forEach(x => log('      • ' + x));
     return { button: id, values };
@@ -61,7 +63,7 @@ export async function run({ dir, command, fixture, point, grant, out, quiet }) {
     hasPermission: p => granted.includes(p),
     commands: { register: (n, fn) => { commands.set(n, fn); } },
     settings: { get: () => call('settings.get', () => settings) },
-    storage: { get: k => call('storage.get', () => storage[k] ?? null), set: (k, val) => call('storage.set', () => { storage[k] = clone(val); return true; }), remove: k => call('storage.remove', () => { delete storage[k]; return true; }), keys: () => call('storage.keys', () => Object.keys(storage)) },
+    storage: { get: k => call('storage.get', () => storage[key(k)] ?? null), set: (k, val) => call('storage.set', () => { storage[key(k)] = clone(val); return true; }), remove: k => call('storage.remove', () => { delete storage[key(k)]; return true; }), keys: () => call('storage.keys', () => Object.keys(storage)) },
     project: { info: () => call('project.info', () => { need('project.metadata'); return fx.project || { open: false }; }) },
     geometry: {
       selection: () => call('geometry.selection', () => { need('geometry.read'); const s = sel(); return s && { layer: s.layer, id: s.id, saved: s.saved, geometry: s.geometry }; }),

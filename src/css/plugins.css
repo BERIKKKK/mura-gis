@@ -28,7 +28,7 @@
 .mura-pl-code { margin: 0 0 10px; padding: 8px 10px; background: #f6f3ec; border: 1px solid var(--line); border-radius: 8px; font: 11.5px/1.45 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; }
 .mura-pl-log { max-height: 220px; }
 .mura-pl-tbl { width: 100%; min-width: 0 !important; font-size: 12px; margin: 0 0 10px; }
-.mura-pl-tbl td { overflow-wrap: anywhere; }
+.mura-pl-tbl td { overflow-wrap: break-word; word-break: normal; min-width: 4em; }
 .mura-pl-tbl td, .mura-pl-tbl th { padding: 4px 6px; vertical-align: top; text-align: left; }
 .mura-pl-warn { margin: 6px 0 10px; padding: 8px 10px; border-radius: 8px; background: #fff4dc; border: 1px solid #ecd39a; font-size: 12.5px; }
 .mura-pl-warn ul, .mura-err ul { margin: 4px 0 0; padding-left: 18px; }

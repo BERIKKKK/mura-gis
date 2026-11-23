@@ -149,33 +149,56 @@ await t('attrs: сәйкестендіру және тексеру', () => {
 /* ---------- NIPD үлгі плагині (SDK тестілеу құралы арқылы) ---------- */
 const NIPD = ROOT + '/plugin-sdk/examples/nipd-exporter';
 const fixture = JSON.parse(fs.readFileSync(ROOT + '/plugin-sdk/tools/fixture.json', 'utf8'));
-await t('NIPD: тек аумақ полигоны, схема бойынша өрістер, сақталды', async () => {
-  const out = path.join(tmp, 'out1');
-  const r = await run({ dir: NIPD, command: 'export', fixture, out, quiet: true });
+const schema = JSON.parse(fs.readFileSync(NIPD + '/config/nipd-schema.json', 'utf8'));
+const sample = JSON.parse(fs.readFileSync(NIPD + '/config/nipd-sample.geojson', 'utf8'));
+const fx = o => ({ ...JSON.parse(JSON.stringify(fixture)), ...o });
+await t('NIPD: схема нақты НИПД үлгісіне сәйкес (эталон файлы өтеді)', () => {
+  for (const f of sample.features) eq(A.validate(f.properties, schema), { ok: true, errors: [] }, f.properties.name);
+});
+await t('NIPD: ағымдағы аймақ — тек аумақ полигоны, үлгідегідей құрылым, ортақ өрістер, QazTRF-23 белгісі', async () => {
+  const r = await run({ dir: NIPD, command: 'export', fixture, out: path.join(tmp, 'out1'), quiet: true });
   eq(r.result.saved, true);
   const fc = JSON.parse(fs.readFileSync(r.saved[0], 'utf8'));
-  eq(fc.features.length, 1, 'бір нысан'); eq(fc.features[0].geometry.type, 'Polygon');
+  eq(Object.keys(fc), Object.keys(sample).filter(k => k !== '$comment'), 'жоғарғы деңгей');
+  eq(fc.crs, sample.crs, 'crs');
+  eq(fc.features.length, 1); eq(fc.features[0].geometry.type, 'Polygon');
   eq(fc.features[0].geometry.coordinates[0].length, 5, '4 нүкте + тұйықтау');
-  eq(G.validate(fc.features[0].geometry).ok, true);
-  const schema = JSON.parse(fs.readFileSync(NIPD + '/config/nipd-schema.json', 'utf8'));
-  eq(A.validate(fc.features[0].properties, schema).ok, true, 'схемаға сәйкес');
-  eq(fc.features[0].properties.mura_id, '0123456789abcdef'); eq(fc.features[0].properties.obj_type, 'Археология ескерткіші');
+  eq(Object.keys(fc.features[0].properties), Object.keys(sample.features[0].properties), 'өрістер мен реті');
+  const p = fc.features[0].properties;
+  eq([p.name, p.category_level, p.type, p.monument_kind, p.inclusion_date], ['Городище Отырар', 'Республиканского значения', 'Археологический', 'Городище', '2020-08-18T00:00:00Z']);
+  eq(fc.features[0].id, '0123456789abcdef', 'Mura id — Feature.id');
 });
-await t('NIPD: экспорт тілі — баптау бойынша (интерфейстен тәуелсіз), UTM', async () => {
-  const r = await run({ dir: NIPD, command: 'export', fixture: { ...fixture, settings: { lang: 'ru', crs: 'auto-utm' } }, out: path.join(tmp, 'out2'), quiet: true });
+await t('NIPD: барлық сақталған аймақтар бір файлға; қатесі барлары түзетуге ұсынылады, тек дұрыстары сақталады', async () => {
+  const f1 = fx({ answers: { ...fixture.answers, buttons: ['next', 'save'], values: { ...fixture.answers.values, __scope: 'all' } } });
+  const r1 = await run({ dir: NIPD, command: 'export', fixture: f1, out: path.join(tmp, 'out2'), quiet: true });
+  eq(r1.result.count, 1, 'тек дұрысы сақталды (екінші аймақтың санаты, түрі жоқ)');
+  // Түзету: екінші аймаққа түр енгізіліп, «Қайта тексеру»; санат белгісіз болғандықтан ол бәрібір қате — дұрысы ғана сақталады
+  const f2 = fx({ answers: { ...fixture.answers, buttons: ['next', 'recheck', 'save'], values: { ...fixture.answers.values, __scope: 'all', 'fix:1:monument_kind': 'Курган' } } });
+  const r2 = await run({ dir: NIPD, command: 'export', fixture: f2, out: path.join(tmp, 'out3'), quiet: true });
+  eq(r2.calls.filter(c => c === 'ui.dialog').length, 3, 'қайта тексеру');
+  eq(r2.calls.includes('storage.set'), true, 'түзету сақталды');
+  const fc = JSON.parse(fs.readFileSync(r2.saved[0], 'utf8'));
+  eq(fc.features.length, 1);
+});
+await t('NIPD: баптау бойынша қазақша деректер және UTM; рұқсат жоқ — экспорт жоқ', async () => {
+  const r = await run({ dir: NIPD, command: 'export', fixture: fx({ settings: { lang: 'kk', crs: 'auto-utm' } }), out: path.join(tmp, 'out4'), quiet: true });
   const fc = JSON.parse(fs.readFileSync(r.saved[0], 'utf8'));
-  eq(fc.features[0].properties.obj_name, 'Городище Отырар'); eq(fc.features[0].properties.lang, 'ru');
+  eq(fc.features[0].properties.name, 'Отырар қалашығы');
   eq(fc.crs.properties.name, 'urn:ogc:def:crs:EPSG::32642');
   if (!(fc.features[0].geometry.coordinates[0][0][0] > 400000)) throw new Error('UTM координатасы емес');
-});
-await t('NIPD: схемаға сәйкес келмесе — сақталмайды; рұқсат жоқ болса — экспорт жоқ', async () => {
-  const fx = JSON.parse(JSON.stringify(fixture));
-  fx.selection.markId = null; fx.selection.fields.oblast = ''; fx.layers.marks = [];
-  const r = await run({ dir: NIPD, command: 'export', fixture: fx, out: path.join(tmp, 'out3'), quiet: true });
-  eq(r.result.saved, false); eq(r.result.valid, false); eq(r.saved.length, 0);
-  if (!r.result.errors.some(e => e.field === 'region')) throw new Error('region қатесі жоқ');
-  const r2 = await run({ dir: NIPD, command: 'export', fixture, grant: 'geometry.read,attributes.read', out: path.join(tmp, 'out4'), quiet: true });
+  const r2 = await run({ dir: NIPD, command: 'export', fixture, grant: 'geometry.read,attributes.read', out: path.join(tmp, 'out5'), quiet: true });
   eq(r2.saved.length, 0); eq(r2.calls.includes('export.saveFile'), false);
+});
+await t('NIPD: ортақ өріс бос болса — сақталмайды', async () => {
+  const r = await run({ dir: NIPD, command: 'export', fixture: fx({ answers: { dialog: 'primary', values: {} } }), out: path.join(tmp, 'out6'), quiet: true });
+  eq(r.result.saved, false); eq(r.saved.length, 0);
+  if (!r.result.errors[0].errors.some(e => /inclusion_date/.test(e))) throw new Error('inclusion_date қатесі жоқ');
+});
+await t('attrs: valueMap және datetime', () => {
+  const s = { fields: [{ name: 'c', source: 'm', valueMap: { local: 'Местного значения' } }, { name: 'd', type: 'datetime', source: 'x' }] };
+  const r = A.map({ m: 'local', x: '2020-08-18' }, s);
+  eq(r, { c: 'Местного значения', d: '2020-08-18T00:00:00Z' }); eq(A.validate(r, s).ok, true);
+  eq(A.validate({ c: 'x', d: '2020-08-18' }, s).ok, false);
 });
 
 fs.rmSync(tmp, { recursive: true, force: true });

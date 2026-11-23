@@ -114,16 +114,18 @@ async function run(win) {
   // 3. Кеңейту нүктесі: «Қорғау аймағы → Нәтиже және экспорт → NIPD GeoJSON»
   await until("!!document.querySelector('#muraPlZoneExp button[data-plugin]')", 5000, 'NIPD батырмасы');
   eq(await js("document.querySelector('#muraPlZoneExp button').innerText.trim()"), 'NIPD GeoJSON', 'батырма атауы');
-  // Сақталмаған, ескерткішке байланыспаған үлгі аймақ: схемаға сай емес → тек «Бас тарту»
+  // Сақталмаған, ескерткішке байланыспаған үлгі аймақ: ортақ өрістер бос → НИПД схемасына сай емес, сақтау жоқ
   await js("document.querySelector('#muraPlZoneExp button').click(), 0");
-  await until("!!document.querySelector('.mura-pl-dlg')", 15000, 'плагин диалогы');
-  const d1 = await js("document.querySelector('.mura-pl-dlg').innerText");
-  if (!/Плагин: NIPD GeoJSON Exporter/.test(d1) || !/НИПД схемасына сәйкес емес/.test(d1)) throw new Error('диалог: ' + d1.slice(0, 400));
+  await until("!!document.querySelector('.mura-pl-dlg [data-btn=next]')", 15000, 'плагин диалогы (1)');
+  const d0 = await js("document.querySelector('.mura-pl-dlg').innerText");
+  if (!/Плагин: NIPD GeoJSON Exporter/.test(d0) || !/бір рет енгізіледі/.test(d0)) throw new Error('диалог 1: ' + d0.slice(0, 400));
+  await js("document.querySelector('.mura-pl-dlg [data-btn=next]').click(), 0");
+  await until("!!document.querySelector('.mura-pl-dlg [data-btn=cancel]') && /Қатесі бар нысандар/.test(document.querySelector('.mura-pl-dlg').innerText)", 15000, 'тексеру терезесі');
   eq(await js("!!document.querySelector('.mura-pl-dlg [data-btn=save]')"), false, 'схемаға сай емес — сақтау жоқ');
   await js("document.querySelector('.mura-pl-dlg [data-btn=cancel]').click(), 0"); await wait(300);
   eq(saved.length, 0, 'файл сақталмады');
 
-  // Ескерткіш белгісі + сақталған аймақ: экспорт схемаға сай
+  // Ескерткіш белгісі + сақталған аймақ, ортақ өрістер бір рет енгізіледі: экспорт НИПД үлгісіне сай
   const ids = await js(`(async () => {
     const m = await __marks.api('save', { data: JSON.stringify({ name: 'Отырар қалашығы', name_ru: 'Городище Отырар', type: 'archeo', category: 'rep', status: 'state', period: 'I–XVIII ғғ.', oblast: 'Түркістан облысы', district: 'Отырар ауданы', lat: 42.851, lon: 68.304 }) });
     const fd = new FormData();
@@ -132,18 +134,32 @@ async function run(win) {
     return { mark: m.id, zone: z.id };
   })()`);
   const before = await js("fetch(QA_API + '&op=list', { method: 'POST', body: new FormData() }).then(r => r.json()).then(r => r.items.length)");
-  const inv = js(`mura.plugins.invoke('kz.mura.nipd-exporter', 'export', { point: 'zone.export', docLang: 'ru' },
+  const inv = js(`mura.plugins.invoke('kz.mura.nipd-exporter', 'export', { point: 'zone.export', docLang: 'kk' },
     { layer: 'zones', id: '${ids.zone}', saved: true, markId: '${ids.mark}', fields: Object.assign(__qa.snapshot().fields, { oblast: 'Түркістан облысы' }), pts: __qa.state.pts })`);
+  await until("!!document.querySelector('.mura-pl-dlg [data-btn=next]')", 15000, 'диалог 1');
+  await js(`(() => { const set = (k, v) => { document.querySelector('.mura-pl-dlg [data-key="' + k + '"]').value = v; };
+    set('inclusion_date', '2020-08-18'); set('included_by_authority', 'Акимат Туркестанской области');
+    set('responsible_organization', 'Управление культуры Туркестанской области'); set('website_link', 'https://adilet.zan.kz/rus/docs/x');
+    document.querySelector('.mura-pl-dlg [data-btn=next]').click(); return 0; })()`);
   await until("!!document.querySelector('.mura-pl-dlg [data-btn=save]')", 15000, 'сақтау батырмасы');
   await js("document.querySelector('.mura-pl-dlg [data-btn=save]').click(), 0");
   const ir = await inv;
   if (!ir.ok || !ir.value.saved) throw new Error('экспорт: ' + JSON.stringify(ir));
   const fc = JSON.parse(fs.readFileSync(saved[0], 'utf8'));
+  const sample = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'plugin-sdk', 'examples', 'nipd-exporter', 'config', 'nipd-sample.geojson'), 'utf8'));
   eq(fc.features.length, 1, 'бір нысан'); eq(fc.features[0].geometry.type, 'Polygon');
   eq(fc.features[0].geometry.coordinates[0].length, (await js('__qa.state.pts.length')) + 1, 'тек ескерткіш аумағының нүктелері');
-  eq(fc.features[0].properties.obj_name, 'Городище Отырар', 'экспорт тілі — орысша (интерфейс қазақша)');
-  eq(fc.features[0].properties.mura_id, ids.mark, 'mura_id — ескерткіш id-і');
+  eq(Object.keys(fc.features[0].properties), Object.keys(sample.features[0].properties), 'НИПД өрістері мен реті');
+  eq(fc.crs, sample.crs, 'QazTRF-23 белгісі');
+  eq(fc.features[0].properties.name, 'Городище Отырар', 'НИПД деректері — орысша (интерфейс қазақша)');
+  eq(fc.features[0].properties.monument_kind, 'Городище', 'түрі атаудан');
+  eq(fc.features[0].id, ids.mark, 'Feature.id — ескерткіш id-і');
   out.nipd = fc.features[0].properties;
+  // Ортақ өрістер есте қалды: келесі экспортта алдын ала толтырылған
+  const inv2 = js(`mura.plugins.invoke('kz.mura.nipd-exporter', 'export', { point: 'zone.export' }, { layer: 'zones', id: '${ids.zone}', saved: true, markId: '${ids.mark}', fields: { oblast: 'Түркістан облысы' }, pts: __qa.state.pts })`);
+  await until("!!document.querySelector('.mura-pl-dlg [data-key=included_by_authority]')", 15000, 'диалог 1 (қайта)');
+  eq(await js("document.querySelector('.mura-pl-dlg [data-key=included_by_authority]').value"), 'Акимат Туркестанской области', 'ортақ өріс есте қалды');
+  await js("document.querySelector('.mura-pl-dlg [data-btn=cancel]').click(), 0"); await inv2;
 
   // 4. Оқшаулау
   const evilFile = path.join(tmp, 'evil.muraplug');

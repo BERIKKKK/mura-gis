@@ -203,6 +203,8 @@
   }
   function openDialog(req, spec, confirmMode) {
     spec = spec && typeof spec === 'object' ? spec : {};
+    var tt = $('qaToast');
+    if (tt && !tt.classList.contains('is-err')) tt.hidden = true;           // «орындалуда…» — диалог ашылды
     return new Promise(function (resolve) {
       var back = el('div', 'mura-dlg-back mura-pl-back');
       var f = frame(req, 'mura-dlg mura-pl-dlg' + (spec.width === 'wide' ? ' is-wide' : ''), loc(spec.title) || tx('Плагин', 'Плагин'));

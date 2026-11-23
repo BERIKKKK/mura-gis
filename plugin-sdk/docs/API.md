@@ -84,12 +84,12 @@ mura.commands.register('export', async (ctx) => { … return нәтиже; });
 |---|---|---|
 | `selection()` | attributes.read | `{ layer, id, saved, attributes }` (+ `mark_id`) |
 | `list(layer, { limit?, offset? })`, `get(layer, id)` | attributes.read | |
-| `map(sources, schema)` | — | Сыртқы жүйенің схемасы бойынша жаңа жазба: `source: 'mark.name'` не `['mark.name', 'zone.name']`, `value`, `default` |
-| `validate(record, schema, { strict? })` | — | Түрі (string, number, integer, boolean, date), `required`, `maxLength`, `min`/`max`, `enum`, `pattern`; схемада жоқ өріс — қате |
+| `map(sources, schema)` | — | Сыртқы жүйенің схемасы бойынша жаңа жазба: `source: 'mark.name'` не `['mark.name', 'zone.name']`, `value`, `default`, `valueMap` (код → мән, мыс. `local` → «Местного значения») |
+| `validate(record, schema, { strict? })` | — | Түрі (string, number, integer, boolean, date, datetime — `2020-08-18T00:00:00Z`), `required`, `maxLength`, `min`/`max`, `enum`, `pattern`; схемада жоқ өріс — қате |
 | `checkSchema(schema)` | — | Схеманың өзін тексеру |
 
 «Жаңа өрістер ұсыну» — схемада Mura GIS-те жоқ өрісті сипаттап, оның мәнін `value`/`default` не плагин есептеген
-дереккөзден (`computed.*`) беру. Жоба жазбаларына жаңа өріс жазу API 1-де жоқ.
+дереккөзден (`computed.*`) беру. Схемаға плагиннің өз кілттерін қосуға болады (`map`/`validate` оларды елемейді) — мыс. NIPD үлгісіндегі `common: true` (бір рет енгізілетін ортақ өріс), `editable: true` (тексеру терезесінде түзетілетін өріс). Жоба жазбаларына жаңа өріс жазу API 1-де жоқ.
 
 ## Map API (`map.layers`)
 

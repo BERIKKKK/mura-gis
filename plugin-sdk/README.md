@@ -10,7 +10,7 @@ Mura GIS олардың ешқайсысынсыз толық жұмыс іст�
 | `types/mura-plugin.d.ts` | TypeScript типтері (`/// <reference path="…/mura-plugin.d.ts" />`) |
 | `schema/manifest.schema.json` | `manifest.json` үшін JSON Schema (редактордағы көмек) |
 | `template/` | Жаңа плагиннің шаблоны («⋯ Қосымша құралдар» мәзіріндегі әрекет) |
-| `examples/nipd-exporter/` | Үлгі: NIPD GeoJSON Exporter («Қорғау аймағы → Экспорт») |
+| `examples/nipd-exporter/` | Үлгі: NIPD GeoJSON Exporter («Қорғау аймағы → Экспорт»): НИПД үлгісі бойынша ескерткіш аумақтары, ортақ өрістер бір рет енгізіледі |
 | `tools/validate.mjs` | Манифест валидаторы (Mura GIS орнату кезіндегі тексерістің өзі) |
 | `tools/pack.mjs` | `.muraplug` архив жинақтаушы |
 | `tools/run.mjs` | Жергілікті тестілеу: плагинді Mura GIS-сіз, жалған деректермен іске қосу |

@@ -39,10 +39,12 @@ declare namespace MuraPlugin {
   interface AttributesSelection extends Selection<unknown> { attributes: Record<string, unknown> & { mark_id: string | null } }
 
   interface SchemaField {
-    name: string; type?: 'string' | 'number' | 'integer' | 'boolean' | 'date'; required?: boolean;
+    name: string; type?: 'string' | 'number' | 'integer' | 'boolean' | 'date' | 'datetime'; required?: boolean;
     maxLength?: number; min?: number; max?: number; enum?: unknown[]; pattern?: string;
     /** Дереккөз жолы: 'mark.name', ['mark.name', 'zone.name'] — бірінші бос еместігі. */
     source?: string | string[]; value?: unknown; default?: unknown;
+    /** Mura GIS кодын сыртқы жүйе мәніне айналдыру: { local: 'Местного значения' }. */
+    valueMap?: Record<string, unknown>;
   }
   interface Schema { fields: SchemaField[]; [k: string]: unknown }
   interface Style { color?: string; weight?: number; opacity?: number; fillColor?: string; fillOpacity?: number; dashArray?: string; radius?: number; label?: string; symbol?: string }
