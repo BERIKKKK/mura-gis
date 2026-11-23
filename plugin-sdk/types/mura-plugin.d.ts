@@ -8,7 +8,7 @@ declare namespace MuraPlugin {
   type Lang = 'kk' | 'ru';
   type Text = string | { kk?: string; ru?: string; en?: string; [lang: string]: string | undefined };
   type Permission = 'geometry.read' | 'geometry.write' | 'attributes.read' | 'attributes.write' | 'map.layers' | 'files.export' | 'network.access' | 'project.metadata' | 'files.import';
-  type ExtensionPoint = 'zone.export' | 'tools.menu' | 'mark.suggest';
+  type ExtensionPoint = 'zone.export' | 'tools.menu' | 'mark.suggest' | 'zone.suggest';
   type Layer = 'marks' | 'zones' | 'routes' | 'places' | 'plan_objects';
   type Position = [number, number] | [number, number, number];
   type Geometry =
@@ -47,7 +47,8 @@ declare namespace MuraPlugin {
     /** Толтырылатын өрістер (бос емесі ғана): мәтін өрістері, type: archeo|arch|ensemble|sacred|art, category: ''|intl|rep|local, status: state|prelim|archreg|excluded. */
     fields: Partial<Record<'name' | 'name_ru' | 'period' | 'period_ru' | 'place' | 'place_ru' | 'district' | 'oblast' | 'note' | 'note_ru' | 'type' | 'category' | 'status', string>>;
   }
-  interface MarkSuggestResult { items: MarkSuggestion[] }
+  /** mark.suggest / zone.suggest нәтижесі. hint (≤ 200 таңба, 2.4.4+) — ұсыныс жоқ кезде көрсетілетін кеңес. */
+  interface MarkSuggestResult { items: MarkSuggestion[]; hint?: string }
   interface OpenedFile { name: string; size: number; data: Uint8Array }
   interface GeometrySelection extends Selection<Geometry> { geometry: Geometry | null }
   interface AttributesSelection extends Selection<unknown> { attributes: Record<string, unknown> & { mark_id: string | null } }

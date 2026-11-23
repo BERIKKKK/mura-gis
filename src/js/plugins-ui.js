@@ -172,16 +172,24 @@
       return { title: title, detail: cut(x.detail, 300), fields: fields };
     }).filter(Boolean);
   }
+  /** point (mark.suggest | zone.suggest) бойынша барлық плагинді шақыру → [{ plugin, pluginName, items, hint }] (бос нәтиже алынбайды).
+      hint — ұсыныс жоқ кездегі қысқа кеңес (≤ 200 таңба), мыс. «Атауын жаза бастаңыз…». */
+  function ask(point, sel) {
+    var list = contrib.filter(function (c) { return c.point === point; });
+    return Promise.all(list.map(function (c) {
+      return P.invoke(c.plugin, c.command, { point: point, docLang: I18N.docLang ? I18N.docLang() : LANG }, sel)
+        .then(function (r) { return r && r.ok ? { plugin: c.plugin, pluginName: loc(c.pluginName), items: cleanSuggest(r.value), hint: cut(r.value && r.value.hint, 200) } : null; }, function () { return null; });
+    })).then(function (a) { return a.filter(function (x) { return x && (x.items.length || x.hint); }); });
+  }
   globalThis.MuraPluginSuggest = {
-    has: function () { return contrib.some(function (c) { return c.point === 'mark.suggest'; }); },
-    /** m: { id, saved, lat, lon, fields } → Promise<[{ plugin, pluginName, items: [{ title, detail, fields }] }]>. */
+    has: function (point) { point = point || 'mark.suggest'; return contrib.some(function (c) { return c.point === point; }); },
+    /** Белгі терезесі. m: { id, saved, lat, lon, fields } → Promise<[{ plugin, pluginName, items: [{ title, detail, fields }], hint }]>. */
     mark: function (m) {
-      var list = contrib.filter(function (c) { return c.point === 'mark.suggest'; });
-      var sel = { layer: 'marks', id: m && m.id || null, saved: !!(m && m.saved), lat: m && m.lat, lon: m && m.lon, fields: m && m.fields || {} };
-      return Promise.all(list.map(function (c) {
-        return P.invoke(c.plugin, c.command, { point: 'mark.suggest', docLang: I18N.docLang ? I18N.docLang() : LANG }, sel)
-          .then(function (r) { return r && r.ok ? { plugin: c.plugin, pluginName: loc(c.pluginName), items: cleanSuggest(r.value) } : null; }, function () { return null; });
-      })).then(function (a) { return a.filter(function (x) { return x && x.items.length; }); });
+      return ask('mark.suggest', { layer: 'marks', id: m && m.id || null, saved: !!(m && m.saved), lat: m && m.lat, lon: m && m.lon, fields: m && m.fields || {} });
+    },
+    /** Қорғау аймағының мәліметтер терезесі (js/zone-dialog.js). z: { id, saved, markId, fields, pts } — шекара Polygon болып беріледі. */
+    zone: function (z) {
+      return ask('zone.suggest', { layer: 'zones', id: z && z.id || null, saved: !!(z && z.saved), markId: z && z.markId || null, fields: z && z.fields || {}, pts: z && z.pts || [] });
     },
   };
   if (P.onChanged) P.onChanged(function () { loadContrib(); if (pane) paint(); });

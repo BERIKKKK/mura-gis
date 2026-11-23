@@ -30,7 +30,8 @@
     "contributes": { "type": "object", "properties": {
       "zone.export": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } },
       "tools.menu": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } },
-      "mark.suggest": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } } }, "additionalProperties": false },
+      "mark.suggest": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } },
+      "zone.suggest": { "type": "array", "maxItems": 10, "items": { "$ref": "#/definitions/contribution" } } }, "additionalProperties": false },
     "settings": { "type": "array", "maxItems": 40, "items": { "type": "object", "required": ["key", "type", "title"], "properties": {
       "key": { "type": "string" }, "type": { "enum": ["string", "text", "number", "boolean", "select"] }, "title": { "$ref": "#/definitions/text" }, "description": { "$ref": "#/definitions/text" },
       "options": { "type": "array" }, "default": {} } } }

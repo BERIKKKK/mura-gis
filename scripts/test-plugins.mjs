@@ -282,6 +282,20 @@ await t('Атау сәйкестендіргіш: mark.suggest — белгі а
   eq(r2.result.items.length, 0, 'басқа облыс');
   const r3 = await run({ dir: DM, command: 'suggest', fixture: dmFx({ storage: {}, selection: sel }), out: path.join(tmp, 'dm6'), quiet: true });
   eq(r3.result.items, [], 'қаулы жоқ');
+  // 2.4.4: ұсыныс жоқ кездегі кеңес
+  const h1 = await run({ dir: DM, command: 'suggest', fixture: dmFx({ storage: dmStore, selection: { ...sel, fields: { ...sel.fields, name: '' } } }), out: path.join(tmp, 'dm7'), quiet: true });
+  if (!(h1.result.items.length === 0 && /Атауын жаза бастаңыз/.test(h1.result.hint) && /№ 306/.test(h1.result.hint))) throw new Error('кеңес (атау жоқ): ' + JSON.stringify(h1.result));
+  const h2 = await run({ dir: DM, command: 'suggest', fixture: dmFx({ storage: dmStore, selection: { ...sel, fields: { ...sel.fields, name: 'Абат-Байтақ' } } }), out: path.join(tmp, 'dm8'), quiet: true });
+  if (!/«Абат-Байтақ» ресми тізімде табылмады/.test(h2.result.hint || '')) throw new Error('кеңес (табылмады): ' + JSON.stringify(h2.result));
+});
+await t('Атау сәйкестендіргіш: zone.suggest (2.4.4) — қорғау аймағы: атау бойынша, шекара — Polygon', async () => {
+  eq(M.validateManifest({ ...base, contributes: { 'zone.suggest': [{ command: 's', title: 'S' }] } }).ok, true, 'zone.suggest нүктесі');
+  eq(JSON.parse(fs.readFileSync(DM + '/manifest.json', 'utf8')).contributes['zone.suggest'][0].command, 'suggest');
+  const pts = [{ lat: 50.20, lon: 57.30 }, { lat: 50.20, lon: 57.31 }, { lat: 50.21, lon: 57.31 }, { lat: 50.21, lon: 57.30 }];
+  const sel = { layer: 'zones', id: null, saved: false, pts, fields: { name: 'Айтпайка', district: 'Тест ауданы', oblast: 'Ақтөбе облысы' } };
+  const r = await run({ dir: DM, command: 'suggest', point: 'zone.suggest', fixture: dmFx({ storage: dmStore, selection: sel }), out: path.join(tmp, 'dm9'), quiet: true });
+  eq([r.result.items[0].title, r.result.items[0].fields.period, r.result.items[0].fields.place_ru], ['№2 Айтпайка бейіті', 'Ерте темір дәуірі', 'в 3 километрах к юго западу от села Кос-Истек']);
+  if (!r.calls.includes('geometry.selection')) throw new Error('шекара сұралмады');
 });
 
 fs.rmSync(tmp, { recursive: true, force: true });

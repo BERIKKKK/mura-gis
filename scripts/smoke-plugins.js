@@ -228,6 +228,24 @@ async function run(win) {
   eq(filled, { name: 'Тест-ІІІ қорғаны', name_ru: 'Курган Тест-ІІІ', period: 'Қола дәуірі', period_ru: 'Эпоха бронзы', type: 'archeo', cat: 'local' }, 'өрістер толтырылды');
   eq(await js('__marks.items.length'), nMarks, 'ұсыныс белгіні өзі сақтамайды');
   await js("document.getElementById('mkCancel').click(), 0"); await wait(300);
+  // 2.4.4: атауы бос белгі — тізім жасырын, плагиннің кеңесі көрінеді
+  await js("__marks.openDialog({ lat: 50.2, lon: 57.3 }), 0");
+  await until("!document.getElementById('mkSugBox').hidden", 20000, 'кеңес (белгі)');
+  eq(await js("[document.getElementById('mkSugSel').hidden, /Атауын жаза бастаңыз/.test(document.getElementById('mkSugHint').textContent)]"), [true, true], 'атаусыз: тек кеңес');
+  await js("document.getElementById('mkCancel').click(), 0"); await wait(300);
+  // 2.4.4: қорғау аймағының мәліметтер терезесі («Аяқтау») — атауы жазылғанда ұсыныс, таңдалса өрістер толтырылады
+  await js("document.getElementById('qaFinish').click(), 0");
+  await until("!!document.querySelector('.zd-dlg') && !!document.getElementById('zdSug')", 8000, 'аймақ терезесі');
+  await js(`(() => { const ob = document.getElementById('qaOblast');
+    if (ob && [...(ob.options || [])].some(o => o.value === 'Ақтөбе облысы')) { ob.value = 'Ақтөбе облысы'; ob.dispatchEvent(new Event('change', { bubbles: true })); }
+    else if (ob) { ob.value = 'Ақтөбе облысы'; ob.dispatchEvent(new Event('input', { bubbles: true })); }
+    const n = document.getElementById('qaName'); n.value = 'Айтпайка'; n.dispatchEvent(new Event('input', { bubbles: true })); return 0; })()`);
+  await until("document.getElementById('zdSug').options.length > 1 && !document.getElementById('zdSug').hidden", 20000, 'аймақ: плагин ұсынысы');
+  out.zoneSuggest = await js("[...document.getElementById('zdSug').options].slice(1).map(o => o.text)");
+  await js("(() => { const z = document.getElementById('zdSug'); z.value = '1'; z.dispatchEvent(new Event('change', { bubbles: true })); return 0; })()");
+  eq(await js("[qaName.value, qaPeriod.value, document.getElementById('qaPlaceRu') ? document.getElementById('qaPlaceRu').value : '']"),
+    ['Айтпайка бейіті', 'Ерте темір дәуірі', 'в 3 километрах к юго западу от села Кос-Истек'], 'аймақ өрістері толтырылды');
+  await js("document.getElementById('zdCancel').click(), 0"); await wait(300);
 
   // 4. Оқшаулау
   const evilFile = path.join(tmp, 'evil.muraplug');
