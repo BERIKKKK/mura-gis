@@ -91,3 +91,23 @@
 .pj-exgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; margin: 6px 0; font-size: 12px; }
 .pj-exgrid label { display: flex; flex-direction: column; gap: 2px; }
 .pj-exgrid input, .pj-exgrid select { padding: 3px 6px; font-size: 12.5px; width: 100%; }
+
+/* Жағдаят белгілері (docs/PLAN-STAGE3.md) */
+.pj-featsec { margin-top: 14px; }
+.pj-featsec h3 { font-size: 13px; margin: 0 0 6px; }
+.pj-fcard { align-items: flex-start; cursor: default; }
+.pj-fic { flex: 0 0 auto; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: #fff; box-shadow: 0 0 0 1px rgba(34, 29, 22, .2); }
+.pj-ftext span { position: absolute; left: 0; top: 0; white-space: nowrap; font: 600 12px/1 system-ui, sans-serif; color: #221d16;
+  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; }
+.pj-surf { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.pj-pllist { max-height: 340px; }
+.pj-plrow { display: flex; align-items: baseline; gap: 6px; padding: 4px 2px; }
+.pj-plrow small { margin-left: auto; color: var(--qa-muted, #6b6357); white-space: nowrap; }
+.pj-plcount { margin: 0 0 8px; }
+.pj-impdlg { width: min(760px, 96vw); }
+.pj-impdlg .pj-wide { grid-column: 1 / -1; }
+.pj-impgroups, .pj-impprev { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0; }
+.pj-impgroups th, .pj-impgroups td, .pj-impprev th, .pj-impprev td { text-align: left; padding: 3px 6px; border-bottom: 1px solid rgba(34, 29, 22, .12); }
+.pj-impgroups select { max-width: 220px; }
+.pj-impprev { display: block; overflow-x: auto; white-space: nowrap; }
+.pj-impgroups small { color: var(--qa-muted, #6b6357); }

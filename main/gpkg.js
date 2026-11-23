@@ -7,6 +7,7 @@
      places   — өзге нысандар: елді мекен, қыстау, жайлау, құдық т.б. (POINT; main/places.js);
      plan_objects — «Жоспар»: ескерткіштің құрамындағы нысандар (POLYGON не POINT; main/plans.js);
      plans    — «Жоспар» баптаулары және елді мекенге бағыттауыш (LINESTRING; main/plans.js);
+     plan_features — «Жоспар»: жағдаят белгілері — жол, ЭБЖ, горизонталь, ағаш, егістік, жазу т.б. (LINESTRING, POLYGON не POINT; main/plans.js);
      mura_project — жоба баптаулары (кілт → мән: атауы, облыс, аудан…), кеңістіктік емес кесте.
    Әр жазбаның толық мәліметі props (JSON) бағанында сақталады, ал негізгі атрибуттар мен геометрия — бөлек
    бағандарда: QGIS-те өзгертілсе, бағдарлама келесі оқығанда сол мәндерді алады.
@@ -87,9 +88,10 @@ function readWkb(b, o) {
 const r8 = v => Math.round(v * 1e8) / 1e8;
 const str = v => (v == null ? '' : String(v));
 /** «Жоспар» қабаттарының сандық бағандары: бос мән — «өлшенбеген» (null), 0 — енгізілген нөл. */
-const PLAN_NUM = new Set(['height', 'diam', 'ax_a', 'ax_b', 'ax_az', 'scale_general', 'scale_detail', 'ptr_az', 'ptr_dist', 'ptr_az_man', 'ptr_dist_man']);
+const PLAN_NUM = new Set(['value', 'rot', 'height', 'diam', 'ax_a', 'ax_b', 'ax_az', 'scale_general', 'scale_detail', 'ptr_az', 'ptr_dist', 'ptr_az_man', 'ptr_dist_man']);
 const numOrNull = v => { const s = String(v ?? '').trim(); if (!s) return null; const n = Number(s); return Number.isFinite(n) ? n : null; };
 const { ring: planRing } = require('./plan-geom');
+const { FEAT_KINDS } = require('./plans');
 
 /** Әр қабат: геометрия түрі, атрибут бағандары (жазбадағы өрістің аты), жазба ↔ жол. */
 const LAYERS = {
@@ -178,6 +180,30 @@ const LAYERS = {
     toGeom: r => (r.ptr && Number.isFinite(+r.ptr.lat) && Number.isFinite(+r.ptr_o_lat)
       ? encodeGeom('LineString', [[+r.ptr_o_lon, +r.ptr_o_lat], [+r.ptr.lon, +r.ptr.lat]]) : null),
     fromGeom: () => {},
+  },
+  // «Жоспар»: жағдаят белгілері (docs/PLAN-STAGE3.md) — mark_id арқылы ескерткішке байланады; сызық — LINESTRING, аудан — POLYGON, нүкте мен жазу — POINT
+  plan_features: {
+    title: 'Жоспардың жағдаяты / Ситуация плана', desc: 'Ескерткіш жоспарындағы жол, ЭБЖ, горизонталь, ағаш, жазу т.б. / Дороги, ЛЭП, горизонтали, деревья, надписи и др. на плане памятника (Mura GIS)', geom: 'GEOMETRY',
+    cols: ['mark_id', 'kind', 'name', 'name_ru', 'value', 'rot', 'src', 'created_at', 'created_by', 'updated_at', 'updated_by'],
+    get: (r, c) => r[c],
+    set: (r, c, v) => { r[c] = PLAN_NUM.has(c) ? numOrNull(v) : v; },
+    toGeom: r => {
+      if (Array.isArray(r.pts) && r.pts.length >= 3 && FEAT_KINDS[r.kind] === 'area') {
+        const ring = r.pts.map(p => [+p[1], +p[0]]);
+        return encodeGeom('Polygon', [ring.concat([ring[0]])]);
+      }
+      if (Array.isArray(r.pts) && r.pts.length >= 2) return encodeGeom('LineString', r.pts.map(p => [+p[1], +p[0]]));
+      return r.lat != null && Number.isFinite(+r.lat) && Number.isFinite(+r.lon) ? encodeGeom('Point', [+r.lon, +r.lat]) : null;
+    },
+    fromGeom: (r, g) => {
+      if (g && g.type === 'Point') { r.lon = r8(g.coords[0]); r.lat = r8(g.coords[1]); }
+      if (g && g.type === 'LineString' && g.coords.length >= 2) r.pts = g.coords.map(p => [r8(p[1]), r8(p[0])]);
+      if (g && g.type === 'Polygon' && g.coords[0]) {
+        const ring = g.coords[0].slice(), a = ring[0], z = ring[ring.length - 1];
+        if (ring.length > 1 && a[0] === z[0] && a[1] === z[1]) ring.pop();
+        if (ring.length >= 3) r.pts = ring.map(p => [r8(p[1]), r8(p[0])]);
+      }
+    },
   },
   imports: {
     title: 'Импортталған нүктелер / Импортированные точки', desc: 'KML, KMZ, GPX файлдарынан импортталған нүктелер / Точки из KML, KMZ, GPX (Mura GIS)', geom: 'POINT',

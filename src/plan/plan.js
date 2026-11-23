@@ -4,9 +4,14 @@
    • Нысандар мен жоспар баптаулары — жобаның plan_objects және plans қабаттары (main/plans.js, mura://app/plans).
    • Карта режимдері (ескерткішті / тірек нүктесін / елді мекенді картадан таңдау, контур сызу, редакциялау) кезінде
      картадағы белгілер басуды картаға өткізеді (.is-pjmap).
+   • Жағдаят белгілері (жол, ЭБЖ, горизонталь, ағаш, жазу т.б.; docs/PLAN-STAGE3.md) — жобаның plan_features қабаты.
    Интерфейс бөліктері — plan/plan-dom.js, есептер — plan/geo.js, бет үлгісі — plan/sheet.js. */
 import { plane, contourLL, hasContour, inverse, dist2, azXY, selfIntersects, fmtNum, fmtDist, parseNum, cmpNum, SCALES } from './geo.js';
-import { renderPage, pdfHtml, objTitle, pointerValues, KINDS, MATERIALS, SUBTYPES, STATES, materialLabel, subtypeLabel, stateLabel, glyph, isStage2, explOf, PAPERS, paperSize } from './sheet.js';
+import { renderPage, pdfHtml, objTitle, pointerValues, KINDS, MATERIALS, SUBTYPES, STATES, materialLabel, subtypeLabel, stateLabel, glyph, isStage2, explOf, PAPERS, paperSize,
+  FEAT_KINDS, featCat, featLabel, featGlyph, featSample, SURFACES, PLACE_KINDS } from './sheet.js';
+import { parseDxf, decodeDxf, parseCsv, guessColumns, csvItems, parseGeojson, parseKml, parseKmz, parseGpx, groupsOf, kindsFor, toRecords, allXY, thin as thinPts } from './importer.js';
+import { CRS_LIST, makeTransform, guessCrs, utmZone, gkZone } from './crs.js';
+import { contours, MAX_POINTS as TIN_MAX } from './tin.js';
 import { parseOne } from '../qorgau/app.js';
 
 const $ = id => document.getElementById(id);
@@ -52,7 +57,7 @@ function download(data, type, name) {
 const fileSafe = s => String(s || 'жоспар').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, '_').slice(0, 80);
 
 /* ======================= Деректер ======================= */
-let objects = [], plans = [];
+let objects = [], plans = [], features = [];
 let markId = store.get('pj-mark') || '';
 let selId = '';
 async function api(op, data) {
@@ -63,6 +68,7 @@ async function api(op, data) {
   if (!j.ok) { const e = new Error(j.error || tx('Сақтау қатесі', 'Ошибка сохранения')); e.field = j.field || ''; throw e; }
   if (Array.isArray(j.objects)) objects = j.objects;
   if (Array.isArray(j.plans)) plans = j.plans;
+  if (Array.isArray(j.features)) features = j.features;
   render();
   return j;
 }
@@ -71,6 +77,7 @@ const places = () => (globalThis.__places && globalThis.__places.items) || [];
 const curMark = () => marks().find(m => m.id === markId) || null;
 const markObjects = (id = markId) => objects.filter(o => o.mark_id === id).sort(cmpNum);
 const curPlan = () => plans.find(p => p.mark_id === markId) || null;
+const markFeatures = (id = markId) => features.filter(f => f.mark_id === id);
 const curObj = () => objects.find(o => o.id === selId && o.mark_id === markId) || null;
 const markName = (m, l = UI) => (m ? I18N.field(m, 'name', l) || tx('Атаусыз ескерткіш', 'Памятник без названия') : '');
 const objName = (o, l = UI) => objTitle(o, l) + (I18N.field(o, 'name', l) ? ' — ' + I18N.field(o, 'name', l) : '');
@@ -89,6 +96,7 @@ const ST = { fill: '#9c4f1c', line: '#221d16', sel: '#e8178a' };
 function drawLayer() {
   layer.clearLayers();
   if (!markId) return;
+  drawFeatures();          // жағдаят — нысандардың астында
   for (const o of markObjects()) {
     const sel = o.id === selId;
     const ll = hasContour(o) ? contourLL(o) : null;
@@ -159,7 +167,7 @@ function render() {
   $('pjPick').title = m ? tx('Ескерткіш: ', 'Памятник: ') + markName(m) + tx(' — басқасын таңдау', ' — выбрать другой') : '';
   $('pjCount').textContent = list.length;
   const has = !!m, any = has && list.length > 0, sel = has && !!curObj();
-  for (const [id, on] of [['pjListBtn', has], ['pjAdd', has], ['pjDraw', sel || mode?.kind === 'edit'], ['pjDims', sel], ['pjPtr', has], ['pjPreview', any], ['pjPdf', any],
+  for (const [id, on] of [['pjListBtn', has], ['pjAdd', has], ['pjSit', has], ['pjDraw', sel || mode?.kind === 'edit'], ['pjDims', sel], ['pjPtr', has], ['pjPreview', any], ['pjPdf', any],
     ['pjAdd2', has], ['pjPtr2', has], ['pjPreview2', any], ['pjPdf2', any]]) { const b = $(id); if (b) b.disabled = !on; }
   $('pjListBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
   $('pjPtr2').textContent = curPlan()?.ptr ? tx('Бағыттауыш', 'Указатель') : tx('Елді мекенге бағыт қосу', 'Добавить направление на населённый пункт');
@@ -212,6 +220,7 @@ function objMeta(o) {
   if (o.material) parts.push(materialLabel(o.material, UI).toLocaleLowerCase());
   if (o.subtype) parts.push(subtypeLabel(o.subtype, UI));
   if (o.state) parts.push(stateLabel(o.state, UI));
+  if (Array.isArray(o.surface)) for (const k of o.surface) { const x = SURFACES.find(s => s.v === k); if (x) parts.push((UI === 'ru' ? x.ru : x.kk).toLocaleLowerCase(UI)); }
   return parts.join(' · ');
 }
 function renderPanel(m, list) {
@@ -231,6 +240,7 @@ function renderPanel(m, list) {
       '<button type="button" class="lnk" data-pjact="draw">' + tx('Сызу', 'Начертить') + '</button>' +
       (hasContour(o) ? '<button type="button" class="lnk" data-pjact="detail">' + tx('Жеке жоспар', 'Индивидуальный план') + '</button>' : '') +
       '<button type="button" class="lnk lnk--danger" data-pjact="del">' + tx('Өшіру', 'Удалить') + '</button></div></div></div>').join('');
+  renderFeatPanel(m);
   // Таңдалған нысанның жеке жоспары (кішірейтілген бет)
   const o = curObj();
   $('pjThumbSec').hidden = !o;
@@ -346,9 +356,11 @@ function startMode(m) {
   globalThis.MuraRoutes?.stop?.();
   mode = { pts: [], ...m };
   mapEl.classList.add('is-pjmap');
-  if (m.kind === 'draw' && m.shape === 'free') map.doubleClickZoom.disable();
+  if ((m.kind === 'draw' && m.shape === 'free') || (m.kind === 'fdraw' && isMulti(m.fkind))) map.doubleClickZoom.disable();
   $('pjDraw').setAttribute('aria-pressed', m.kind === 'draw' || m.kind === 'edit' ? 'true' : 'false');
+  $('pjSit').setAttribute('aria-pressed', m.kind === 'fdraw' || m.kind === 'fedit' ? 'true' : 'false');
   if (m.kind === 'edit') startEdit();
+  if (m.kind === 'fedit') startFeatEdit();
   paintHud();
   render();
 }
@@ -360,6 +372,7 @@ function stopMode(silent) {
   mapEl.classList.remove('is-pjmap');
   map.doubleClickZoom.enable();
   $('pjDraw').setAttribute('aria-pressed', 'false');
+  $('pjSit').setAttribute('aria-pressed', 'false');
   setHud('');
   if (!silent) { if (m.after) m.after(null); render(); }
 }
@@ -380,6 +393,17 @@ function paintHud(ll) {
   if (k === 'pickMark') return setHud(tx('Картадан ескерткішті басыңыз', 'Щёлкните памятник на карте'), 'Esc — ' + tx('бас тарту', 'отмена'));
   if (k === 'pickAnchor') return setHud(tx('Тірек нүктесін картадан басыңыз', 'Щёлкните опорную точку на карте'), 'Esc — ' + tx('бас тарту', 'отмена'));
   if (k === 'pickPtr') return setHud(tx('Елді мекенді картадан таңдаңыз', 'Выберите населённый пункт на карте'), tx('Өзге нысандағы елді мекенді не кез келген нүктені басыңыз · Esc — бас тарту', 'Щёлкните населённый пункт из прочих объектов или любую точку · Esc — отмена'));
+  if (k === 'fdraw') {
+    const nm = featLabel(mode.fkind, UI);
+    if (featCat(mode.fkind) === 'area') return setHud(nm + ': ' + tx('шекараның төбелерін басыңыз', 'щёлкайте вершины границы') + ' (' + n + ')',
+      tx('Бірінші төбені басу, екі рет басу не Enter — тұйықтау; Backspace — соңғы төбе; Esc — бас тарту', 'Щелчок по первой вершине, двойной щелчок или Enter — замкнуть; Backspace — последняя вершина; Esc — отмена'));
+    if (featCat(mode.fkind) !== 'line') return setHud(nm + ': ' + tx('орнын картадан басыңыз', 'щёлкните место на карте'),
+      mode.fkind === 'tree' ? tx('Бірнеше ағашты қатарынан қоюға болады · Esc — аяқтау', 'Можно ставить несколько деревьев подряд · Esc — завершить') : 'Esc — ' + tx('бас тарту', 'отмена'));
+    return setHud(nm + ': ' + tx('төбелерді басыңыз', 'щёлкайте вершины') + ' (' + n + ')',
+      tx('Екі рет басу не Enter — аяқтау; Backspace — соңғы төбе; Esc — бас тарту', 'Двойной щелчок или Enter — завершить; Backspace — последняя вершина; Esc — отмена'));
+  }
+  if (k === 'fedit') return setHud(tx('Белгіні түзету: тұтқаларды сүйреңіз', 'Исправление знака: перетаскивайте маркеры'),
+    tx('Өзгеріс бірден сақталады; сызықтың төбесін өшіру — тінтуірдің оң жағы · Esc — аяқтау', 'Изменения сохраняются сразу; удалить вершину линии — правая кнопка · Esc — завершить'));
   if (k === 'edit') return setHud(tx('Контурды редакциялау: тұтқаларды сүйреңіз', 'Редактирование контура: перетаскивайте маркеры'), tx('Орталық — жылжыту, шеттері — өлшемі мен пішіні; өзгеріс бірден сақталады · Esc — аяқтау', 'Центр — перемещение, края — размер и форма; изменения сохраняются сразу · Esc — завершить'));
   if (k !== 'draw') return;
   const c = mode.pts[0] && plane(mode.pts[0][0], mode.pts[0][1]);
@@ -428,7 +452,10 @@ function rubber(ll) {
   }
 }
 
-map.on('mousemove', e => { if (mode && mode.kind === 'draw') { rubber(e.latlng); paintHud(e.latlng); } });
+map.on('mousemove', e => {
+  if (mode && mode.kind === 'draw') { rubber(e.latlng); paintHud(e.latlng); }
+  if (mode && mode.kind === 'fdraw' && isMulti(mode.fkind) && mode.pts.length) { rubberF(e.latlng); paintHud(e.latlng); }
+});
 map.on('click', e => {
   if (!mode) return;
   const ll = e.latlng, k = mode.kind;
@@ -445,6 +472,18 @@ map.on('click', e => {
     after(pl ? { lat: pl.lat, lon: pl.lon, place: pl } : { lat: ll.lat, lon: ll.lng });
     return;
   }
+  if (k === 'fdraw') {
+    if (isMulti(mode.fkind)) {
+      // Аудан: бірінші төбені басу — тұйықтау
+      if (featCat(mode.fkind) === 'area' && mode.pts.length >= 3 && near(ll, mode.pts[0], 10)) { finishFeatLine(); return; }
+      mode.pts.push([ll.lat, ll.lng]); rubberF(ll); paintHud(ll); return;
+    }
+    if (mode.fkind === 'tree') { addTree(ll); return; }
+    const d = { ...mode.draft, kind: mode.fkind, lat: ll.lat, lon: ll.lng };
+    stopMode(true); render();
+    openFeatDialog(null, { draft: d });
+    return;
+  }
   if (k !== 'draw') return;
   const pts = mode.pts;
   if (mode.shape === 'free' && pts.length >= 3 && near(ll, pts[0], 10)) { finishDraw(); return; }
@@ -452,12 +491,18 @@ map.on('click', e => {
   if ((mode.shape === 'circle' && pts.length === 2) || ((mode.shape === 'ellipse' || mode.shape === 'rect') && pts.length === 3)) { finishDraw(); return; }
   rubber(ll); paintHud(ll);
 });
-map.on('dblclick', e => { if (mode && mode.kind === 'draw' && mode.shape === 'free') { L.DomEvent.stop(e); if (mode.pts.length > 3) mode.pts.pop(); finishDraw(); } });
+map.on('dblclick', e => {
+  if (mode && mode.kind === 'draw' && mode.shape === 'free') { L.DomEvent.stop(e); if (mode.pts.length > 3) mode.pts.pop(); finishDraw(); }
+  // Екі рет басу алдымен екі «click» береді — соңғы (қайталанған) төбе алынады
+  else if (mode && mode.kind === 'fdraw' && isMulti(mode.fkind)) { L.DomEvent.stop(e); if (mode.pts.length > (featCat(mode.fkind) === 'area' ? 3 : 2)) mode.pts.pop(); finishFeatLine(); }
+});
 document.addEventListener('keydown', e => {
   if (!mode || dlg) return;
   if (e.key === 'Escape') { e.preventDefault(); stopMode(); }
   else if (mode.kind === 'draw' && mode.shape === 'free' && e.key === 'Enter') { e.preventDefault(); finishDraw(); }
   else if (mode.kind === 'draw' && e.key === 'Backspace' && mode.pts.length) { e.preventDefault(); mode.pts.pop(); rubber(); paintHud(); }
+  else if (mode.kind === 'fdraw' && isMulti(mode.fkind) && e.key === 'Enter') { e.preventDefault(); finishFeatLine(); }
+  else if (mode.kind === 'fdraw' && e.key === 'Backspace' && mode.pts.length) { e.preventDefault(); mode.pts.pop(); rubberF(); paintHud(); }
 }, true);
 
 /** Сызу аяқталды: өлшемдер нысанның жобасына жазылып, нысан терезесі қайта ашылады (тексеріп, сақтау үшін). */
@@ -560,6 +605,481 @@ function startEdit() {
   });
 }
 
+/* ======================= Жағдаят белгілері (3-кезең, docs/PLAN-STAGE3.md) ======================= */
+/* Жол, ЭБЖ, горизонталь, ағаш, мұнара, жазу т.б. — картада сызылады (геокоординатамен); жоспар бетінде сызықтар нысандардың астында,
+   белгілер мен жазулар үстінде. Ескерткіштің құрамына кірмейді: нөмірі жоқ, экспликацияға түспейді (plan_features қабаты). */
+const FST = { road: { c: '#fff', w: 2.6 }, track: { c: '#5b4a32', w: 2, d: '7 4' }, power: { c: '#333', w: 1.5 }, contour: { c: '#b06a1f', w: 1.8 }, line: { c: '#333', w: 1.5 },
+  path: { c: '#444', w: 1.4, d: '5 4' }, fence: { c: '#333', w: 1.5, d: '2 3' }, ditch: { c: '#2f6db3', w: 1.8 }, river: { c: '#2f6db3', w: 3 }, ravine: { c: '#7a5a2a', w: 2.2, d: '1 2' } };
+/** Аудандардың картадағы толтыруы (бетте — штрих). */
+const FAREA = { arable: '#e3cf8c', forest: '#7fae5a', shrub: '#a9c98a', swamp: '#8fb7cf', water: '#79b0e3', sand: '#e2cc95', area: null };
+/** Көп төбелі белгі: сызық не аудан. */
+const isMulti = k => { const c = featCat(k); return c === 'line' || c === 'area'; };
+const FHINT = {
+  road: ['қос тұтас сызық, бойында атауы', 'двойная сплошная линия, название вдоль'],
+  track: ['қос сызық, біреуі үзік', 'двойная линия, одна прерывистая'],
+  power: ['әр төбеде тірек', 'опора на каждой вершине'],
+  contour: ['биіктік мәнімен', 'со значением высоты'],
+  line: ['жіңішке тұтас сызық', 'тонкая сплошная линия'],
+  tree: ['бірнешеуін қатарынан қоюға болады', 'можно ставить несколько подряд'],
+  trig: ['үшбұрыш, ортасында нүкте', 'треугольник с точкой'],
+  tower: ['шаршы ішінде үшбұрыш', 'квадрат с треугольником'],
+  point: ['шеңбер, жазуы', 'кружок, подпись'],
+  height: ['нүкте және биіктігі', 'точка и высота'],
+  text: ['еркін жазу, бұрышы', 'свободная надпись, угол'],
+  path: ['жіңішке үзік сызық', 'тонкая прерывистая линия'],
+  fence: ['сызық және көлденең штрихтар', 'линия с поперечными штрихами'],
+  ditch: ['көк сызық', 'синяя линия'],
+  river: ['жуан көк сызық, атауы', 'толстая синяя линия, название'],
+  ravine: ['тісті сызық', 'линия с зубцами'],
+  arable: ['«═» штрихы, нүктелі шекара', 'штриховка «═», точечная граница'],
+  forest: ['ағаш белгілері', 'значки деревьев'],
+  shrub: ['шағын шеңберлер', 'мелкие кружки'],
+  swamp: ['көк көлденең штрих', 'синяя горизонтальная штриховка'],
+  water: ['көк толтыру', 'синяя заливка'],
+  sand: ['нүктелер', 'точки'],
+  area: ['контур және ортасында жазуы', 'контур и подпись в центре'],
+};
+const featName = (f, l = UI) => String((l === 'ru' ? f.name_ru || f.name : f.name || f.name_ru) || '').trim();
+const featTitle = f => featLabel(f.kind, UI) + (f.value != null ? ' ' + fmtNum(f.value) : '') + (featName(f) ? ' — ' + featName(f) : '');
+/** Белгінің шағын суреті (тізім, мәзір): нүкте — өз белгісі, сызық — үлгісі, жазу — «Аа». */
+function featSvg(kind, size = 18) {
+  if (featCat(kind) === 'text') return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" aria-hidden="true"><text x="12" y="17" font-size="14" text-anchor="middle" font-family="system-ui,sans-serif" fill="#221d16">Аа</text></svg>';
+  const vb = featCat(kind) === 'line' ? '-2.5 -2.6 6 5.2' : '-2.4 -2.4 4.8 4.8';
+  return '<svg viewBox="' + vb + '" width="' + size + '" height="' + size + '" aria-hidden="true">' + featSample(kind, 0, 0) + '</svg>';
+}
+function featIcon(f) {
+  if (featCat(f.kind) === 'text') {
+    return L.divIcon({ className: 'pj-shape pj-ftext', iconSize: [0, 0], html: '<span style="transform:translate(-50%,-50%) rotate(' + (+f.rot || 0) + 'deg)">' + esc(featName(f)) + '</span>' });
+  }
+  return L.divIcon({ className: 'pj-shape pj-glyph pj-fpt', iconSize: [18, 18], iconAnchor: [9, 9],
+    html: '<svg viewBox="-2.4 -2.4 4.8 4.8" width="18" height="18" aria-hidden="true">' + featGlyph(f.kind, 0, 0) + '</svg>' });
+}
+function drawFeatures() {
+  for (const f of markFeatures()) {
+    if (mode && mode.kind === 'fedit' && mode.id === f.id) continue;      // редакциялау кезінде — уақытша қабатта
+    let lyr;
+    if (featCat(f.kind) === 'area') {
+      if (!Array.isArray(f.pts) || f.pts.length < 3) continue;
+      const fc = FAREA[f.kind];
+      lyr = L.polygon(f.pts, { color: fc ? '#5b4a32' : '#333', weight: 1.2, dashArray: fc && f.kind !== 'water' ? '2 3' : null, fillColor: fc || '#000', fillOpacity: fc ? 0.35 : 0, className: 'pj-shape' });
+    } else if (featCat(f.kind) === 'line') {
+      if (!Array.isArray(f.pts) || f.pts.length < 2) continue;
+      const S = FST[f.kind] || FST.line;
+      lyr = L.featureGroup();
+      if (f.kind === 'road') L.polyline(f.pts, { color: '#3a352c', weight: 5.2, interactive: false }).addTo(lyr);
+      L.polyline(f.pts, { color: S.c, weight: S.w, dashArray: S.d || null, interactive: false }).addTo(lyr);
+      if (f.kind === 'power') for (const p of f.pts) L.circleMarker(p, { radius: 2.5, color: '#222', weight: 1, fillColor: '#999', fillOpacity: 1, interactive: false }).addTo(lyr);
+      L.polyline(f.pts, { opacity: 0, weight: 14, className: 'pj-shape' }).addTo(lyr);      // жіңішке сызықты басуға ыңғайлы із
+    } else if (f.lat != null) {
+      // Биіктік белгілері (импортта жүздеген болуы мүмкін) — жеңіл дөңгелек; қалғандары — өз белгісі
+      lyr = f.kind === 'height'
+        ? L.circleMarker([f.lat, f.lon], { radius: 3, color: '#fff', weight: 1, fillColor: '#221d16', fillOpacity: 1, className: 'pj-shape' })
+        : L.marker([f.lat, f.lon], { keyboard: false, icon: featIcon(f) });
+    } else continue;
+    lyr.bindTooltip(esc(featTitle(f)), { sticky: true, className: 'mk-tip' });
+    lyr.on('click', ev => { if (mode) return; L.DomEvent.stop(ev); openFeatDialog(f); });
+    lyr.addTo(layer);
+  }
+}
+function renderFeatPanel(m) {
+  const fl = m ? markFeatures().slice().sort((a, b) => FEAT_KINDS.findIndex(k => k.v === a.kind) - FEAT_KINDS.findIndex(k => k.v === b.kind)) : [];
+  const pl = m ? planPlaces() : [];
+  $('pjFeatSec').hidden = !fl.length && !pl.length;
+  $('pjFeatT').textContent = tx('Жағдаят белгілері: ', 'Знаки ситуации: ') + fl.length;
+  // Бір түрдің белгісі көп болса (импорт, горизонтальдар) — бір жолмен: саны және «Барлығын өшіру»
+  const cnt = {};
+  for (const f of fl) cnt[f.kind] = (cnt[f.kind] || 0) + 1;
+  const many = k => cnt[k] > 12, shown = new Set();
+  const groupRow = k => '<div class="qa-sc pj-fcard" data-fkind="' + esc(k) + '"><span class="pj-fic">' + featSvg(k) + '</span><div class="qa-sc-main">' +
+    '<span class="qa-sc-title">' + esc(featLabel(k, UI)) + ' × ' + cnt[k] + '</span><div class="qa-sc-act">' +
+    '<button type="button" class="lnk lnk--danger" data-pjfact="delkind">' + tx('Барлығын өшіру', 'Удалить все') + '</button></div></div></div>';
+  $('pjFeatList').innerHTML = (pl.length ? '<p class="qa-hint pj-plcount">' + tx('Жоспардағы өзге нысандар: ', 'Прочие объекты на плане: ') + esc(pl.map(p => placeName(p)).join(', ')) +
+      ' <button type="button" class="lnk" data-pjfact="places">' + tx('Өзгерту', 'Изменить') + '</button></p>' : '') + fl.map(f => many(f.kind) ? (shown.has(f.kind) ? '' : (shown.add(f.kind), groupRow(f.kind))) : '<div class="qa-sc pj-fcard" data-fid="' + esc(f.id) + '"><span class="pj-fic">' + featSvg(f.kind) + '</span><div class="qa-sc-main">' +
+    '<button type="button" class="qa-sc-title" data-pjfact="edit">' + esc(featTitle(f)) + '</button>' +
+    '<div class="qa-sc-act"><button type="button" class="lnk" data-pjfact="show">' + tx('Картада көрсету', 'Показать на карте') + '</button>' +
+    '<button type="button" class="lnk" data-pjfact="geo">' + tx('Картада түзету', 'Исправить на карте') + '</button>' +
+    '<button type="button" class="lnk lnk--danger" data-pjfact="del">' + tx('Өшіру', 'Удалить') + '</button></div></div></div>').join('');
+}
+$('pjFeatList').addEventListener('click', e => {
+  const b = e.target.closest('[data-pjfact]');
+  if (b && b.dataset.pjfact === 'places') { openPlacesPicker(); return; }
+  if (b && b.dataset.pjfact === 'delkind') { removeKind(b.closest('[data-fkind]').dataset.fkind); return; }
+  const card = b && b.closest('[data-fid]'), f = card ? features.find(x => x.id === card.dataset.fid) : null;
+  if (!f) return;
+  const act = b.dataset.pjfact;
+  if (act === 'edit') openFeatDialog(f);
+  else if (act === 'geo') startMode({ kind: 'fedit', id: f.id });
+  else if (act === 'del') removeFeat(f);
+  else if (act === 'show') {
+    const pts = isMulti(f.kind) ? f.pts : [[f.lat, f.lon]];
+    const p = globalThis.QAUI?.pad?.();
+    map.fitBounds(L.latLngBounds(pts).pad(0.3), { maxZoom: 18, paddingTopLeft: p?.tl, paddingBottomRight: [Math.max(24, open ? panelEl.offsetWidth + 40 : 24), 24] });
+  }
+});
+async function removeKind(k) {
+  const ids = markFeatures().filter(f => f.kind === k).map(f => f.id);
+  if (!ids.length || !(await ask(tx('«' + featLabel(k, UI) + '» түріндегі ' + ids.length + ' белгінің бәрін өшіру керек пе?', 'Удалить все знаки типа «' + featLabel(k, UI) + '» (' + ids.length + ')?'), { ok: tx('Өшіру', 'Удалить') }))) return;
+  try { await api('fdelete', { id: ids.join(',') }); toast(tx('Өшірілді: ', 'Удалено: ') + ids.length); } catch (e) { toast(e.message, true); }
+}
+async function removeFeat(f) {
+  if (!(await ask(tx('«' + featTitle(f) + '» белгісін өшіру керек пе?', 'Удалить знак «' + featTitle(f) + '»?'), { ok: tx('Өшіру', 'Удалить') }))) return;
+  try { await api('fdelete', { id: f.id }); toast(tx('Белгі өшірілді.', 'Знак удалён.')); } catch (e) { toast(e.message, true); }
+}
+/* ---------- Файлдан импорт (GeoJSON, KML/KMZ, GPX, DXF, CSV/TXT) және нүктелерден горизонтальдар (3-кезең, Г және Д жолдары) ---------- */
+const fileIn = document.createElement('input');
+fileIn.type = 'file'; fileIn.hidden = true;
+fileIn.accept = '.geojson,.json,.kml,.kmz,.gpx,.dxf,.csv,.txt';
+document.body.appendChild(fileIn);
+fileIn.addEventListener('change', () => { const f = fileIn.files[0]; fileIn.value = ''; if (f) importFile(f).catch(e => toast(e.message, true)); });
+function loadFflate() {
+  if (globalThis.fflate) return Promise.resolve(globalThis.fflate);
+  return new Promise((res, rej) => {
+    const sc = document.createElement('script');
+    sc.src = globalThis.QA_FFLATE || 'vendor/fflate.js';
+    sc.onload = () => (globalThis.fflate ? res(globalThis.fflate) : rej(new Error('fflate жүктелмеді')));
+    sc.onerror = () => rej(new Error('fflate жүктелмеді'));
+    document.head.appendChild(sc);
+  });
+}
+/** Файлды оқу → импорт терезесі. */
+async function importFile(f) {
+  if (!curMark()) { openMarkPicker(); return; }
+  const ext = ((f.name.match(/\.([a-z0-9]+)$/i) || [])[1] || '').toLowerCase();
+  let r;
+  if (ext === 'dxf') r = parseDxf(decodeDxf(new Uint8Array(await f.arrayBuffer())));
+  else if (ext === 'csv' || ext === 'txt') {
+    const t = parseCsv(await f.text()), m = guessColumns(t);
+    r = { items: csvItems(t, m).items, wgs: false, csv: { t, m } };
+  } else if (ext === 'geojson' || ext === 'json') r = parseGeojson(await f.text());
+  else if (ext === 'kml') r = parseKml(await f.text());
+  else if (ext === 'kmz') r = parseKmz(new Uint8Array(await f.arrayBuffer()), await loadFflate());
+  else if (ext === 'gpx') r = parseGpx(await f.text());
+  else throw new Error(tx('Белгісіз файл түрі: ', 'Неизвестный тип файла: ') + f.name);
+  if (!r.items.length && !r.csv) throw new Error(tx('Файлда импорттайтын нысан табылмады.', 'В файле не найдено объектов для импорта.'));
+  openImportDialog(f.name, r);
+}
+function openImportDialog(fname, r) {
+  const m = curMark();
+  const st = { crs: 'wgs84', zone: '', anchor: { x: '', y: '', lat: (+m.lat).toFixed(7), lon: (+m.lon).toFixed(7) }, rot: 0, sel: {} };
+  const guess = () => {
+    const { xs, ys } = allXY(r.items);
+    const g = r.wgs ? { crs: 'wgs84' } : guessCrs(xs, ys, +m.lon);
+    st.crs = g.crs; st.zone = g.zone || (g.crs === 'sk42' ? gkZone(+m.lon) : utmZone(+m.lon));
+    if (xs.length) { st.anchor.x = Math.round((Math.min(...xs) + Math.max(...xs)) / 2 * 1000) / 1000; st.anchor.y = Math.round((Math.min(...ys) + Math.max(...ys)) / 2 * 1000) / 1000; }
+  };
+  const groups = () => groupsOf(r.items);
+  const resetSel = () => { st.sel = {}; for (const g of groups()) st.sel[g.key] = g.kind; };
+  guess(); resetSel();
+  const GEOM = { point: tx('нүкте', 'точка'), line: tx('сызық', 'линия'), area: tx('аудан', 'участок'), text: tx('жазу', 'надпись') };
+  const csvHtml = () => {
+    if (!r.csv) return '';
+    const { t, m: c } = r.csv;
+    const sel = (k, lbl) => '<label>' + lbl + '<select data-col="' + k + '"><option value="-1">—</option>' + t.header.map((h, i) => '<option value="' + i + '"' + (c[k] === i ? ' selected' : '') + '>' + esc(h) + '</option>').join('') + '</select></label>';
+    return '<fieldset class="pj-fs"><legend>' + tx('Бағандар', 'Столбцы') + '</legend><div class="pj-exgrid pj-impcols">' +
+      sel('name', tx('Атауы / №', 'Название / №')) + sel('e', tx('Шығыс — E (геод. Y), бойлық', 'Восток — E (геод. Y), долгота')) + sel('n', tx('Солтүстік — N (геод. X), ендік', 'Север — N (геод. X), широта')) +
+      sel('h', tx('Биіктік — H', 'Высота — H')) + sel('code', tx('Код (топтау)', 'Код (группы)')) + '</div>' +
+      '<table class="pj-impprev"><tr>' + t.header.map(h => '<th>' + esc(h) + '</th>').join('') + '</tr>' + t.rows.slice(0, 3).map(row => '<tr>' + t.header.map((_, i) => '<td>' + esc(row[i] ?? '') + '</td>').join('') + '</tr>').join('') + '</table>' +
+      '<p class="qa-hint">' + tx('Тахеометр файлдарында X — солтүстік, Y — шығыс (геодезиялық шарт); бағандарды тексеріңіз.', 'В файлах тахеометра X — север, Y — восток (геодезическое правило); проверьте столбцы.') + '</p></fieldset>';
+  };
+  const crsHtml = () => r.wgs ? '<p class="qa-hint">' + tx('Координаттар жүйесі — WGS 84 (ендік / бойлық).', 'Система координат — WGS 84 (широта / долгота).') + '</p>'
+    : '<fieldset class="pj-fs"><legend>' + tx('Координаттар жүйесі', 'Система координат') + '</legend><div class="pj-exgrid">' +
+      '<label class="pj-wide">' + tx('Жүйе', 'Система') + '<select data-st="crs">' + CRS_LIST.map(c => '<option value="' + c.v + '"' + (c.v === st.crs ? ' selected' : '') + '>' + esc(UI === 'ru' ? c.ru : c.kk) + '</option>').join('') + '</select></label>' +
+      (st.crs === 'utm' || st.crs === 'sk42' ? '<label>' + tx('Аймақ', 'Зона') + '<input type="text" inputmode="numeric" data-st="zone" value="' + esc(st.zone) + '"></label>' : '') +
+      (st.crs === 'local' ? '<label>' + tx('Тірек нүктесі: шығыс (E)', 'Опорная точка: восток (E)') + '<input type="text" inputmode="decimal" data-st="ax" value="' + esc(st.anchor.x) + '"></label>' +
+        '<label>' + tx('Тірек нүктесі: солтүстік (N)', 'Опорная точка: север (N)') + '<input type="text" inputmode="decimal" data-st="ay" value="' + esc(st.anchor.y) + '"></label>' +
+        '<label>' + tx('Оның ендігі (WGS 84)', 'Её широта (WGS 84)') + '<input type="text" data-st="alat" value="' + esc(st.anchor.lat) + '"></label>' +
+        '<label>' + tx('Оның бойлығы (WGS 84)', 'Её долгота (WGS 84)') + '<input type="text" data-st="alon" value="' + esc(st.anchor.lon) + '"></label>' +
+        '<label>' + tx('Тордың бұрылуы, ° (сағат тілімен)', 'Поворот сетки, ° (по часовой)') + '<input type="text" inputmode="decimal" data-st="rot" value="' + esc(st.rot) + '"></label>' : '') +
+      '</div>' + (st.crs === 'local' ? '<p class="qa-hint">' + tx('Әдепкіде: деректің ортасы ескерткіштің негізгі координатасына сәйкес қойылады. Тахеометр станциясының не белгілі нүктенің жергілікті және WGS 84 координаттарын енгізсеңіз — дәлірек.',
+        'По умолчанию центр данных совмещается с основной координатой памятника. Точнее — ввести местные и WGS 84 координаты станции тахеометра или известной точки.') + '</p>' : '') + '</fieldset>';
+  const groupsHtml = () => '<table class="pj-impgroups"><thead><tr><th></th><th>' + tx('Топ (қабат, код)', 'Группа (слой, код)') + '</th><th>' + tx('Саны', 'Кол-во') + '</th><th>' + tx('Белгі түрі', 'Тип знака') + '</th></tr></thead><tbody>' +
+    groups().map(g => '<tr><td><input type="checkbox" data-gon="' + esc(g.key) + '"' + (st.sel[g.key] ? ' checked' : '') + ' aria-label="' + esc(tx('Импорттау', 'Импортировать')) + '"></td>' +
+      '<td>' + esc(g.label.startsWith('kind:') ? featLabel(g.label.slice(5), UI) : g.label) + ' <small>(' + GEOM[g.geom] + ')</small></td><td>' + g.count + '</td>' +
+      '<td><select data-gk="' + esc(g.key) + '">' + kindsFor(g.geom).map(k => '<option value="' + k.v + '"' + (k.v === (st.sel[g.key] || g.kind) ? ' selected' : '') + '>' + esc(featLabel(k.v, UI)) + '</option>').join('') + '</select></td></tr>').join('') + '</tbody></table>';
+  const back = dialog('pj-impdlg',
+    '<form novalidate><h3>' + svgIc(IC.fimport) + tx('Импорт: ', 'Импорт: ') + esc(fname) + '<small class="pj-dlgsub">' + esc(markName(m)) + '</small></h3>' +
+    '<div id="pjImpCsv">' + csvHtml() + '</div><div id="pjImpCrs">' + crsHtml() + '</div><div id="pjImpGroups">' + groupsHtml() + '</div>' +
+    '<div class="pj-pvwarn" id="pjImpInfo" role="status"></div>' +
+    '<div class="qa-dlg-btns"><span class="mk-sp"></span><button type="button" class="btn btn--ghost btn--sm" data-x>' + tx('Бас тарту', 'Отмена') + '</button>' +
+      '<button type="submit" class="btn btn--primary btn--sm">' + tx('Импорттау', 'Импортировать') + '</button></div></form>');
+  let built = null;
+  /** Жазбаларды құрып, қорытындыны көрсету: саны, деректің ортасы ескерткіштен қаншалықты алыс. */
+  const build = () => {
+    const info = back.querySelector('#pjImpInfo');
+    built = null;
+    let tf;
+    try { tf = r.wgs ? (x, y) => [y, x] : makeTransform({ crs: st.crs, zone: st.zone, anchor: { x: parseNum(String(st.anchor.x)), y: parseNum(String(st.anchor.y)), lat: parseNum(String(st.anchor.lat)), lon: parseNum(String(st.anchor.lon)) }, rot: parseNum(String(st.rot)) || 0 }); }
+    catch (e) { info.innerHTML = '<p class="pj-bad">' + esc(UI === 'ru' && e.ru ? e.ru : e.message) + '</p>'; return; }
+    const res = toRecords(r.items, st.sel, tf, markId, st.crs === 'local' ? parseNum(String(st.rot)) || 0 : 0);
+    built = res.recs;
+    const lls = res.recs.flatMap(x => (x.pts ? x.pts : [[x.lat, x.lon]]));
+    let far = '';
+    if (lls.length) {
+      const c = lls.reduce((s, p) => [s[0] + p[0] / lls.length, s[1] + p[1] / lls.length], [0, 0]);
+      const d = Number.isFinite(c[0]) ? inverse(+m.lat, +m.lon, c[0], c[1]).dist : Infinity;
+      far = d > 20000 ? '<p class="pj-bad">' + tx('Деректің ортасы ескерткіштен ' + fmtDist(d) + ' қашықтықта — координаттар жүйесін не бағандарды тексеріңіз.', 'Центр данных в ' + fmtDist(d) + ' от памятника — проверьте систему координат или столбцы.') + '</p>'
+        : '<p>' + tx('Деректің ортасы ескерткіштен ', 'Центр данных от памятника: ') + fmtDist(d) + '.</p>';
+    }
+    const by = {};
+    for (const x of res.recs) by[x.kind] = (by[x.kind] || 0) + 1;
+    info.innerHTML = '<p><b>' + tx('Импортталады: ', 'Будет импортировано: ') + res.recs.length + '</b>' + (Object.keys(by).length ? ' — ' + esc(Object.entries(by).map(([k, n]) => featLabel(k, UI).toLocaleLowerCase(UI) + ' ' + n).join(', ')) : '') + '</p>' +
+      (res.skipped ? '<p>' + tx('Өткізіледі (геометриясы не мәні жоқ): ', 'Пропускается (нет геометрии или значения): ') + res.skipped + '</p>' : '') + far;
+  };
+  const repaint = what => {
+    if (what.includes('csv')) back.querySelector('#pjImpCsv').innerHTML = csvHtml();
+    if (what.includes('crs')) back.querySelector('#pjImpCrs').innerHTML = crsHtml();
+    if (what.includes('groups')) back.querySelector('#pjImpGroups').innerHTML = groupsHtml();
+    build();
+  };
+  back.addEventListener('change', e => {
+    const el = e.target;
+    if (el.dataset.col) { r.csv.m[el.dataset.col] = +el.value; r.items = csvItems(r.csv.t, r.csv.m).items; guess(); resetSel(); repaint(['crs', 'groups']); return; }
+    if (el.dataset.st === 'crs') { st.crs = el.value; repaint(['crs']); return; }
+    if (el.dataset.st) { const k = el.dataset.st, v = el.value.trim(); if (k === 'zone') st.zone = v; else if (k === 'rot') st.rot = v; else st.anchor[{ ax: 'x', ay: 'y', alat: 'lat', alon: 'lon' }[k]] = v; build(); return; }
+    if (el.dataset.gon) { const g = groups().find(x => x.key === el.dataset.gon); st.sel[g.key] = el.checked ? back.querySelector('select[data-gk="' + CSS.escape(g.key) + '"]').value : ''; build(); return; }
+    if (el.dataset.gk) { st.sel[el.dataset.gk] = el.value; const cb = back.querySelector('input[data-gon="' + CSS.escape(el.dataset.gk) + '"]'); if (cb) cb.checked = true; build(); }
+  });
+  back.querySelector('[data-x]').addEventListener('click', closeDialog);
+  back.querySelector('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    build();
+    if (!built || !built.length) { toast(tx('Импорттайтын белгі жоқ.', 'Нет знаков для импорта.'), true); return; }
+    const btn = back.querySelector('[type=submit]');
+    btn.disabled = true;
+    let added = 0, skipped = 0, err = '';
+    try {
+      for (let i = 0; i < built.length; i += 5000) {
+        const j = await api('fimport', { data: JSON.stringify(built.slice(i, i + 5000)) });
+        added += j.added; skipped += j.skipped; err = err || j.error;
+      }
+      closeDialog();
+      toast(tx('Импортталды: ', 'Импортировано: ') + added + (skipped ? tx(', өткізілді: ', ', пропущено: ') + skipped + (err ? ' (' + err + ')' : '') : ''), !!skipped && !added);
+      if (!open) openPanel();
+    } catch (er) { btn.disabled = false; toast(er.message, true); }
+  });
+  build();
+}
+
+/** Нүктелерден горизонтальдар: ескерткіштің биіктік белгілері (height) → TIN → горизонтальдар (src = tin). */
+function openContourDialog() {
+  const m = curMark();
+  if (!m) { openMarkPicker(); return; }
+  const src = markFeatures().filter(f => f.kind === 'height' && f.value != null && f.lat != null);
+  if (src.length < 3) { toast(tx('Кемінде 3 биіктік белгісі керек — оларды CSV / DXF файлынан импорттаңыз не картада қойыңыз.', 'Нужно не менее 3 отметок высоты — импортируйте их из CSV / DXF или поставьте на карте.'), true); return; }
+  if (src.length > TIN_MAX) { toast(tx('Нүкте тым көп (' + src.length + '); ең көбі ' + TIN_MAX + '.', 'Слишком много точек (' + src.length + '); не более ' + TIN_MAX + '.'), true); return; }
+  const zs = src.map(f => +f.value), z0 = Math.min(...zs), z1 = Math.max(...zs);
+  const old = markFeatures().filter(f => f.src === 'tin');
+  const range = z1 - z0, defStep = range > 40 ? 5 : range > 15 ? 2 : range > 4 ? 1 : range > 1.5 ? 0.5 : 0.25;
+  const back = dialog('pj-tindlg',
+    '<form novalidate><h3>' + svgIc(IC.fline) + tx('Нүктелерден горизонтальдар', 'Горизонтали по точкам') + '<small class="pj-dlgsub">' + esc(markName(m)) + '</small></h3>' +
+    '<p class="qa-hint">' + tx('Биіктік белгілері: ', 'Отметок высоты: ') + src.length + tx(' · биіктігі ', ' · высоты ') + fmtNum(z0, 2) + '–' + fmtNum(z1, 2) + ' м. ' +
+      tx('Горизонтальдар нүктелер арасындағы үшбұрыштар бойынша сызықтық интерполяциямен құрылады; нүкте жоқ жерде салынбайды.', 'Горизонтали строятся линейной интерполяцией по треугольникам между точками; там, где точек нет, не строятся.') + '</p>' +
+    '<div class="pj-exgrid">' +
+      '<label>' + tx('Қимасы (қадамы), м', 'Сечение рельефа, м') + '<input type="text" inputmode="decimal" id="pjTinStep" value="' + fmtNum(defStep, 2) + '"></label>' +
+      '<label>' + tx('Үшбұрыш қабырғасының шегі, м', 'Предел стороны треугольника, м') + '<input type="text" inputmode="decimal" id="pjTinEdge" placeholder="' + tx('автоматты', 'автоматически') + '"></label>' +
+    '</div>' +
+    '<label class="qa-check"><input type="checkbox" id="pjTinSmooth" checked> ' + tx('Тегістеу', 'Сглаживание') + '</label>' +
+    (old.length ? '<label class="qa-check"><input type="checkbox" id="pjTinReplace" checked> ' + tx('Бұрын құрылған горизонтальдарды ауыстыру (' + old.length + ')', 'Заменить ранее построенные горизонтали (' + old.length + ')') + '</label>' : '') +
+    '<p class="pj-ferr" id="pjTinErr" hidden></p>' +
+    '<div class="qa-dlg-btns"><span class="mk-sp"></span><button type="button" class="btn btn--ghost btn--sm" data-x>' + tx('Бас тарту', 'Отмена') + '</button>' +
+      '<button type="submit" class="btn btn--primary btn--sm">' + tx('Құру', 'Построить') + '</button></div></form>');
+  back.querySelector('[data-x]').addEventListener('click', closeDialog);
+  back.querySelector('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = back.querySelector('#pjTinErr');
+    const step = parseNum(back.querySelector('#pjTinStep').value), edge = parseNum(back.querySelector('#pjTinEdge').value);
+    if (!(step > 0) || (range / step) > 500) { err.textContent = tx('Қима — нөлден үлкен сан (горизонтальдар 500-ден аспауы керек).', 'Сечение — число больше нуля (не более 500 горизонталей).'); err.hidden = false; return; }
+    if (edge != null && !(edge > 0)) { err.textContent = tx('Қабырға шегі — нөлден үлкен сан не бос.', 'Предел стороны — число больше нуля или пусто.'); err.hidden = false; return; }
+    const P = plane(+m.lat, +m.lon);
+    const res = contours(src.map(f => [...P.fwd(+f.lat, +f.lon), +f.value]), { step, maxEdge: edge || 0, smooth: back.querySelector('#pjTinSmooth').checked });
+    if (!res.lines.length) { err.textContent = tx('Горизонталь шықпады: нүктелердің биіктігі бір деңгейде не үшбұрыштар тым ұзын (шекті үлкейтіңіз).', 'Горизонтали не получились: точки на одном уровне или треугольники слишком длинные (увеличьте предел).'); err.hidden = false; return; }
+    const recs = res.lines.map(l => ({ mark_id: markId, kind: 'contour', value: l.value, src: 'tin', pts: thinPts(l.pts.map(p => P.inv(p[0], p[1]))) }));
+    try {
+      if (old.length && back.querySelector('#pjTinReplace')?.checked) await api('fdelete', { id: old.map(f => f.id).join(',') });
+      const j = await api('fimport', { data: JSON.stringify(recs) });
+      closeDialog();
+      toast(tx('Горизонтальдар құрылды: ', 'Построено горизонталей: ') + j.added + ' (' + fmtNum(res.lines[0].value, 2) + '–' + fmtNum(res.lines[res.lines.length - 1].value, 2) + ' м' + tx(', қабырға шегі ', ', предел стороны ') + fmtNum(res.maxEdge, 1) + ' м)');
+    } catch (er) { toast(er.message, true); }
+  });
+}
+
+/* ---------- Жоспарға қосылған «Өзге нысандар» (құдық, бұлақ, қыстау…): plans.places — id-лер, деректер places қабатынан ---------- */
+const placeName = (p, l = UI) => (l === 'ru' ? p.name_ru || p.name : p.name || p.name_ru) || (PLACE_KINDS.find(k => k.v === p.kind) || PLACE_KINDS[PLACE_KINDS.length - 1])[l === 'ru' ? 'ru' : 'kk'];
+const planPlaces = () => { const ids = (curPlan() || {}).places || []; return ids.map(id => places().find(p => p.id === id)).filter(Boolean); };
+function openPlacesPicker() {
+  const m = curMark();
+  if (!m) { openMarkPicker(); return; }
+  const all = places();
+  if (!all.length) { toast(tx('Жобада өзге нысан жоқ. Құдық, бұлақ, қыстау т.б. «Белгі қою» бөлімінде қосылады.', 'В проекте нет прочих объектов. Колодцы, родники, зимовки и др. добавляются в разделе «Метки».'), true); return; }
+  const cur = new Set((curPlan() || {}).places || []);
+  const rows = all.map(p => ({ p, d: inverse(+m.lat, +m.lon, +p.lat, +p.lon).dist })).sort((a, b) => a.d - b.d).slice(0, 300);
+  const back = dialog('pj-pldlg',
+    '<form novalidate><h3>' + svgIc(IC.fpoint) + tx('Өзге нысандарды жоспарға қосу', 'Прочие объекты на плане') + '<small class="pj-dlgsub">' + esc(markName(m)) + '</small></h3>' +
+    '<p class="qa-hint">' + tx('Нысандар көшірілмейді: атауы мен орны «Белгі қою» бөліміндегі деректен алынады. Ескерткішке жақыны жоғарыда; сызба аймағынан тыс қалғаны жоспарда көрінбейді.',
+      'Объекты не копируются: название и положение берутся из раздела «Метки». Ближайшие к памятнику — вверху; находящиеся вне чертежа на плане не видны.') + '</p>' +
+    '<div class="pj-mlist pj-pllist">' + rows.map(({ p, d }) => '<label class="qa-check pj-plrow"><input type="checkbox" value="' + esc(p.id) + '"' + (cur.has(p.id) ? ' checked' : '') + '> <b>' + esc(placeName(p)) + '</b>' +
+      '<small>' + esc((PLACE_KINDS.find(k => k.v === p.kind) || PLACE_KINDS[PLACE_KINDS.length - 1])[UI === 'ru' ? 'ru' : 'kk']) + ' · ' + fmtDist(d) + '</small></label>').join('') + '</div>' +
+    '<div class="qa-dlg-btns"><span class="mk-sp"></span><button type="button" class="btn btn--ghost btn--sm" data-x>' + tx('Бас тарту', 'Отмена') + '</button>' +
+      '<button type="submit" class="btn btn--primary btn--sm">' + tx('Сақтау', 'Сохранить') + '</button></div></form>');
+  back.querySelector('[data-x]').addEventListener('click', closeDialog);
+  back.querySelector('form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const ids = [...back.querySelectorAll('.pj-pllist input:checked')].map(x => x.value);
+    try { await savePlan({ places: ids }); closeDialog(); toast(tx('Жоспардағы өзге нысандар: ', 'Прочих объектов на плане: ') + ids.length); } catch (err) { toast(err.message, true); }
+  });
+}
+/** «Жағдаят» мәзірі: сызықтар, аудандар, нүктелік белгілер, жазу, өзге нысандар. */
+function featMenu(btn) {
+  if (mode && (mode.kind === 'fdraw' || mode.kind === 'fedit')) { stopMode(); return; }
+  if (!curMark()) { openMarkPicker(); return; }
+  const r = btn.getBoundingClientRect();
+  const it = k => ({ label: featLabel(k.v, UI), hint: FHINT[k.v][UI === 'ru' ? 1 : 0], icon: k.cat === 'line' ? IC.fline : k.cat === 'area' ? IC.farea : k.cat === 'text' ? IC.ftext : IC.fpoint,
+    run: () => startMode({ kind: 'fdraw', fkind: k.v, draft: { mark_id: markId } }) });
+  const cat = c => FEAT_KINDS.filter(k => k.cat === c).map(it);
+  globalThis.MuraCtx?.openMenu(r.left, r.bottom + 4, tx('Жағдаят белгісін салу', 'Нанести знак ситуации'), [...cat('line'), 'sep', ...cat('area'), 'sep', ...cat('point'), 'sep', ...cat('text'), 'sep',
+    { label: tx('Өзге нысандарды жоспарға қосу…', 'Добавить прочие объекты на план…'), hint: tx('құдық, бұлақ, қыстау т.б. — «Белгі қою» бөлімінен', 'колодец, родник, зимовка и др. — из раздела «Метки»'), icon: IC.fpoint, run: openPlacesPicker },
+    { label: tx('Файлдан импорттау…', 'Импорт из файла…'), hint: 'GeoJSON, KML, KMZ, GPX, DXF, CSV / TXT', icon: IC.fimport, run: () => { if (!curMark()) { openMarkPicker(); return; } fileIn.click(); } },
+    { label: tx('Нүктелерден горизонтальдар құру…', 'Построить горизонтали по точкам…'), hint: tx('биіктік белгілерінен (TIN)', 'по отметкам высоты (TIN)'), icon: IC.fline, run: openContourDialog }]);
+}
+$('pjSit').addEventListener('click', e => featMenu(e.currentTarget));
+function rubberF(ll) {
+  tempLayer.clearLayers();
+  if (!mode || mode.kind !== 'fdraw') return;
+  const pts = mode.pts;
+  for (const p of pts) L.circleMarker(p, { radius: 4, color: ST.sel, fillColor: '#fff', fillOpacity: 1, weight: 2, interactive: false }).addTo(tempLayer);
+  if (pts.length) L.polyline(ll ? pts.concat([[ll.lat, ll.lng]]) : pts, { color: ST.sel, weight: 2, interactive: false }).addTo(tempLayer);
+  if (featCat(mode.fkind) === 'area' && pts.length >= 2 && ll) L.polyline([[ll.lat, ll.lng], pts[0]], { color: ST.sel, weight: 1, dashArray: '3 5', interactive: false }).addTo(tempLayer);
+}
+function finishFeatLine() {
+  const m = mode;
+  const pts = m.pts.filter((p, i, a) => !i || p[0] !== a[i - 1][0] || p[1] !== a[i - 1][1]);
+  if (featCat(m.fkind) === 'area') {
+    if (new Set(pts.map(p => p.join(','))).size < 3) { toast(tx('Ауданда кемінде үш төбе болуы керек.', 'В участке должно быть не менее трёх вершин.'), true); return; }
+    const P = plane(pts[0][0], pts[0][1]);
+    if (selfIntersects(pts.map(p => P.fwd(p[0], p[1])))) { toast(tx('Шекара өзімен қиылысады — төбелерді қайта қойыңыз (Backspace).', 'Граница самопересекается — переставьте вершины (Backspace).'), true); return; }
+  } else if (pts.length < 2) { toast(tx('Сызықта кемінде екі төбе болуы керек.', 'В линии должно быть не менее двух вершин.'), true); return; }
+  stopMode(true);
+  render();
+  openFeatDialog(null, { draft: { ...m.draft, kind: m.fkind, pts } });
+}
+/** Ағаш: терезесіз бірден сақталады, режим қосулы қалады (бірнеше ағашты қатарынан қою). */
+async function addTree(ll) {
+  try { await api('fsave', { data: JSON.stringify({ mark_id: markId, kind: 'tree', lat: ll.lat, lon: ll.lng }) }); } catch (e) { toast(e.message, true); }
+}
+/** Сақталған белгіні картада түзету: нүкте — жылжыту; сызық — төбелерді сүйреу, тінтуірдің оң жағы — төбені өшіру. */
+function startFeatEdit() {
+  const f = features.find(x => x.id === mode.id);
+  if (!f) return;
+  const w = JSON.parse(JSON.stringify(f));
+  const isLine = isMulti(f.kind), isArea = featCat(f.kind) === 'area';
+  const preview = isArea ? L.polygon(w.pts, { color: ST.sel, weight: 3, fillOpacity: 0.15, interactive: false }).addTo(tempLayer)
+    : isLine ? L.polyline(w.pts, { color: ST.sel, weight: 3, interactive: false }).addTo(tempLayer) : null;
+  const save = async () => { try { await api('fsave', { data: JSON.stringify(w) }); } catch (e) { toast(e.message, true); } };
+  (isLine ? w.pts : [[w.lat, w.lon]]).forEach((ll, i) => {
+    const h = L.marker(ll, { icon: handleIcon(isLine ? '' : ' is-center'), draggable: true, keyboard: false, zIndexOffset: 1000 }).addTo(tempLayer);
+    h.on('drag', () => {
+      const q = h.getLatLng();
+      if (isLine) { w.pts[i] = [q.lat, q.lng]; preview.setLatLngs(w.pts); } else { w.lat = q.lat; w.lon = q.lng; }
+    });
+    h.on('dragend', save);
+    if (isLine) h.on('contextmenu', async ev => {
+      L.DomEvent.stop(ev);
+      if (w.pts.length <= (isArea ? 3 : 2)) { toast(isArea ? tx('Ауданда кемінде үш төбе қалуы керек.', 'В участке должно остаться не менее трёх вершин.') : tx('Сызықта кемінде екі төбе қалуы керек.', 'В линии должно остаться не менее двух вершин.'), true); return; }
+      w.pts.splice(i, 1);
+      await save();
+      startMode({ kind: 'fedit', id: w.id });
+    });
+  });
+}
+
+/** Жағдаят белгісінің терезесі: түрі (сол геометрия ішінде), жазуы, мәні, бұрышы, орны. */
+const ffieldIds = { kind: 'pjFKind', name: 'pjFName', value: 'pjFValue', rot: 'pjFRot', lat: 'pjFLat', pts: 'pjFKind', mark_id: 'pjFKind' };
+function openFeatDialog(f, opts = {}) {
+  const m = curMark();
+  if (!m) { openMarkPicker(); return; }
+  const v = { mark_id: markId, kind: 'point', name: '', name_ru: '', value: null, rot: 0, lat: null, lon: null, pts: null, ...(f || {}), ...(opts.draft || {}) };
+  const isNew = !v.id, cat = featCat(v.kind);
+  const coord = x => (x == null || x === '' ? '' : (+x).toFixed(7));
+  let lenTxt = '';
+  if ((cat === 'line' || cat === 'area') && Array.isArray(v.pts) && v.pts.length) {
+    const P = plane(v.pts[0][0], v.pts[0][1]), xy = v.pts.map(p => P.fwd(p[0], p[1]));
+    if (cat === 'line') {
+      let len = 0;
+      for (let i = 1; i < xy.length; i++) len += dist2(xy[i - 1], xy[i]);
+      lenTxt = tx('Төбелері: ', 'Вершин: ') + v.pts.length + tx(' · ұзындығы ≈ ', ' · длина ≈ ') + fmtDist(len);
+    } else {
+      let a = 0;
+      for (let i = 0, j = xy.length - 1; i < xy.length; j = i++) a += xy[j][0] * xy[i][1] - xy[i][0] * xy[j][1];
+      a = Math.abs(a / 2);
+      lenTxt = tx('Төбелері: ', 'Вершин: ') + v.pts.length + tx(' · ауданы ≈ ', ' · площадь ≈ ') + (a >= 10000 ? fmtNum(a / 10000, 2) + tx(' га', ' га') : fmtNum(a, 0) + ' м²');
+    }
+  }
+  const back = dialog('pj-featdlg',
+    '<form novalidate><h3>' + svgIc(IC.sit) + esc(isNew ? tx('Жаңа жағдаят белгісі', 'Новый знак ситуации') : featLabel(v.kind, UI)) + '<small class="pj-dlgsub">' + esc(markName(m)) + '</small></h3>' +
+    '<div class="qa-row2"><div class="qa-f"><label for="pjFKind">' + tx('Түрі', 'Тип') + '</label><select id="pjFKind" name="kind">' +
+      FEAT_KINDS.filter(k => k.cat === cat).map(k => '<option value="' + k.v + '"' + (k.v === v.kind ? ' selected' : '') + '>' + esc(featLabel(k.v, UI)) + '</option>').join('') + '</select><p class="pj-ferr" data-for="kind"></p></div>' +
+      '<div class="qa-f" id="pjFValueF"><label for="pjFValue" id="pjFValueL"></label><input type="text" id="pjFValue" name="value" inputmode="decimal" value="' + esc(v.value == null ? '' : fmtNum(v.value, 3)) + '"><p class="pj-ferr" data-for="value"></p></div>' +
+      (cat === 'text' ? '<div class="qa-f"><label for="pjFRot">' + tx('Бұрылу бұрышы, °', 'Угол поворота, °') + '</label><input type="text" id="pjFRot" name="rot" inputmode="decimal" value="' + esc(fmtNum(v.rot || 0, 1)) + '"><p class="pj-ferr" data-for="rot"></p></div>' : '') +
+    '</div>' +
+    (I18N.biField ? I18N.biField({ id: 'pjFName', name: 'name', label: cat === 'text' ? tx('Мәтіні', 'Текст') : tx('Жазуы (қажет болса)', 'Подпись (при необходимости)'), kk: v.name, ru: v.name_ru, max: 200, req: cat === 'text' }) : '') +
+    '<p class="pj-ferr" data-for="name"></p>' +
+    (cat === 'line' || cat === 'area' ? '<p class="qa-hint">' + esc(lenTxt) + '</p><p class="pj-ferr" data-for="pts"></p>'
+      : '<fieldset class="pj-fs"><legend>' + tx('Орны (WGS 84)', 'Положение (WGS 84)') + '</legend><div class="qa-row2">' +
+        '<div class="qa-f"><label for="pjFLat">' + tx('Ендік (N)', 'Широта (N)') + '</label><input type="text" id="pjFLat" name="lat" autocomplete="off" spellcheck="false" value="' + esc(coord(v.lat)) + '"></div>' +
+        '<div class="qa-f"><label for="pjFLon">' + tx('Бойлық (E)', 'Долгота (E)') + '</label><input type="text" id="pjFLon" name="lon" autocomplete="off" spellcheck="false" value="' + esc(coord(v.lon)) + '"></div></div>' +
+        '<p class="pj-ferr" data-for="lat"></p></fieldset>') +
+    '<p class="qa-hint">' + tx('Жағдаят белгісі нөмірленбейді және экспликацияға түспейді. Жоспар бетінде (алдын ала қарауда) жазуын тінтуірмен жылжытуға болады.',
+      'Знак ситуации не нумеруется и не входит в экспликацию. На листе плана (в предпросмотре) подпись можно перетащить мышью.') + '</p>' +
+    '<p class="mk-err" id="pjFErr" role="alert" hidden></p>' +
+    '<div class="qa-dlg-btns">' + (isNew ? '' : '<button type="button" class="lnk lnk--danger" id="pjFDel">' + tx('Өшіру', 'Удалить') + '</button><button type="button" class="lnk" id="pjFGeo">' + tx('Картада түзету', 'Исправить на карте') + '</button>') +
+      '<span class="mk-sp"></span><button type="button" class="btn btn--ghost btn--sm" data-x>' + tx('Бас тарту', 'Отмена') + '</button>' +
+      '<button type="submit" class="btn btn--primary btn--sm">' + tx('Сақтау', 'Сохранить') + '</button></div></form>');
+  const form = back.querySelector('form'), F = form.elements;
+  const ferr = (k, t) => { const el = back.querySelector('.pj-ferr[data-for="' + k + '"]'); if (el) { el.textContent = t || ''; el.hidden = !t; } const inp = $(ffieldIds[k]); if (inp) inp.classList.toggle('is-bad', !!t); };
+  const clearErr = () => { back.querySelectorAll('.pj-ferr').forEach(el => { el.textContent = ''; el.hidden = true; }); back.querySelectorAll('.is-bad').forEach(el => el.classList.remove('is-bad')); back.querySelector('#pjFErr').hidden = true; };
+  const paintKind = () => {
+    const k = F.kind.value;
+    back.querySelector('#pjFValueF').hidden = k !== 'contour' && k !== 'height';
+    back.querySelector('#pjFValueL').innerHTML = k === 'height' ? tx('Биіктігі, м', 'Высота, м') + ' <span class="mk-req">*</span>' : tx('Горизонтальдың биіктігі, м', 'Высота горизонтали, м');
+  };
+  F.kind.addEventListener('change', paintKind);
+  clearErr();
+  paintKind();
+  back.querySelector('[data-x]').addEventListener('click', closeDialog);
+  back.querySelector('#pjFDel')?.addEventListener('click', () => { closeDialog(); removeFeat(f); });
+  back.querySelector('#pjFGeo')?.addEventListener('click', () => { closeDialog(); startMode({ kind: 'fedit', id: v.id }); });
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    clearErr();
+    const k = F.kind.value, errs = [];
+    const bad = (key, t) => { errs.push(key); ferr(key, t); };
+    const rec = { ...v, kind: k, mark_id: markId, name: F.name ? F.name.value.trim() : v.name, name_ru: F.name_ru ? F.name_ru.value.trim() : v.name_ru };
+    rec.value = k === 'contour' || k === 'height' ? parseNum(F.value.value) : null;
+    if (Number.isNaN(rec.value)) bad('value', tx('Сан енгізіңіз (мыс. 427,5).', 'Введите число (напр. 427,5).'));
+    else if (k === 'height' && rec.value === null) bad('value', tx('Биіктікті енгізіңіз.', 'Введите высоту.'));
+    if (cat === 'text') {
+      rec.rot = parseNum(F.rot.value) ?? 0;
+      if (Number.isNaN(rec.rot)) bad('rot', tx('Бұрыш дұрыс емес.', 'Неверный угол.'));
+      if (!rec.name && !rec.name_ru) bad('name', tx('Жазудың мәтінін енгізіңіз.', 'Введите текст надписи.'));
+    }
+    if (cat !== 'line' && cat !== 'area') {
+      const ll = parseLatLon(F.lat.value, F.lon.value);
+      if (!ll) bad('lat', tx('Координата дұрыс емес (мыс. 50.412345, 50°24′44,4″).', 'Неверная координата (напр. 50.412345, 50°24′44,4″).'));
+      else { rec.lat = ll.lat; rec.lon = ll.lon; }
+    }
+    if (errs.length) { $(ffieldIds[errs[0]])?.focus?.(); return; }
+    try {
+      await api('fsave', { data: JSON.stringify(rec) });
+      closeDialog();
+      toast(tx('Белгі сақталды: ', 'Знак сохранён: ') + featLabel(k, UI).toLocaleLowerCase(UI) + '.');
+    } catch (err) {
+      if (err.field && ffieldIds[err.field]) ferr(err.field, err.message);
+      else { const g = back.querySelector('#pjFErr'); g.textContent = err.message; g.hidden = false; }
+    }
+  });
+  (cat === 'text' || !F.value || back.querySelector('#pjFValueF').hidden ? $('pjFName') || F.kind : F.value).focus();
+}
+
 /* ======================= Нысан терезесі ======================= */
 const fieldIds = { num: 'pjNum', lat: 'pjLat', height: 'pjHeight', diam: 'pjDiam', ax_a: 'pjAxA', ax_b: 'pjAxB', ax_az: 'pjAxAz', pts: 'pjPtsInfo', mark_id: 'pjNum' };
 function parseLatLon(a, b) {
@@ -587,6 +1107,8 @@ function openObjDialog(o, opts = {}) {
     '<div class="qa-row2"><div class="qa-f"><label for="pjMat">' + tx('Материалы', 'Материал') + '</label><select id="pjMat" name="material">' + optList(MATERIALS, v.material, tx('— белгісіз —', '— неизвестен —')) + '</select></div>' +
       '<div class="qa-f" data-kind="kulpytas"><label for="pjSub">' + tx('Құлпытастың типі', 'Тип кулпытаса') + '</label><select id="pjSub" name="subtype">' + optList(SUBTYPES, v.subtype, tx('— анықталмаған —', '— не определён —')) + '</select></div>' +
       '<div class="qa-f"><label for="pjState">' + tx('Техникалық жай-күйі', 'Техническое состояние') + '</label><select id="pjState" name="state">' + optList(STATES, v.state, '—') + '</select></div></div>' +
+    '<div class="qa-f" data-kind="kurgan"><label>' + tx('Бетінде (жоспарда контурдың ішінде көрсетіледі)', 'На поверхности (показывается внутри контура на плане)') + '</label><div class="pj-surf">' +
+      SURFACES.map(x => '<label class="qa-check"><input type="checkbox" name="surface" value="' + x.v + '"' + (Array.isArray(v.surface) && v.surface.includes(x.v) ? ' checked' : '') + '> ' + esc(UI === 'ru' ? x.ru : x.kk) + '</label>').join('') + '</div></div>' +
     (I18N.biField ? I18N.biField({ id: 'pjName', name: 'name', label: tx('Атауы (қажет болса)', 'Название (при необходимости)'), kk: v.name, ru: v.name_ru, max: 200 }) : '') +
     '<fieldset class="pj-fs"><legend>' + tx('Тірек нүктесі (WGS 84)', 'Опорная точка (WGS 84)') + '</legend>' +
       '<div class="qa-row2"><div class="qa-f"><label for="pjLat">' + tx('Ендік (N)', 'Широта (N)') + '</label><input type="text" id="pjLat" name="lat" autocomplete="off" spellcheck="false" value="' + esc(v.latText ?? coord(v.lat)) + '"></div>' +
@@ -656,6 +1178,7 @@ function openObjDialog(o, opts = {}) {
       name: F.name ? F.name.value : v.name, name_ru: F.name_ru ? F.name_ru.value : v.name_ru, note: F.note ? F.note.value : v.note, note_ru: F.note_ru ? F.note_ru.value : v.note_ru,
       lat: ll ? ll.lat : F.lat.value, lon: ll ? ll.lon : F.lon.value, latText: F.lat.value, lonText: F.lon.value,
       material: F.material.value, subtype: F.kind.value === 'kulpytas' ? F.subtype.value : '', state: F.state.value,
+      surface: F.kind.value === 'kurgan' ? [...back.querySelectorAll('input[name="surface"]:checked')].map(x => x.value) : null,
       height: parseNum(F.height.value), diam: parseNum(F.diam.value), ax_a: parseNum(F.ax_a.value), ax_b: parseNum(F.ax_b.value), ax_az: parseNum(F.ax_az.value), dim_az: parseNum(F.dim_az.value),
       pts, dim: di !== '' && dj !== '' && di !== dj ? [+di, +dj] : null,
     };
@@ -844,7 +1367,7 @@ function ctxFor(lang) {
   const ob = m.oblast || '', di = m.district || '';
   const title = [I18N.field(m, 'name', lang) || '', ru && REG ? REG.ru(ob) : ob, ru && REG ? REG.ru(di, ob) : di].filter(Boolean);
   const p = curPlan();
-  return { mark: m, objects: markObjects(), plan: p, lang, names: { title, ptr: p ? ptrName(p, lang) : '' } };
+  return { mark: m, objects: markObjects(), features: markFeatures(), places: planPlaces(), plan: p, lang, names: { title, ptr: p ? ptrName(p, lang) : '' } };
 }
 /** Экспорт алдындағы ескертулер: аударма жоқ өрістер, тек нүкте болып көрсетілетін нысандар. */
 function warnings(lang, kind) {
@@ -1040,7 +1563,7 @@ function placePencil() {
   btn.style.left = (r.left - wrap.left + mid[0] * k - 14) + 'px';
   btn.style.top = (r.top - wrap.top + mid[1] * k - 14) + 'px';
 }
-/** Белгілер мен өлшем жазуларын сүйреу: жылжу мм-де сақталады (lbl — жалпы жоспар, dimlbl — жеке жоспар). */
+/** Белгілер мен өлшем жазуларын сүйреу: жылжу мм-де сақталады (lbl — жалпы жоспар, dimlbl — жеке жоспар, flbl — жағдаят белгісінің жазуы). */
 function bindDrag(svg) {
   if (!svg) return;
   svg.querySelectorAll('[data-drag]').forEach(g => {
@@ -1048,10 +1571,13 @@ function bindDrag(svg) {
     g.addEventListener('pointerdown', e => {
       e.preventDefault();
       const [kind, id] = g.dataset.drag.split(':');
-      const o = objects.find(x => x.id === id);
+      const isF = kind === 'flbl', isP = kind === 'plbl';
+      const pl = curPlan() || {};
+      const o = isP ? { id } : (isF ? features : objects).find(x => x.id === id);
       if (!o) return;
-      const key = kind === 'lbl' ? 'lbl' : 'dimlbl';
-      const base = Array.isArray(o[key]) ? o[key].slice() : [0, 0];
+      const key = kind === 'dim' ? 'dimlbl' : 'lbl';
+      const was = isP ? (pl.place_lbl || {})[id] : o[key];
+      const base = Array.isArray(was) ? was.slice() : [0, 0];
       const k = svg.viewBox.baseVal.width / svg.getBoundingClientRect().width;
       const x0 = e.clientX, y0 = e.clientY;
       let cur = base;
@@ -1064,7 +1590,10 @@ function bindDrag(svg) {
         g.removeEventListener('pointermove', move);
         g.removeEventListener('pointerup', up);
         if (cur === base) return;
-        try { await api('save', { data: JSON.stringify({ ...o, [key]: cur }) }); } catch (err) { toast(err.message, true); }
+        try {
+          if (isP) await savePlan({ place_lbl: { ...(pl.place_lbl || {}), [id]: cur } });
+          else await api(isF ? 'fsave' : 'save', { data: JSON.stringify({ ...o, [key]: cur }) });
+        } catch (err) { toast(err.message, true); }
         paintPreview();
       };
       g.addEventListener('pointermove', move);
@@ -1141,8 +1670,8 @@ if (mkCount) new MutationObserver(() => render()).observe(mkCount, { childList: 
 api('list').catch(e => { toast(tx('Жоспар деректері жүктелмеді: ', 'Данные плана не загружены: ') + e.message, true); render(); });
 
 globalThis.MuraPlan = {
-  openPanel, closePanel, openForMark, setMark, select, openObjDialog, openPtrDialog, openPreview, exportPdf, api,
-  get objects() { return objects; }, get plans() { return plans; }, get markId() { return markId; }, get selected() { return selId; }, get mode() { return mode && mode.kind; },
+  openPanel, closePanel, openForMark, setMark, select, openObjDialog, openPtrDialog, openPreview, exportPdf, api, openFeatDialog, importFile, openContourDialog,
+  get objects() { return objects; }, get features() { return features; }, get plans() { return plans; }, get markId() { return markId; }, get selected() { return selId; }, get mode() { return mode && mode.kind; },
   ctx: ctxFor, renderPage: (kind, id, scale, lang = UI) => renderPage(ctxFor(lang), kind, id ? objects.find(o => o.id === id) : null, scale || 0),
   stop() { stopMode(true); closeDialog(); },
 };

@@ -181,12 +181,123 @@ async function run(win) {
     r['pdf_' + k] = { file: f, bytes: b.length, pages: (s.match(/\/Type\s*\/Page[^s]/g) || []).length,
       a4: !!mb && Math.abs(+mb[1] - 595.28) < 1 && Math.abs(+mb[2] - 841.89) < 1, font: /\/FontFile2|\/FontFile3/.test(s) };
   }
+  // ===== 3-кезең: жағдаят белгілері (docs/PLAN-STAGE3.md) — «Жағдаят» мәзірі, картада сызу, терезе, бет =====
+  Object.assign(r, await js(`(async () => {
+    const out = {}, wait = t => new Promise(r => setTimeout(r, t)), $ = id => document.getElementById(id), map = MuraMarks.map;
+    const G = await import('mura://app/plan/geo.js'), o1 = MuraPlan.objects.find(o => o.num === '1'), P = G.plane(o1.lat, o1.lon);
+    const at = (x, y) => { const q = P.inv(x, y); return L.latLng(q[0], q[1]); };
+    const menu = async name => { $('pjSit').click(); await wait(100); [...document.querySelectorAll('.mura-ctx button')].find(b => b.textContent.includes(name))?.click(); await wait(100); };
+    out.sitBtn = !$('pjSit').disabled;
+    // Горизонталь: үш төбе, Enter → терезе, мәні 427
+    await menu('Горизонталь');
+    out.fmode = MuraPlan.mode + ' / ' + $('pjSit').getAttribute('aria-pressed');
+    for (const [x, y] of [[-60, -10], [0, -14], [60, -8]]) map.fire('click', { latlng: at(x, y) });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await wait(200);
+    out.fdlg = !!document.querySelector('.pj-featdlg') + ' / ' + !$('pjFValueF').hidden;
+    $('pjFValue').value = '427';
+    document.querySelector('.pj-featdlg [type=submit]').click(); await wait(400);
+    // Ағаштар: терезесіз, қатарынан екеуі; Esc — аяқтау
+    await menu('Жеке ағаш');
+    map.fire('click', { latlng: at(10, 20) }); await wait(250);
+    map.fire('click', { latlng: at(14, 22) }); await wait(250);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(100);
+    out.treeMode = String(MuraPlan.mode);
+    // Жазу: мәтінсіз — қате, содан кейін «ЕГІСТІК»
+    await menu('Жазу');
+    map.fire('click', { latlng: at(-20, 30) }); await wait(150);
+    document.querySelector('.pj-featdlg [type=submit]').click(); await wait(200);
+    out.textErr = document.querySelector('.pj-featdlg .pj-ferr[data-for="name"]').textContent;
+    $('pjFName').value = 'ЕГІСТІК'; $('pjFNameRu').value = 'ПАШНЯ';
+    document.querySelector('.pj-featdlg [type=submit]').click(); await wait(400);
+    out.feats = MuraPlan.features.map(f => f.kind + (f.value != null ? ':' + f.value : '') + (f.pts ? ':' + f.pts.length : '')).join(', ');
+    out.mapFeats = document.querySelectorAll('.pj-fpt').length + ' / ' + document.querySelectorAll('.pj-ftext').length;
+    MuraPlan.openPanel(); await wait(150);
+    out.featList = document.querySelectorAll('#pjFeatList .pj-fcard').length + ' / ' + $('pjFeatT').textContent;
+    // Жалпы жоспар: жағдаят белгілері, жазуын сүйреу (flbl)
+    MuraPlan.openPreview({ kind: 'general' }); await wait(300);
+    const svg = document.querySelector('#pjSheet svg').innerHTML;
+    out.sheetFeats = svg.includes('pj-feats') + ' / ' + />427</.test(svg) + ' / ' + />ЕГІСТІК</.test(svg) + ' / ' + (svg.match(/fill="#6b9a34"/g) || []).length;
+    const g = document.querySelector('#pjSheet [data-drag^="flbl:"]');
+    const rc = g.getBoundingClientRect(), x = rc.left + rc.width / 2, y = rc.top + rc.height / 2;
+    g.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
+    g.dispatchEvent(new PointerEvent('pointermove', { clientX: x + 30, clientY: y + 10, pointerId: 1, bubbles: true }));
+    g.dispatchEvent(new PointerEvent('pointerup', { clientX: x + 30, clientY: y + 10, pointerId: 1, bubbles: true })); await wait(400);
+    out.flbl = JSON.stringify(MuraPlan.features.find(f => f.id === g.dataset.drag.slice(5)).lbl);
+    document.querySelector('.pj-prev [data-x]').click();
+    // Картада түзету: горизонтальдың бірінші төбесін жылжыту
+    const c = MuraPlan.features.find(f => f.kind === 'contour');
+    MuraPlan.openFeatDialog(c); await wait(100);
+    $('pjFGeo').click(); await wait(150);
+    out.feditMode = MuraPlan.mode + ' / тұтқа: ' + document.querySelectorAll('.pj-handle').length;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(100);
+    // 2-кезең: егістік ауданы — төрт төбе, бірінші төбені басып тұйықтау
+    await menu('Егістік');
+    for (const [x, y] of [[-40, 40], [40, 40], [40, 70], [-40, 70], [-40, 40]]) map.fire('click', { latlng: at(x, y) });
+    await wait(200);
+    out.areaDlg = !!document.querySelector('.pj-featdlg') + ' / ' + /га|м²/.test(document.querySelector('.pj-featdlg').textContent);
+    $('pjFName').value = 'ЕГІСТІК'; $('pjFNameRu').value = 'ПАШНЯ';
+    document.querySelector('.pj-featdlg [type=submit]').click(); await wait(400);
+    const ar = MuraPlan.features.find(f => f.kind === 'arable');
+    out.area = ar ? ar.pts.length + ' төбе / ' + ar.name : 'жоқ';
+    // Қорғанның беті: №1 — тас үйінді
+    MuraPlan.openObjDialog(o1); await wait(100);
+    out.surfShown = !document.querySelector('.pj-objdlg .pj-surf').closest('[data-kind]').hidden;
+    document.querySelector('.pj-objdlg input[name="surface"][value="stones"]').checked = true;
+    document.querySelector('.pj-objdlg [type=submit]').click(); await wait(400);
+    out.surface = JSON.stringify(MuraPlan.objects.find(o => o.num === '1').surface);
+    // Өзге нысан (құдық) жоспарға қосылады — сілтеме арқылы
+    const wq = P.inv(-25, -20);
+    await __places.api('save', { data: JSON.stringify({ kind: 'well', name: 'Ескі құдық', name_ru: 'Старый колодец', lat: wq[0], lon: wq[1] }) });
+    await menu('Өзге нысандарды');
+    const cb = [...document.querySelectorAll('.pj-pllist label')].find(l => l.textContent.includes('Ескі құдық')).querySelector('input');
+    cb.checked = true;
+    document.querySelector('.pj-pldlg [type=submit]').click(); await wait(400);
+    out.places = (MuraPlan.plans[0].places || []).length + ' / ' + /Ескі құдық/.test($('pjFeatList').textContent);
+    const g2 = MuraPlan.renderPage('general', '', 0).svg;
+    out.sheet2 = g2.includes('url(#pj-f-arable)') +' / ' + g2.includes('pj-surface') + ' / ' + g2.includes('>Ескі құдық<') + ' / ' + g2.includes('>ЕГІСТІК<');
+    // 3-кезең: тахеометрдің CSV файлы (жергілікті жүйе, № X Y H) → биіктік белгілері → горизонтальдар
+    let csv = '№;X;Y;H\\n', k = 0;
+    for (let x = -40; x <= 40; x += 8) for (let y = -40; y <= 40; y += 8) csv += (++k) + ';' + (1000 + y).toFixed(3).replace('.', ',') + ';' + (2000 + x).toFixed(3).replace('.', ',') + ';' + (427 - Math.hypot(x, y) / 12).toFixed(2).replace('.', ',') + '\\n';
+    await MuraPlan.importFile(new File([csv], 'tach.csv', { type: 'text/csv' })); await wait(200);
+    const dlg = document.querySelector('.pj-impdlg');
+    out.impDlg = !!dlg + ' / ' + dlg.querySelector('[data-st="crs"]').value + ' / ' + dlg.querySelector('[data-col="n"]').value + dlg.querySelector('[data-col="e"]').value + dlg.querySelector('[data-col="h"]').value + ' / ' + dlg.querySelector('select[data-gk]').value;
+    out.impInfo = $('pjImpInfo').textContent;
+    const before = MuraPlan.features.length;
+    dlg.querySelector('[type=submit]').click(); await wait(600);
+    const hs = MuraPlan.features.filter(f => f.kind === 'height' && f.src === 'import');
+    const c0 = hs.find(f => f.name === '61');                                   // (0, 0) нүктесі — тірек нүктесі (деректің ортасы) → ескерткіштің координатасы
+    out.imported = (MuraPlan.features.length - before) + ' / ' + hs.length + ' / ' + (c0 ? Math.abs(c0.lat - __marks.items[0].lat) < 1e-7 && Math.abs(c0.lon - __marks.items[0].lon) < 1e-7 : 'жоқ');
+    out.grouped = !!document.querySelector('#pjFeatList [data-fkind="height"]');
+    // Горизонтальдар (қима 1 м)
+    MuraPlan.openContourDialog(); await wait(150);
+    $('pjTinStep').value = '1';
+    document.querySelector('.pj-tindlg [type=submit]').click(); await wait(800);
+    const tin = MuraPlan.features.filter(f => f.src === 'tin');
+    out.tin = tin.length + ' / ' + [...new Set(tin.map(f => f.value))].sort().join(',');
+    // Қайта құру: ескілері ауыстырылады
+    MuraPlan.openContourDialog(); await wait(150);
+    $('pjTinStep').value = '2';
+    document.querySelector('.pj-tindlg [type=submit]').click(); await wait(800);
+    out.tin2 = [...new Set(MuraPlan.features.filter(f => f.src === 'tin').map(f => f.value))].sort().join(',');
+    const g3 = MuraPlan.renderPage('general', '', 0).svg;
+    out.sheet3 = (g3.match(/stroke="#b06a1f" stroke-width="0.25"/g) || []).length;
+    // DXF: қабаттар — топтар
+    const dxf = ['0', 'SECTION', '2', 'ENTITIES', '0', 'LWPOLYLINE', '8', 'Дороги', '90', '2', '70', '0', '10', '1000', '20', '1950', '10', '1060', '20', '2050',
+      '0', 'POINT', '8', 'Деревья', '10', '1010', '20', '2010', '30', '0', '0', 'ENDSEC', '0', 'EOF'].join('\\n');
+    await MuraPlan.importFile(new File([dxf], 'site.dxf')); await wait(200);
+    const dd = document.querySelector('.pj-impdlg');
+    out.dxfGroups = [...dd.querySelectorAll('select[data-gk]')].map(x => x.value).join(',') + ' / ' + dd.querySelector('[data-st="crs"]').value;
+    dd.querySelector('[data-x]').click();
+    return out;
+  })()`));
+  await snap('-feats');
   // Қайта жүктеу: деректер жобада сақталған
   await new Promise(res => { win.webContents.once('did-finish-load', res); win.webContents.reload(); });
   await new Promise(res => setTimeout(res, 3000));
   Object.assign(r, await js(`(async () => {
     const out = {}, wait = t => new Promise(r => setTimeout(r, t));
     for (let i = 0; i < 30 && !MuraPlan.objects.length; i++) await wait(100);
+    out.featsReload = MuraPlan.features.length;
     out.reload = MuraSvc.get() + ' / нысан: ' + MuraPlan.objects.length + ' / ' + (MuraPlan.plans[0]?.ptr_dist_man) + ' / ' + document.getElementById('pjMarkName').textContent;
     // Қызмет ауысқанда «Жоспар» панелі жабылады, 4 пернесі қайта ашады
     MuraPlan.openPanel(); await wait(100);
@@ -315,6 +426,24 @@ async function run(win) {
   check(r.markCoord === '50.3, 57.2', 'ескерткіштің негізгі координатасы өзгермеді');
   check(/^plan \/ нысан: 3 \/ 22600 \/ Салтақ-III қорымы$/.test(r.reload), 'қайта ашқанда сақталған');
   check(r.leave === 'zone / жабық' && r.key4 === 'plan', 'қызмет ауысуы');
+  // 3-кезең: жағдаят белгілері
+  check(r.sitBtn && r.fmode === 'fdraw / true' && r.fdlg === 'true / true', '«Жағдаят» мәзірі: горизонталь сызу, терезеде мәні');
+  check(r.treeMode === 'null' && /Жазудың мәтінін/.test(r.textErr), 'ағаштар қатарынан қойылады, Esc аяқтайды; жазусыз мәтін — қате');
+  check(r.feats === 'contour:427:3, tree, tree, text', 'белгілер сақталды (' + r.feats + ')');
+  check(r.mapFeats === '2 / 1' && /^4 \/ Жағдаят белгілері: 4$/.test(r.featList), 'картада және панельде көрінеді');
+  check(r.sheetFeats === 'true / true / true / 2', 'жалпы жоспарда: горизонталь (427), жазу, ағаштар');
+  check(r.flbl && r.flbl !== 'null', 'жағдаят жазуын сүйреу сақталды');
+  check(/^fedit \/ тұтқа: 3$/.test(r.feditMode), 'картада түзету: әр төбеде тұтқа');
+  check(r.areaDlg === 'true / true' && r.area === '4 төбе / ЕГІСТІК', 'егістік ауданы картада сызылды (' + r.area + ')');
+  check(r.surfShown && r.surface === '["stones"]', 'қорғанның беті: тас үйінді сақталды');
+  check(r.places === '1 / true', 'құдық жоспарға қосылды (сілтеме), панельде көрінеді');
+  check(r.sheet2 === 'true / true / true / true', 'жалпы жоспарда: егістік, тас үйінді, құдық');
+  check(/^true \/ local \/ 123 \/ height$/.test(r.impDlg) && /Импортталады: 121/.test(r.impInfo), 'CSV импорты: жергілікті жүйе, X — солтүстік, биіктік белгілері (' + r.impDlg + ' | ' + r.impInfo + ')');
+  check(r.imported === '121 / 121 / true' && r.grouped, 'CSV-тен 121 биіктік белгісі, деректің ортасы ескерткіштің орнында; панельде бір жолмен');
+  check(/^\d+ \/ 423,424,425,426$/.test(r.tin) && r.tin2 === '424,426', 'нүктелерден горизонтальдар (1 м), қайта құрғанда (2 м) ескілері ауыстырылды (' + r.tin + ' | ' + r.tin2 + ')');
+  check(r.sheet3 >= 2, 'жалпы жоспарда құрылған горизонтальдар');
+  check(r.dxfGroups === 'track,tree / local', 'DXF қабаттары → белгі түрлері (' + r.dxfGroups + ')');
+  check(r.featsReload > 120, 'қайта ашқанда жағдаят белгілері сақталған (' + r.featsReload + ')');
   // 2-кезең
   check(r.num4 === '4' && r.subHidden === true && r.subShown === true, 'құлпытас типі тек құлпытаста көрінеді');
   check(/Ұзындығы/.test(r.rectLabels) && /Ені/.test(r.rectLabels), 'тіктөртбұрыштың өрістері: ұзындығы, ені');
