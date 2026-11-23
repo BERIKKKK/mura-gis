@@ -58,7 +58,7 @@ mura.commands.register('export', async (ctx) => { … return нәтиже; });
 ```
 
 `ctx`: `{ point, lang, docLang, zone?, service? }`. `lang` — интерфейс тілі, `docLang` — құжат (экспорт) тілі,
-интерфейс тілінен тәуелсіз. `zone.export` үшін `zone: { id, markId, saved }`.
+интерфейс тілінен тәуелсіз. `zone.export` үшін `zone: { id, markId, saved }` және `scope`: `'current'` («Нәтиже және экспорт» бөлімінен) не `'all'` («Қорғау аймақтары» тізімінен).
 
 ### `mark.suggest` (Mura GIS 2.4.2+)
 

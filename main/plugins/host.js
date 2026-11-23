@@ -227,7 +227,7 @@ class PluginHost {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { it.calls.delete(cid); reject(new PluginError('Плагин командасы тым ұзақ орындалды.', 'timeout')); }, INVOKE_TIMEOUT);
       it.calls.set(cid, { resolve, reject, timer });
-      this.post(it, { t: 'invoke', id: cid, command, ctx: { point, lang: this.d.lang(), docLang: this.docLang, ...(ctx && ctx.service ? { service: String(ctx.service) } : {}), ...(ctx && ctx.zone ? { zone: clone(ctx.zone) } : {}) } });
+      this.post(it, { t: 'invoke', id: cid, command, ctx: { point, lang: this.d.lang(), docLang: this.docLang, ...(ctx && ctx.service ? { service: String(ctx.service) } : {}), ...(ctx && (ctx.scope === 'all' || ctx.scope === 'current') ? { scope: ctx.scope } : {}), ...(ctx && ctx.zone ? { zone: clone(ctx.zone) } : {}) } });
     });
   }
 
