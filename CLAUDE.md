@@ -15,7 +15,7 @@ Mobile (болашақ): тек **Ескерткіштер → Маршрутт�
 | ↳ Өзге нысандар (елді мекен, қыстау, құдық…) | `src/marks/places.js`, `main/places.js` | жобаның `places` қабаты | `mura://app/places` |
 | Маршруттар | `src/routes/`, `main/routes.js` | `routes.json` | `mura://app/routes` |
 | Қорғау аймағы | `src/qorgau/`, `src/js/zone-dialog.js`, `main/store.js` | `qorgau.json` | `mura://app/api` |
-| Жоспар (1-кезең: қорғандар; 2-кезең: қорым экспликациясы — `docs/PLAN-STAGE2.md`) | `src/plan/`, `main/plans.js`, `main/plan-geom.js` | жобаның `plan_objects`, `plans` қабаттары | `mura://app/plans` |
+| Жоспар (1-кезең: қорғандар; 2-кезең: қорым экспликациясы — `docs/PLAN-STAGE2.md`) | `src/plan/` (импорт — `importer.js`, `crs.js`, `tin.js`), `main/plans.js`, `main/plan-geom.js` | жобаның `plan_objects`, `plans`, `plan_features` (жағдаят — `docs/PLAN-STAGE3.md`) қабаттары | `mura://app/plans` |
 | Паспорттау | — | — | **ӘЗІРГЕ ЖАСАЛМАЙДЫ** |
 | Синхрондау (міндетті емес; Google Drive appDataFolder; `docs/SYNC.md`) | `main/sync/`, `src/js/sync-ui.js`; Android: `core/sync/`, `app/.../sync/` | `userData/sync/`, жобаның `mura_project.sync_id` | IPC `mura:sync-*` |
 | Плагиндер (міндетті емес; оқшауланған процесс; `docs/PLUGINS.md`, `plugin-sdk/`) | `main/plugins/`, `src/js/plugins-ui.js`, `plugin-sdk/lib/` (ортақ) | `userData/plugins/` (жобадан бөлек) | IPC `mura:plugins-*`, `mura-plugin://<id>/` |

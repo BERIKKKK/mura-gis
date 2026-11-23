@@ -57,7 +57,7 @@ function bindStores() {
   marks = new MarksStore(t('marks'), t('imports'));
   routes = new RoutesStore(t('routes'));
   places = new PlacesStore(t('places'));
-  plans = new PlansStore(t('plan_objects'), t('plans'));
+  plans = new PlansStore(t('plan_objects'), t('plans'), t('plan_features'));
   if (p) { p.setAutosave(autosave()); p.onChange = sendDirty; }
   if (win) win.setTitle(p ? (projects.info().current.name + ' — Mura GIS') : 'Mura GIS');
   buildMenu();

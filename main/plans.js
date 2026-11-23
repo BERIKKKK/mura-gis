@@ -3,14 +3,22 @@
    Нысан: { id (16 hex, тұрақты), mark_id, num (ескерткіш ішінде бірегей), kind, name/name_ru, note/note_ru, lat, lon (тірек нүктесі),
      shape ('' — тек нүкте | circle | ellipse | free), height, diam, ax_a, ax_b, ax_az, pts [[lat, lon]…] (еркін контур),
      dim [i, j] (еркін контурдың өлшем сызығы — төбелердің нөмірі), dim_az (шеңбердің диаметр сызығының бағыты),
-     lbl [dx, dy] (жалпы жоспардағы белгінің ығысуы, мм), dimlbl [dx, dy] (жеке жоспардағы өлшем жазуының ығысуы, мм) }.
+     lbl [dx, dy] (жалпы жоспардағы белгінің ығысуы, мм), dimlbl [dx, dy] (жеке жоспардағы өлшем жазуының ығысуы, мм),
+     surface [код…] (қорғанның бетіндегі белгі: stones — тас үйінді, pit — ойық / тонау шұңқыры; бос болса — null) }.
    Биіктік пен өлшемдер метрмен; бос (null) — «өлшенбеген», 0 — енгізілген нөл.
    Жоспар: { id, mark_id, lang, scale_general, scale_detail (0 — автоматты), ptr (елді мекен: { lat, lon, place_id }), ptr_name/ptr_name_ru,
      ptr_name_man, ptr_from ('' — ескерткіштің негізгі координатасы, не нысанның id-і), ptr_o_lat/ptr_o_lon (бастапқы нүкте),
-     ptr_az/ptr_dist (есептелген), ptr_az_man/ptr_dist_man (қолмен түзетілгені, null — автоматты) }.
-   Клиент (src/plan/plan.js): POST mura://app/plans?op=list|save|delete|plan
-     save — FormData data = бір нысан (JSON), id болса — жаңартылады; delete — FormData id; plan — FormData data = жоспар баптаулары.
-   Жауап: { ok, objects, plans, id, error, field } (field — қате өрістің атауы). */
+     ptr_az/ptr_dist (есептелген), ptr_az_man/ptr_dist_man (қолмен түзетілгені, null — автоматты),
+     places [id…] (жоспарға қосылған «Өзге нысандар» — places қабатына сілтеме, көшірме емес), place_lbl { id: [dx, dy] } (олардың жазуының ығысуы, мм) }.
+   Жағдаят белгісі (3-кезең, docs/PLAN-STAGE3.md; plan_features қабаты): { id, mark_id, kind (FEAT_KINDS), name/name_ru (жазуы),
+     value (горизонтальдың не биіктік белгісінің мәні, м), lat, lon (нүкте, жазу), pts [[lat, lon]…] (сызық; аудан — тұйықталмаған сақина), rot (жазудың бұрышы, °),
+     lbl [dx, dy] (жазудың беттегі ығысуы, мм), src ('' — қолмен, import — файлдан, tin — нүктелерден құрылған горизонталь) }.
+     Ескерткіштің құрамына кірмейді: нөмірі жоқ, экспликацияға түспейді.
+   Клиент (src/plan/plan.js): POST mura://app/plans?op=list|save|delete|plan|fsave|fdelete|fimport
+     save — FormData data = бір нысан (JSON), id болса — жаңартылады; delete — FormData id; plan — FormData data = жоспар баптаулары;
+     fsave / fdelete — жағдаят белгісі (data / id; fdelete — бірнеше id үтір арқылы);
+     fimport — FormData data = белгілер тізімі (JSON; әрқайсысы тексеріледі, қателісі өткізіледі) → { added, skipped, error }.
+   Жауап: { ok, objects, plans, features, id, error, field } (field — қате өрістің атауы). */
 const os = require('node:os');
 const crypto = require('node:crypto');
 const { tx } = require('./lang');
@@ -23,11 +31,18 @@ const SHAPES = ['', 'circle', 'ellipse', 'free', 'rect'];
 const MATERIALS = ['brick_fired', 'brick_raw', 'stone'];
 const SUBTYPES = ['block', 'classic', 'fert', 'anthropo', 'unique'];          // құлпытастың типі (Ажигали)
 const STATES = ['good', 'fair', 'poor', 'emergency'];                        // паспорттың 9-тармағы
+/** Жағдаят белгілерінің түрлері → геометриясы (src/plan/sheet.js FEAT_KINDS-пен бірдей; жаңасы тек соңына): нүкте, сызық, жазу, аудан. */
+const FEAT_KINDS = { tree: 'point', trig: 'point', tower: 'point', point: 'point', height: 'point', road: 'line', track: 'line', power: 'line', contour: 'line', line: 'line', text: 'text',
+  path: 'line', fence: 'line', ditch: 'line', river: 'line', ravine: 'line',
+  arable: 'area', forest: 'area', shrub: 'area', swamp: 'area', water: 'area', sand: 'area', area: 'area' };
+/** Қорғанның бетіндегі белгілер (docs/PLAN-STAGE3.md, 3-бөлім). */
+const SURFACES = ['stones', 'pit'];
 /** Экспликация бағандары: № мен Түрі әрдайым; қалғандары пайдаланушының баптауымен. */
 const EXPL_COLS = ['material', 'size', 'state', 'note'];
 const oneOf = (list, v) => (list.includes(String(v ?? '')) ? String(v) : '');
 const LIMITS = { name: 200, name_ru: 200, note: 3000, note_ru: 3000 };
 const MAX_PTS = 2000;
+const MAX_IMPORT = 20000;
 const user = () => { try { return os.userInfo().username; } catch (e) { return ''; } };
 const cut = (v, n) => [...String(v ?? '').trim()].slice(0, n).join('');
 const num = v => (v === null || v === undefined || String(v).trim() === '' ? null : Number(String(v).replace(',', '.')));
@@ -117,6 +132,51 @@ function cleanObject(d) {
   f.state = oneOf(STATES, d.state);
   f.lbl = pair(d.lbl);
   f.dimlbl = pair(d.dimlbl);
+  const sf = f.kind === 'kurgan' && Array.isArray(d.surface) ? SURFACES.filter(x => d.surface.includes(x)) : [];
+  f.surface = sf.length ? sf : null;
+  return f;
+}
+
+/** Жағдаят белгісін тексеріп, қалыпқа келтіру (docs/PLAN-STAGE3.md). */
+function cleanFeature(d) {
+  if (!d || typeof d !== 'object') throw new Error(tx('Дерек оқылмады.', 'Не удалось прочитать данные.'));
+  const mark_id = String(d.mark_id || '');
+  if (!ID.test(mark_id)) throw fieldError('mark_id', 'Ескерткіш таңдалмаған.', 'Памятник не выбран.');
+  const kind = String(d.kind || '');
+  if (!Object.prototype.hasOwnProperty.call(FEAT_KINDS, kind)) throw fieldError('kind', 'Белгінің түрі белгісіз.', 'Неизвестный тип знака.');
+  const cat = FEAT_KINDS[kind];
+  const f = { mark_id, kind, name: cut(d.name, 200), name_ru: cut(d.name_ru, 200) };
+  const value = num(d.value);
+  if (value !== null && (!Number.isFinite(value) || Math.abs(value) > 100000)) throw fieldError('value', 'Мәні дұрыс емес.', 'Неверное значение.');
+  if (kind === 'height' && value === null) throw fieldError('value', 'Биіктік белгісінің мәнін енгізіңіз.', 'Введите значение отметки высоты.');
+  f.value = value === null ? null : r3(value);
+  if (kind === 'text' && !f.name && !f.name_ru) throw fieldError('name', 'Жазудың мәтінін енгізіңіз.', 'Введите текст надписи.');
+  f.lat = null; f.lon = null; f.pts = null;
+  if (cat === 'line' || cat === 'area') {
+    const raw = Array.isArray(d.pts) ? d.pts : [];
+    if (raw.length > MAX_PTS) throw fieldError('pts', 'Төбелері тым көп.', 'Слишком много вершин.');
+    const pts = raw.map(p => [num(p && p[0]), num(p && p[1])]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180).map(p => [r8(p[0]), r8(p[1])]);
+    const uniq = pts.filter((p, i) => i === 0 || p[0] !== pts[i - 1][0] || p[1] !== pts[i - 1][1]);
+    if (cat === 'line') {
+      if (uniq.length < 2) throw fieldError('pts', 'Сызықта кемінде екі бөлек төбе болуы керек.', 'В линии должно быть не менее двух различных вершин.');
+    } else {
+      // Аудан: тұйықтау нүктесі алынады, кемінде үш бөлек төбе, өзімен қиылыспайды
+      if (uniq.length > 1 && uniq[0][0] === uniq[uniq.length - 1][0] && uniq[0][1] === uniq[uniq.length - 1][1]) uniq.pop();
+      if (new Set(uniq.map(p => p.join(','))).size < 3) throw fieldError('pts', 'Ауданда кемінде үш бөлек төбе болуы керек.', 'В участке должно быть не менее трёх различных вершин.');
+      const P = plane(uniq[0][0], uniq[0][1]);
+      if (selfIntersects(uniq.map(p => P.fwd(p[0], p[1])))) throw fieldError('pts', 'Аудан контуры өзімен қиылысады.', 'Контур участка самопересекается.');
+    }
+    f.pts = uniq;
+  } else {
+    const lat = num(d.lat), lon = num(d.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) throw fieldError('lat', 'Белгінің координатасы дұрыс емес.', 'Неверная координата знака.');
+    f.lat = r8(lat); f.lon = r8(lon);
+  }
+  const rot = num(d.rot);
+  if (cat === 'text' && rot !== null && !Number.isFinite(rot)) throw fieldError('rot', 'Бұрыш дұрыс емес.', 'Неверный угол.');
+  f.rot = cat === 'text' ? r3(((((rot || 0) + 180) % 360) + 360) % 360 - 180) : null;
+  f.lbl = pair(d.lbl);
+  f.src = d.src === 'import' || d.src === 'tin' ? d.src : '';
   return f;
 }
 
@@ -187,15 +247,68 @@ function cleanPlan(d) {
   f.ptr_dist_man = dm === null ? null : dm;
   f.expl = cleanExpl(d.expl);
   f.paper = cleanPaper(d.paper);
+  // Жоспарға қосылған «Өзге нысандар» (тек id — сілтеме) және олардың жазуының ығысуы
+  f.places = [...new Set((Array.isArray(d.places) ? d.places : []).map(String).filter(x => ID.test(x)))].slice(0, 500);
+  const pl = d.place_lbl && typeof d.place_lbl === 'object' ? d.place_lbl : {};
+  f.place_lbl = {};
+  for (const id of f.places) { const v = pair(pl[id]); if (v) f.place_lbl[id] = v; }
   return f;
 }
 
 class PlansStore {
-  /** objects — plan_objects қабаты, plans — plans қабаты ({ load(), write(items) }). */
-  constructor(objects, plans) { this.o = objects; this.p = plans; }
+  /** objects — plan_objects қабаты, plans — plans қабаты, features — plan_features қабаты ({ load(), write(items) }). */
+  constructor(objects, plans, features) {
+    this.o = objects; this.p = plans;
+    this.f = features || { load: () => [], write: () => { throw new Error(tx('Жағдаят қабаты жоқ.', 'Нет слоя ситуации.')); } };
+  }
 
   objects() { return this.o.load().filter(x => x && typeof x === 'object' && x.id); }
   plans() { return this.p.load().filter(x => x && typeof x === 'object' && x.id); }
+  features() { return this.f.load().filter(x => x && typeof x === 'object' && x.id); }
+
+  saveFeature(raw) {
+    let d;
+    try { d = JSON.parse(String(raw || '')); } catch (e) { d = null; }
+    const f = cleanFeature(d);
+    const items = this.features();
+    let id = String(d.id || '');
+    const i = id ? items.findIndex(x => x.id === id) : -1;
+    const old = i >= 0 ? items[i] : null;
+    if (!old) id = crypto.randomBytes(8).toString('hex');
+    const now = new Date().toISOString(), u = user();
+    const rec = { id, ...f, created_at: old?.created_at || now, created_by: old?.created_by || u, updated_at: now, updated_by: u };
+    if (old) items[i] = rec; else items.push(rec);
+    this.f.write(items);
+    return id;
+  }
+
+  /** Бір не бірнеше белгіні өшіру (id-лер үтір арқылы). */
+  removeFeature(id) {
+    const ids = new Set(String(id || '').split(',').filter(Boolean));
+    const items = this.features();
+    const rest = items.filter(o => !ids.has(o.id));
+    if (rest.length === items.length) throw new Error(tx('Белгі табылмады.', 'Знак не найден.'));
+    this.f.write(rest);
+  }
+
+  /** Топтап импорт (файлдан не нүктелерден құрылған горизонтальдар): әрқайсысы тексеріледі, қатесі барлары өткізіледі, бір рет жазылады. */
+  importFeatures(raw) {
+    let list;
+    try { list = JSON.parse(String(raw || '')); } catch (e) { list = null; }
+    if (!Array.isArray(list)) throw new Error(tx('Дерек оқылмады.', 'Не удалось прочитать данные.'));
+    if (list.length > MAX_IMPORT) throw new Error(tx('Бір импортта ' + MAX_IMPORT + '-ден көп белгі болмауы керек.', 'В одном импорте не более ' + MAX_IMPORT + ' знаков.'));
+    const items = this.features(), now = new Date().toISOString(), u = user();
+    let added = 0, skipped = 0, error = '';
+    for (const d of list) {
+      try {
+        const f = cleanFeature(d);
+        items.push({ id: crypto.randomBytes(8).toString('hex'), ...f, created_at: now, created_by: u, updated_at: now, updated_by: u });
+        added++;
+      } catch (e) { skipped++; if (!error) error = e.message; }
+    }
+    if (added) this.f.write(items);
+    return { added, skipped, error };
+  }
 
   save(raw) {
     let d;
@@ -245,7 +358,7 @@ class PlansStore {
   async handle(request) {
     const op = new URL(request.url).searchParams.get('op') || '';
     const out = o => new Response(JSON.stringify(o), { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
-    const all = () => ({ objects: this.objects(), plans: this.plans() });
+    const all = () => ({ objects: this.objects(), plans: this.plans(), features: this.features() });
     try {
       if (request.method !== 'POST') return out({ ok: false, error: tx('POST керек.', 'Нужен POST.') });
       const fd = await request.formData();
@@ -253,6 +366,9 @@ class PlansStore {
       if (op === 'save') { const id = this.save(fd.get('data')); return out({ ok: true, id, ...all() }); }
       if (op === 'delete') { this.remove(fd.get('id')); return out({ ok: true, ...all() }); }
       if (op === 'plan') { const id = this.savePlan(fd.get('data')); return out({ ok: true, id, ...all() }); }
+      if (op === 'fsave') { const id = this.saveFeature(fd.get('data')); return out({ ok: true, id, ...all() }); }
+      if (op === 'fdelete') { this.removeFeature(fd.get('id')); return out({ ok: true, ...all() }); }
+      if (op === 'fimport') { const r = this.importFeatures(fd.get('data')); return out({ ok: true, ...r, ...all() }); }
       return out({ ok: false, error: tx('Белгісіз әрекет.', 'Неизвестное действие.') });
     } catch (e) {
       return out({ ok: false, error: e.message || String(e), field: e.field || '' });
@@ -260,4 +376,4 @@ class PlansStore {
   }
 }
 
-module.exports = { PlansStore, cleanObject, cleanPlan, cleanExpl, selfIntersects, KINDS, MATERIALS, SUBTYPES, STATES };
+module.exports = { PlansStore, cleanObject, cleanPlan, cleanExpl, cleanFeature, selfIntersects, KINDS, MATERIALS, SUBTYPES, STATES, FEAT_KINDS, SURFACES };

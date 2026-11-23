@@ -8,7 +8,8 @@
   if (!tmain || !stage) return;
   var T = window.tx || function (kk) { return kk; };
   var svg = function (p, s) { s = s || 18; return '<svg class="qa-ic" viewBox="0 0 24 24" width="' + s + '" height="' + s + '" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + p + '</svg>'; };
-  // Иконкалар — Lucide (lucide.dev, ISC лицензиясы): map-pin-check, list, circle-plus, pen-tool, ruler-dimension-line, move-up-right, eye, file-down, map, pencil, x
+  // Иконкалар — Lucide (lucide.dev, ISC лицензиясы): map-pin-check, list, circle-plus, pen-tool, ruler-dimension-line, move-up-right, eye, file-down, map, pencil, x, type;
+  // sit, fline, fpoint — өзіміздің қарапайым белгілер (жағдаят: жол мен ағаш, сызық, нүкте)
   var IC = {
     pick: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><path d="m9 10 2 2 4-4"/>',
     list: '<path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/>',
@@ -26,6 +27,12 @@
     free: '<path d="M4 8 10 3l9 4-2 10-8 4-6-6z"/>',
     rect: '<rect width="18" height="12" x="3" y="6" rx="1"/>',
     edit: '<path d="M5 3a2 2 0 0 0-2 2"/><path d="M19 3a2 2 0 0 1 2 2"/><path d="M21 19a2 2 0 0 1-2 2"/><path d="M5 21a2 2 0 0 1-2-2"/><path d="M9 3h1"/><path d="M9 21h1"/><path d="M14 3h1"/><path d="M14 21h1"/><path d="M3 9v1"/><path d="M21 9v1"/><path d="M3 14v1"/><path d="M21 14v1"/>',
+    sit: '<path d="M3 20c3-1 4-5 7-6s5 2 8 0 3-4 3-4"/><path d="M8 4v5"/><circle cx="8" cy="5" r="2.5"/><circle cx="17" cy="16" r="0.5"/>',
+    fline: '<path d="M3 18c4-1 5-8 9-8s5 6 9 4"/>',
+    fpoint: '<path d="M12 4 5 17h14z"/><circle cx="12" cy="13" r="1"/>',
+    farea: '<path d="M4 6l7-3 9 5-2 11-9 2-5-6z" stroke-dasharray="2 2"/>',
+    fimport: '<path d="M12 3v12"/><path d="m8 11 4 4 4-4"/><path d="M8 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-4"/>',
+    ftext: '<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
     crosshair: '<line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/>',
   };
   window.MuraPlanIcon = IC;
@@ -50,7 +57,8 @@
       svg(IC.list) + '<span class="qa-tl">' + T('Нысандар', 'Объекты') + '</span><span class="qa-total" id="pjCount">0</span></button>' +
     btn('pjAdd', 0, IC.add, T('Нысан қосу', 'Добавить объект'), T('Нысан қосу: қорған не өзге нысан', 'Добавить объект: курган или иной объект'), ' disabled') +
     btn('pjDraw', 1, IC.draw, T('Сызу', 'Начертить'), T('Сызу: шеңбер, эллипс, еркін контур; сақталған контурды редакциялау', 'Начертить: окружность, эллипс, свободный контур; редактировать сохранённый контур'), ' aria-pressed="false" disabled') +
-    btn('pjDims', 2, IC.dims, T('Өлшемдер', 'Размеры'), T('Өлшемдер: биіктігі, диаметрі, осьтері, өлшем сызығы', 'Размеры: высота, диаметр, оси, размерная линия'), ' disabled'));
+    btn('pjDims', 2, IC.dims, T('Өлшемдер', 'Размеры'), T('Өлшемдер: биіктігі, диаметрі, осьтері, өлшем сызығы', 'Размеры: высота, диаметр, оси, размерная линия'), ' disabled') +
+    btn('pjSit', 1, IC.sit, T('Жағдаят', 'Ситуация'), T('Жағдаят белгілері: жол, ЭБЖ, горизонталь, ағаш, мұнара, биіктік белгісі, жазу', 'Знаки ситуации: дорога, ЛЭП, горизонталь, дерево, вышка, отметка высоты, надпись'), ' aria-pressed="false" disabled'));
   group(T('Жоспар: құжат', 'План: документ'),
     btn('pjPtr', 2, IC.ptr, T('Бағыттауыш', 'Указатель'), T('Елді мекенге бағыт қосу: елді мекенді картадан таңдау, жебе мен қашықтық', 'Добавить направление на населённый пункт: выбор на карте, стрелка и расстояние'), ' disabled') +
     btn('pjPreview', 1, IC.eye, T('Алдын ала қарау', 'Предпросмотр'), T('Алдын ала қарау: жалпы не жеке сызба, беттегі орналасуы мен масштабы', 'Предпросмотр: общий или индивидуальный чертёж, размещение на листе и масштаб'), ' disabled') +
@@ -69,6 +77,7 @@
       '<div class="pj-mark" id="pjMarkBox"></div>' +
       '<div class="qa-selbar"><span id="pjInfo"></span></div>' +
       '<div class="qa-slist" id="pjObjList"></div>' +
+      '<section class="pj-featsec" id="pjFeatSec" hidden><h3 id="pjFeatT"></h3><div class="qa-slist" id="pjFeatList"></div></section>' +
       '<section class="pj-thumbsec" id="pjThumbSec" hidden><h3 id="pjThumbT"></h3><div class="pj-thumb" id="pjThumb" role="button" tabindex="0" title="' + T('Алдын ала қарау', 'Предпросмотр') + '"></div></section>' +
     '</div>' +
     '<footer class="qa-df">' +

@@ -5,6 +5,9 @@
    Контурлар, өлшем сызықтары, белгішелер — вектор, жазулар — мәтін (PDF-те ізделеді).
    2-кезең (қорым, docs/PLAN-STAGE2.md): нысан түрлері мен материалдары, шартты белгілер блогы және экспликация кестесі —
    жоспарда қорғаннан басқа түр не материал болса ғана шығады; тек қорғандары бар жоспар 1-кезеңдегідей қалады.
+   3-кезең (docs/PLAN-STAGE3.md): жағдаят белгілері (ctx.features) — жол, ЭБЖ, горизонталь, ағаш, егістік, жазу т.б., жоспарға қосылған
+   «Өзге нысандар» (ctx.places — шақырушы places қабатынан береді) және қорғанның беті (o.surface). Аудандар мен сызықтар нысандардың
+   астында, белгілер мен жазулар үстінде; сызба аймағымен қиылады; масштабты автоматты таңдауға әсер етпейді.
    DOM-сыз модуль: scripts/test-plan.mjs тексереді. */
 import { plane, contourXY, hasContour, toMm, SCALES, scaleBarStep, fmtNum, fmtMeasure, fmtDist, inverse, dist2, cmpNum } from './geo.js';
 
@@ -88,12 +91,54 @@ export const stateLabel = (v, lang) => label(STATES, v, lang);
 /** 2-кезеңнің түрі (қорған мен «басқадан» өзге) не материалы бар ма — шартты белгілер мен экспликация шығады. */
 export const isStage2 = objs => objs.some(o => (o.kind && o.kind !== 'kurgan' && o.kind !== 'other') || o.material);
 
+/** Жағдаят белгілері (main/plans.js FEAT_KINDS-пен бірдей; жаңасы тек соңына): cat — point | line | text. */
+export const FEAT_KINDS = [
+  { v: 'tree', cat: 'point', kk: 'Жеке ағаш', ru: 'Отдельное дерево' },
+  { v: 'trig', cat: 'point', kk: 'Геодезиялық пункт', ru: 'Пункт геодезической сети' },
+  { v: 'tower', cat: 'point', kk: 'Мұнара (байланыс)', ru: 'Вышка (связи)' },
+  { v: 'point', cat: 'point', kk: 'Басқа бағдар', ru: 'Иной ориентир' },
+  { v: 'height', cat: 'point', kk: 'Биіктік белгісі', ru: 'Отметка высоты' },
+  { v: 'road', cat: 'line', kk: 'Асфальт жол', ru: 'Автодорога с покрытием' },
+  { v: 'track', cat: 'line', kk: 'Дала жолы', ru: 'Грунтовая дорога' },
+  { v: 'power', cat: 'line', kk: 'Электр беру желісі (ЭБЖ)', ru: 'Линия электропередачи (ЛЭП)' },
+  { v: 'contour', cat: 'line', kk: 'Горизонталь', ru: 'Горизонталь' },
+  { v: 'line', cat: 'line', kk: 'Басқа сызық', ru: 'Иная линия' },
+  { v: 'text', cat: 'text', kk: 'Жазу', ru: 'Надпись' },
+  // 2-кезең: қалған сызықтар мен аудандар
+  { v: 'path', cat: 'line', kk: 'Соқпақ', ru: 'Тропа' },
+  { v: 'fence', cat: 'line', kk: 'Қоршау, шарбақ', ru: 'Ограждение' },
+  { v: 'ditch', cat: 'line', kk: 'Арық, канал', ru: 'Канава, канал' },
+  { v: 'river', cat: 'line', kk: 'Өзен, жылға', ru: 'Река, ручей' },
+  { v: 'ravine', cat: 'line', kk: 'Жыра', ru: 'Овраг' },
+  { v: 'arable', cat: 'area', kk: 'Егістік', ru: 'Пашня' },
+  { v: 'forest', cat: 'area', kk: 'Орман, тоғай', ru: 'Лес, роща' },
+  { v: 'shrub', cat: 'area', kk: 'Бұта', ru: 'Кустарник' },
+  { v: 'swamp', cat: 'area', kk: 'Батпақ', ru: 'Болото' },
+  { v: 'water', cat: 'area', kk: 'Су айдыны', ru: 'Водоём' },
+  { v: 'sand', cat: 'area', kk: 'Құм', ru: 'Пески' },
+  { v: 'area', cat: 'area', kk: 'Басқа аудан', ru: 'Иной участок' },
+];
+/** «Өзге нысандардың» түрлері (main/places.js кодтары; атаулары src/marks/places.js-пен бірдей) — жоспарға қосылғанда. */
+export const PLACE_KINDS = [
+  { v: 'settlement', kk: 'Елді мекен', ru: 'Населённый пункт' }, { v: 'qystau', kk: 'Қыстау', ru: 'Зимовка (қыстау)' },
+  { v: 'zhailau', kk: 'Жайлау', ru: 'Летнее пастбище (жайлау)' }, { v: 'kuzeu', kk: 'Күзеу', ru: 'Осеннее стойбище (күзеу)' },
+  { v: 'kokteu', kk: 'Көктеу', ru: 'Весеннее стойбище (көктеу)' }, { v: 'turaq', kk: 'Тұрақ', ru: 'Стоянка' },
+  { v: 'well', kk: 'Құдық', ru: 'Колодец' }, { v: 'spring', kk: 'Бұлақ', ru: 'Родник' }, { v: 'other', kk: 'Басқа', ru: 'Другое' },
+];
+/** Қорғанның бетіндегі белгілер (main/plans.js SURFACES). */
+export const SURFACES = [
+  { v: 'stones', kk: 'Тас үйінді', ru: 'Каменная наброска' },
+  { v: 'pit', kk: 'Ойық (тонау шұңқыры)', ru: 'Западина (грабительская воронка)' },
+];
+export const featCat = v => (FEAT_KINDS.find(k => k.v === v) || {}).cat || '';
+export const featLabel = (v, lang) => label(FEAT_KINDS, v, lang);
+
 export const TXT = {
   kk: { plan: 'Ескерткіш жоспары', detail: 'жеке жоспар', north: 'С', m: 'м', height: 'Биіктігі', scale: 'Масштаб',
-    legend: 'Шартты белгілер', legKinds: 'Нысан түрлері', legMats: 'Материалдар', noMat: 'материалы белгісіз', expl: 'Экспликация', cont: 'Экспликация (жалғасы)',
+    legend: 'Шартты белгілер', legKinds: 'Нысан түрлері', power: 'ЭБЖ', legMats: 'Материалдар', noMat: 'материалы белгісіз', expl: 'Экспликация', cont: 'Экспликация (жалғасы)',
     next: 'Жалғасы келесі бетте', page: '-бет', head: { num: '№', kind: 'Түрі', material: 'Материалы', size: 'Өлшемі, м', state: 'Жай-күйі', note: 'Ескертпе' } },
   ru: { plan: 'План памятника', detail: 'индивидуальный план', north: 'С', m: 'м', height: 'Высота', scale: 'Масштаб',
-    legend: 'Условные обозначения', legKinds: 'Типы объектов', legMats: 'Материалы', noMat: 'материал неизвестен', expl: 'Экспликация', cont: 'Экспликация (продолжение)',
+    legend: 'Условные обозначения', legKinds: 'Типы объектов', power: 'ЛЭП', legMats: 'Материалы', noMat: 'материал неизвестен', expl: 'Экспликация', cont: 'Экспликация (продолжение)',
     next: 'Продолжение на следующем листе', page: '-й лист', head: { num: '№', kind: 'Тип', material: 'Материал', size: 'Размеры, м', state: 'Состояние', note: 'Примечание' } },
 };
 /** Нысанның атауы құжатта: «№1 қорған» / «Курган №1». */
@@ -133,6 +178,12 @@ const DEFS = '<defs>' +
   '<pattern id="pj-m-brick_fired" patternUnits="userSpaceOnUse" width="1.2" height="1.2" patternTransform="rotate(45)"><rect width="1.2" height="1.2" fill="#fff"/><line x1="0" y1="0" x2="0" y2="1.2" stroke="#111" stroke-width="0.2"/></pattern>' +
   '<pattern id="pj-m-brick_raw" patternUnits="userSpaceOnUse" width="2.4" height="2.4" patternTransform="rotate(45)"><rect width="2.4" height="2.4" fill="#fff"/><line x1="0" y1="0" x2="0" y2="2.4" stroke="#111" stroke-width="0.2" stroke-dasharray="0.9 0.6"/></pattern>' +
   '<pattern id="pj-m-stone" patternUnits="userSpaceOnUse" width="1.6" height="1.6"><rect width="1.6" height="1.6" fill="#fff"/><path d="M0 0L1.6 1.6M1.6 0L0 1.6" stroke="#111" stroke-width="0.16"/></pattern>' +
+  // Жағдаят аудандары (3-кезең): егістік — «═» қатарлары, орман, бұта, батпақ, құм
+  '<pattern id="pj-f-arable" patternUnits="userSpaceOnUse" width="6" height="4"><path d="M0.6 0.9H3.4M0.6 1.6H3.4M3.6 2.9H6M3.6 3.6H6" stroke="#111" stroke-width="0.15"/></pattern>' +
+  '<pattern id="pj-f-forest" patternUnits="userSpaceOnUse" width="5" height="5"><circle cx="1.4" cy="1.4" r="0.6" fill="none" stroke="#3d5f1c" stroke-width="0.15"/><circle cx="3.9" cy="3.9" r="0.6" fill="none" stroke="#3d5f1c" stroke-width="0.15"/></pattern>' +
+  '<pattern id="pj-f-shrub" patternUnits="userSpaceOnUse" width="3.4" height="3.4"><circle cx="0.9" cy="0.9" r="0.35" fill="none" stroke="#3d5f1c" stroke-width="0.13"/><circle cx="2.6" cy="2.6" r="0.35" fill="none" stroke="#3d5f1c" stroke-width="0.13"/></pattern>' +
+  '<pattern id="pj-f-swamp" patternUnits="userSpaceOnUse" width="4" height="1.6"><path d="M0.3 0.8H3" stroke="#2f6db3" stroke-width="0.15"/></pattern>' +
+  '<pattern id="pj-f-sand" patternUnits="userSpaceOnUse" width="1.4" height="1.4"><circle cx="0.35" cy="0.35" r="0.12" fill="#8a6d3b"/><circle cx="1.05" cy="1.05" r="0.12" fill="#8a6d3b"/></pattern>' +
   '</defs>';
 /** Контурсыз нысанның белгісі (≈ 4 мм, орталығы x, y). */
 export function glyph(kind, x, y) {
@@ -164,6 +215,200 @@ function contourSvg(pts, o, stage2, attrs = '') {
   }
   const w = o.kind === 'kesene' ? 0.5 : o.kind === 'korshau' ? 0.35 : 0.25;
   return poly(pts, 'fill="' + f + '" stroke="#111" stroke-width="' + w + '"' + (o.kind === 'korshau' ? ' stroke-dasharray="1.4 0.9"' : '') + attrs);
+}
+
+/* ======================= Жағдаят белгілері (3-кезең) ======================= */
+const CONT = '#b06a1f';                                 // горизонтальдың түсі (үлгілердегідей қоңыр)
+/** Нүктелік белгі (≈ 3 мм, масштабтан тыс; орталығы x, y). */
+export function featGlyph(kind, x, y) {
+  const S = 'stroke="#111"';
+  const dot = r => '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="' + r + '" fill="#111"/>';
+  switch (kind) {
+    case 'tree': return line([x, y + 0.4], [x, y + 1.9], 'stroke="#3d5f1c" stroke-width="0.3"') + '<circle cx="' + n2(x) + '" cy="' + n2(y - 0.5) + '" r="1.2" fill="#6b9a34" stroke="#3d5f1c" stroke-width="0.18"/>';
+    case 'trig': return poly([[x, y - 1.8], [x - 1.6, y + 1], [x + 1.6, y + 1]], 'fill="#fff" ' + S + ' stroke-width="0.25"') + dot(0.3);
+    case 'tower': return rectE(x - 1.4, y - 1.4, 2.8, 2.8, 'fill="#fff" ' + S + ' stroke-width="0.25"') + poly([[x, y - 0.8], [x - 0.75, y + 0.6], [x + 0.75, y + 0.6]], 'fill="none" ' + S + ' stroke-width="0.2"');
+    case 'point': return '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="1.1" fill="#fff" ' + S + ' stroke-width="0.25"/>' + dot(0.3);
+    case 'height': return dot(0.45);
+    default: return '';
+  }
+}
+/** Сынық сызықты d мм-ге жанына ығыстыру (бұрыштарда — қиылысу нүктесі, өте сүйір бұрышта шектеледі). */
+function offsetLine(p, d) {
+  const nrm = (a, b) => { const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; };
+  return p.map((q, i) => {
+    const a = i > 0 ? nrm(p[i - 1], q) : null, b = i < p.length - 1 ? nrm(q, p[i + 1]) : null;
+    let m = a && b ? [a[0] + b[0], a[1] + b[1]] : a || b;
+    const ml = Math.hypot(m[0], m[1]) || 1;
+    m = [m[0] / ml, m[1] / ml];
+    const k = a && b ? Math.max(0.35, m[0] * a[0] + m[1] * a[1]) : 1;
+    return [q[0] + m[0] * d / k, q[1] + m[1] * d / k];
+  });
+}
+const polyline = (pts, attrs) => '<polyline points="' + pts.map(p => n2(p[0]) + ',' + n2(p[1])).join(' ') + '" fill="none" stroke-linejoin="round" ' + attrs + '/>';
+const BLUE = '#2f6db3';
+/** Сынық сызық бойымен әр step мм сайын: fn(нүкте, бағыттың бірлік векторы). */
+function along(p, step, fn) {
+  let carry = step / 2;
+  for (let i = 0; i < p.length - 1; i++) {
+    const a = p[i], b = p[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    if (!len) continue;
+    const u = [(b[0] - a[0]) / len, (b[1] - a[1]) / len];
+    let t = carry;
+    for (; t <= len; t += step) fn([a[0] + u[0] * t, a[1] + u[1] * t], u);
+    carry = t - len;
+  }
+}
+/** Сызықтық белгі (мм-дегі төбелер бойымен). */
+function featLineSvg(kind, p) {
+  const ticks = (step, l, color) => { let t = ''; along(p, step, (q, u) => { t += line(q, [q[0] - u[1] * l, q[1] + u[0] * l], 'stroke="' + color + '" stroke-width="0.18"'); }); return t; };
+  switch (kind) {
+    case 'road': return polyline(p, 'stroke="#111" stroke-width="1.5"') + polyline(p, 'stroke="#fff" stroke-width="1"');
+    case 'track': return polyline(offsetLine(p, -0.55), 'stroke="#111" stroke-width="0.22"') + polyline(offsetLine(p, 0.55), 'stroke="#111" stroke-width="0.22" stroke-dasharray="1.6 0.8"');
+    case 'power': return polyline(p, 'stroke="#111" stroke-width="0.22"') + p.map(q => '<circle cx="' + n2(q[0]) + '" cy="' + n2(q[1]) + '" r="0.55" fill="#888" stroke="#111" stroke-width="0.15"/>').join('');
+    case 'contour': return polyline(p, 'stroke="' + CONT + '" stroke-width="0.25"');
+    case 'path': return polyline(p, 'stroke="#111" stroke-width="0.2" stroke-dasharray="1 0.7"');
+    case 'fence': return polyline(p, 'stroke="#111" stroke-width="0.2"') + ticks(2.5, 0.8, '#111');
+    case 'ditch': return polyline(p, 'stroke="' + BLUE + '" stroke-width="0.3"');
+    case 'river': return polyline(p, 'stroke="' + BLUE + '" stroke-width="0.55"');
+    case 'ravine': return polyline(p, 'stroke="#7a5a2a" stroke-width="0.3"') + ticks(1.4, 1, '#7a5a2a');
+    default: return polyline(p, 'stroke="#111" stroke-width="0.25"');
+  }
+}
+/** Аудандық белгі: штрих не толтыру + контур (егістік, орман т.б. — нүктелі шекара, ГУГК 1989 сияқты). */
+const DOTTED = 'stroke="#111" stroke-width="0.22" stroke-dasharray="0.05 0.75" stroke-linecap="round"';
+const AREA_ST = {
+  arable: ['url(#pj-f-arable)', DOTTED], forest: ['url(#pj-f-forest)', DOTTED], shrub: ['url(#pj-f-shrub)', DOTTED],
+  swamp: ['url(#pj-f-swamp)', DOTTED], water: ['#d4e6f7', 'stroke="' + BLUE + '" stroke-width="0.25"'], sand: ['url(#pj-f-sand)', DOTTED],
+  area: ['none', 'stroke="#111" stroke-width="0.25"'],
+};
+const featAreaSvg = (kind, p) => { const st = AREA_ST[kind] || AREA_ST.area; return poly(p, 'fill="' + st[0] + '" ' + st[1]); };
+/** «Өзге нысанның» белгісі (≈ 3 мм; орталығы x, y). */
+export function placeGlyph(kind, x, y) {
+  const S = 'stroke="#111" stroke-width="0.25"';
+  switch (kind) {
+    case 'settlement': return rectE(x - 1.5, y - 1, 1.3, 2, 'fill="#111"') + rectE(x + 0.2, y - 0.5, 1.3, 1.5, 'fill="#111"');
+    case 'well': return '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="1" fill="#fff" stroke="' + BLUE + '" stroke-width="0.3"/><circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="0.3" fill="' + BLUE + '"/>';
+    case 'spring': return '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="0.75" fill="' + BLUE + '"/>' + polyline([[x + 0.6, y + 0.4], [x + 1.2, y + 1], [x + 1.8, y + 0.8]], 'stroke="' + BLUE + '" stroke-width="0.25"');
+    case 'turaq': return poly([[x, y - 1.2], [x - 1.2, y + 1], [x + 1.2, y + 1]], 'fill="#fff" ' + S);
+    case 'qystau': case 'kuzeu': case 'kokteu': return rectE(x - 1, y - 1, 2, 2, 'fill="#fff" ' + S) + rectE(x - 0.35, y - 0.35, 0.7, 0.7, 'fill="#111"');
+    case 'zhailau': return rectE(x - 1, y - 1, 2, 2, 'fill="#fff" ' + S);
+    default: return '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="0.9" fill="#fff" ' + S + '/>';
+  }
+}
+/** Шартты белгілер блогындағы үлгісі (орталығы x, y). */
+export function featSample(kind, x, y) {
+  const c = featCat(kind);
+  if (c === 'area') return featAreaSvg(kind, [[x - 2, y - 1.6], [x + 3, y - 1.6], [x + 3, y + 1.6], [x - 2, y + 1.6]]);
+  return c === 'line' ? featLineSvg(kind, [[x - 2, y], [x + 3, y]]) : featGlyph(kind, x, y);
+}
+/** Нүкте көпбұрыштың ішінде ме (сәулемен қиылысу). */
+function inPoly(q, ring) {
+  let ins = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const a = ring[i], b = ring[j];
+    if ((a[1] > q[1]) !== (b[1] > q[1]) && q[0] < (b[0] - a[0]) * (q[1] - a[1]) / (b[1] - a[1]) + a[0]) ins = !ins;
+  }
+  return ins;
+}
+/** Көпбұрыштың ауырлық орталығы (жазуды аудан ортасына қою үшін). */
+function centroid(ring) {
+  let A = 0, cx = 0, cy = 0;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const c = ring[j][0] * ring[i][1] - ring[i][0] * ring[j][1];
+    A += c; cx += (ring[j][0] + ring[i][0]) * c; cy += (ring[j][1] + ring[i][1]) * c;
+  }
+  if (Math.abs(A) < 1e-9) return ring.reduce((s, p) => [s[0] + p[0] / ring.length, s[1] + p[1] / ring.length], [0, 0]);
+  return [cx / (3 * A), cy / (3 * A)];
+}
+/** Қорғанның бетіндегі белгілер контурдың ішінде: тас үйінді — нүктелер, ойық — ортасындағы шеңбер (1-үлгідегі №3, №4). */
+export function surfaceSvg(o, ring) {
+  if (!Array.isArray(o.surface) || !o.surface.length || !ring || ring.length < 3) return '';
+  const b = bboxOf(ring), c = centroid(ring), r = Math.min(b.x1 - b.x0, b.y1 - b.y0) / 2;
+  let s = '';
+  if (o.surface.includes('stones')) {
+    const st = Math.max(0.8, r / 3.5), dr = Math.min(0.28, st * 0.22);
+    for (let y = b.y0 + st / 2, row = 0; y < b.y1; y += st, row++) {
+      for (let x = b.x0 + st / 2 + (row % 2 ? st / 2 : 0); x < b.x1; x += st) {
+        // Контурдан аздап ішке шегініп (шекараға жабыспайды)
+        if (inPoly([c[0] + (x - c[0]) * 1.2, c[1] + (y - c[1]) * 1.2], ring)) s += '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="' + n2(dr) + '" fill="#111"/>';
+      }
+    }
+    if (!s) s = '<circle cx="' + n2(c[0]) + '" cy="' + n2(c[1]) + '" r="' + n2(dr) + '" fill="#111"/>';
+  }
+  if (o.surface.includes('pit')) s += '<circle cx="' + n2(c[0]) + '" cy="' + n2(c[1]) + '" r="' + n2(Math.max(0.5, r * 0.35)) + '" fill="#d9822b" stroke="#111" stroke-width="0.2"/>';
+  return '<g class="pj-surface">' + s + '</g>';
+}
+/** Сызықтың жазуы: ең ұзын бөлігінің ортасында, бойымен (солдан оңға оқылады); горизонтальда — сызықтың үстінде (астындағы сызық ақ жиекпен үзіледі). */
+function lineLabel(p, t, kind) {
+  let bi = 0, bl = -1;
+  for (let i = 0; i < p.length - 1; i++) { const l = Math.hypot(p[i + 1][0] - p[i][0], p[i + 1][1] - p[i][1]); if (l > bl) { bl = l; bi = i; } }
+  const a = p[bi], b = p[bi + 1];
+  let ang = Math.atan2(b[1] - a[1], b[0] - a[0]) / DEG;
+  if (ang > 90 || ang < -90) ang += 180;
+  const up = [Math.sin(ang * DEG), -Math.cos(ang * DEG)];
+  const m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  if (kind === 'contour') return text(m[0] + up[0] * -1, m[1] + up[1] * -1, t, FS.small, { anchor: 'middle', rot: ang, halo: true, fill: CONT });
+  const gap = kind === 'road' ? 2 : kind === 'river' ? 1.6 : 1.4;
+  return text(m[0] + up[0] * gap, m[1] + up[1] * gap, t, FS.small, { anchor: 'middle', rot: ang, halo: true, italic: kind === 'river' || kind === 'ditch', fill: kind === 'river' || kind === 'ditch' ? BLUE : undefined });
+}
+/** Жағдаят пен жоспарға қосылған «Өзге нысандар»: { under — аудандар мен сызықтар (нысандардың астында), over — нүктелік белгілер
+    мен жазулар (үстінде: мыс. қорғанның үстіндегі геодезиялық пункт көрінеді) }; бәрі сызба аймағымен қиылады.
+    Жазуларды алдын ала қарауда сүйреуге болады (lbl, place_lbl — мм); нүктелік белгінің жазуы ығысса — сілтеме сызығы салынады.
+    L: { P, mm, shift, area }; clipId — бет ішінде бірегей (біріктірілген PDF-те беттер бір HTML-де). */
+function featuresSvg(ctx, L, editor, clipId = 'pj-fclip') {
+  const list = (ctx.features || []).filter(f => featCat(f.kind));
+  const places = Array.isArray(ctx.places) ? ctx.places : [];
+  if (!list.length && !places.length) return { under: '', over: '' };
+  const [sx, sy] = L.shift, A = L.area, lang = ctx.lang;
+  const pos = (lat, lon) => { const p = L.mm(L.P.fwd(+lat, +lon)); return [p[0] + sx, p[1] + sy]; };
+  const nameOf = f => String((lang === 'ru' ? f.name_ru || f.name : f.name || f.name_ru) || '').trim();
+  const lblG = (drag, off, inner) => '<g class="pj-flbl"' + (editor ? ' data-drag="' + drag + '"' : '') + ' transform="translate(' + n2(off[0]) + ' ' + n2(off[1]) + ')">' + inner + '</g>';
+  // Нүктелік белгінің жазуы: оң жағында; 4 мм-ден алыстаса — сілтеме сызығы (үлгілердегі «вышка сотовой связи» сияқты)
+  const ptLabel = (drag, off, c, t, fill) => {
+    const lx = c[0] + 2.4, ly = c[1] + 1.1;
+    const lead = Math.hypot(off[0], off[1]) > 4 ? line([c[0] + Math.sign(off[0]) * 1.4, c[1]], [lx + off[0] - 0.6, ly + off[1] - 1], 'stroke="' + COL.blue + '" stroke-width="0.15"') : '';
+    return lead + lblG(drag, off, text(lx, ly, t, FS.small, { halo: true, fill }));
+  };
+  const Z = { contour: 0, ravine: 1, ditch: 2, river: 3, line: 4, fence: 5, path: 6, track: 7, road: 8, power: 9 };
+  let areas = '', lines = '', points = '', labels = '';
+  for (const f of list.slice().sort((a, b) => (Z[a.kind] ?? 20) - (Z[b.kind] ?? 20))) {
+    const cat = featCat(f.kind), off = Array.isArray(f.lbl) ? f.lbl : [0, 0], drag = 'flbl:' + esc(f.id);
+    if (cat === 'line' || cat === 'area') {
+      if (!Array.isArray(f.pts) || f.pts.length < (cat === 'area' ? 3 : 2)) continue;
+      const p = f.pts.map(q => pos(q[0], q[1])).filter((q, i, a) => !i || Math.hypot(q[0] - a[i - 1][0], q[1] - a[i - 1][1]) > 0.05);
+      if (p.length < (cat === 'area' ? 3 : 2)) continue;
+      if (cat === 'area') {
+        areas += featAreaSvg(f.kind, p);
+        const t = nameOf(f), c = centroid(p);
+        if (t) labels += lblG(drag, off, text(c[0], c[1] + 1.2, t, FS.text, { anchor: 'middle', halo: true }));
+        continue;
+      }
+      lines += featLineSvg(f.kind, p);
+      const t = f.kind === 'contour' ? nameOf(f) || (f.value != null ? fmtNum(f.value) : '') : nameOf(f) || (f.kind === 'power' ? TXT[lang].power : '');
+      if (t) labels += lblG(drag, off, lineLabel(p, t, f.kind));
+      continue;
+    }
+    if (f.lat == null || f.lon == null) continue;
+    const c = pos(f.lat, f.lon);
+    if (cat === 'text') {
+      const t = nameOf(f);
+      if (t) labels += lblG(drag, off, text(c[0], c[1] + 1.2, t, FS.text, { anchor: 'middle', rot: +f.rot || 0, halo: true }));
+      continue;
+    }
+    points += featGlyph(f.kind, c[0], c[1]);
+    const t = f.kind === 'height' ? [f.value != null ? fmtNum(f.value) : '', nameOf(f)].filter(Boolean).join(' ') : nameOf(f);
+    if (t) labels += ptLabel(drag, off, c, t, f.kind === 'height' ? COL.line : COL.blue);
+  }
+  // «Өзге нысандар» (құдық, бұлақ, қыстау…): сілтеме арқылы — атауы мен орны places қабатынан алынады
+  const plOff = (ctx.plan && ctx.plan.place_lbl) || {};
+  for (const pl of places) {
+    if (pl.lat == null || pl.lon == null) continue;
+    const c = pos(pl.lat, pl.lon), t = nameOf(pl) || label(PLACE_KINDS, pl.kind, lang);
+    points += placeGlyph(pl.kind, c[0], c[1]);
+    if (t) labels += ptLabel('plbl:' + esc(pl.id), Array.isArray(plOff[pl.id]) ? plOff[pl.id] : [0, 0], c, t, COL.line);
+  }
+  const clip = '<clipPath id="' + clipId + '"><rect x="' + n2(A.x0) + '" y="' + n2(A.y0) + '" width="' + n2(A.x1 - A.x0) + '" height="' + n2(A.y1 - A.y0) + '"/></clipPath>';
+  return { under: clip + '<g class="pj-feats" clip-path="url(#' + clipId + ')">' + areas + lines + '</g>', over: '<g class="pj-feats-over" clip-path="url(#' + clipId + ')">' + points + labels + '</g>' };
 }
 
 /* ======================= Ортақ бөліктер ======================= */
@@ -340,17 +585,28 @@ function legendItems(ctx) {
   const filled = objs.filter(o => hasContour(o) && o.kind !== 'korshau');
   const mats = MATERIALS.filter(m => filled.some(o => o.material === m.v));
   const noMat = filled.some(o => !o.material && o.kind && o.kind !== 'kurgan');
-  return { kinds, mats, noMat };
+  // Нысан түрлерінің астында: қорғанның беті, жағдаят белгілері (жазудан басқа), жоспарға қосылған «Өзге нысандар»
+  const lower = (t, lang) => t.charAt(0).toLocaleLowerCase(lang === 'ru' ? 'ru' : 'kk') + t.slice(1);
+  const feats = [
+    ...SURFACES.filter(k => objs.some(o => Array.isArray(o.surface) && o.surface.includes(k.v)))
+      .map(k => ({ svg: (x, y) => '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="1.6" fill="' + COL.fill + '" stroke="#111" stroke-width="0.25"/>' +
+        (k.v === 'pit' ? '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="0.6" fill="#d9822b" stroke="#111" stroke-width="0.15"/>'
+          : [[-0.6, -0.5], [0.6, -0.5], [0, 0.55]].map(d => '<circle cx="' + n2(x + d[0]) + '" cy="' + n2(y + d[1]) + '" r="0.25" fill="#111"/>').join('')), t: lower(k[ctx.lang], ctx.lang) })),
+    ...FEAT_KINDS.filter(k => k.cat !== 'text' && (ctx.features || []).some(f => f.kind === k.v)).map(k => ({ svg: (x, y) => featSample(k.v, x, y), t: lower(k[ctx.lang], ctx.lang) })),
+    ...PLACE_KINDS.filter(k => (ctx.places || []).some(p => (p.kind || 'other') === k.v)).map(k => ({ svg: (x, y) => placeGlyph(k.v, x, y), t: lower(k[ctx.lang], ctx.lang) })),
+  ];
+  return { kinds, mats, noMat, feats };
 }
 function legendHeight(ctx) {
   const L = legendItems(ctx);
-  return 13 + 5 * Math.max(L.kinds.length, L.mats.length + (L.noMat ? 1 : 0)) + 2;
+  return 13 + 5 * Math.max(L.kinds.length + L.feats.length, L.mats.length + (L.noMat ? 1 : 0)) + 2;
 }
 function legendSvg(ctx, x, y) {
   const T = TXT[ctx.lang], L = legendItems(ctx);
   let s = '<g class="pj-legend">' + text(x, y + 5, T.legend, 3.8, { weight: 'bold' }) + '<g font-size="3">';
   s += text(x, y + 11, T.legKinds, 2.8, { fill: COL.soft });
   L.kinds.forEach((k, i) => { const yy = y + 15.5 + i * 5; s += glyph(k.v, x + 2, yy) + text(x + 6, yy + 1, k[ctx.lang].toLocaleLowerCase(ctx.lang === 'ru' ? 'ru' : 'kk'), 3); });
+  L.feats.forEach((k, i) => { const yy = y + 15.5 + (L.kinds.length + i) * 5; s += k.svg(x + 2, yy) + text(x + 6, yy + 1, k.t, 3); });
   const mx = x + 40;
   if (L.mats.length || L.noMat) s += text(mx, y + 11, T.legMats, 2.8, { fill: COL.soft });
   const rows = L.mats.map(m => ({ fill: 'url(#pj-m-' + m.v + ')', t: m[ctx.lang].toLocaleLowerCase(ctx.lang === 'ru' ? 'ru' : 'kk') }));
@@ -478,7 +734,7 @@ function renderGeneral(ctx, scale, editor) {
   // Қоршаулар астында (ішіндегі нысандар үстінен көрінеді), содан кейін қалған контурлар, соңында белгілер
   const order = L.items.slice().sort((a, b) => (a.o.kind === 'korshau' ? 0 : 1) - (b.o.kind === 'korshau' ? 0 : 1));
   for (const it of order) {
-    if (it.ring) body += contourSvg(it.ring.map(tr), it.o, L.stage2, dataObj(it.o));
+    if (it.ring) body += contourSvg(it.ring.map(tr), it.o, L.stage2, dataObj(it.o)) + surfaceSvg(it.o, it.ring.map(tr));
     else if (L.stage2) body += '<g' + dataObj(it.o) + '>' + glyph(it.o.kind || 'kurgan', it.c[0] + sx, it.c[1] + sy) + '</g>';
     else body += '<circle cx="' + n2(it.c[0] + sx) + '" cy="' + n2(it.c[1] + sy) + '" r="0.9" fill="' + COL.line + '"' + dataObj(it.o) + '/>';
   }
@@ -489,6 +745,7 @@ function renderGeneral(ctx, scale, editor) {
     body += '<g class="pj-lbl"' + (editor ? ' data-drag="lbl:' + esc(it.o.id) + '"' : '') + ' transform="translate(' + n2(off[0]) + ' ' + n2(off[1]) + ')">' + labelSvg(b) + '</g>';
   }
   const ar = arrowSvg(ctx, L, editor);
+  const fe = featuresSvg(ctx, L, editor);
   let zone = '', more = [], warn = '';
   if (L.stage2) {
     // Төменгі аймақ: сол жақта — шартты белгілер, оң жақта — экспликацияның басы (не бәрі бөлек беттерде)
@@ -522,7 +779,7 @@ function renderGeneral(ctx, scale, editor) {
       });
     }
   }
-  const svg = frame() + north(ctx.lang) + titleBlock(ctx.names.title.concat(TXT[ctx.lang].plan)) + '<g class="pj-body">' + body + ar.svg + '</g>' + zone + scaleBar(scale, ctx.lang, false);
+  const svg = frame() + north(ctx.lang) + titleBlock(ctx.names.title.concat(TXT[ctx.lang].plan)) + '<g class="pj-body">' + fe.under + body + fe.over + ar.svg + '</g>' + zone + scaleBar(scale, ctx.lang, false);
   return { svg, more, fits: L.fits, arrowMid: ar.mid, arrowTip: ar.tip, arrowWarn: ar.warn, explWarn: warn, size: L.size };
 }
 
@@ -579,7 +836,7 @@ function renderDetail(ctx, o, scale, editor) {
   const [sx, sy] = L.shift;
   const stage2 = isStage2(ctx.objects);
   const f = fillOf(o, stage2);
-  let body = f === COL.fill ? poly(L.ring, 'fill="' + COL.fill + '" fill-opacity="0.45" stroke="' + COL.line + '" stroke-width="0.35"') : contourSvg(L.ring, o, stage2);
+  let body = (f === COL.fill ? poly(L.ring, 'fill="' + COL.fill + '" fill-opacity="0.45" stroke="' + COL.line + '" stroke-width="0.35"') : contourSvg(L.ring, o, stage2)) + surfaceSvg(o, L.ring);
   if (o.shape !== 'free') body += line([-1.5, 0], [1.5, 0], 'stroke="' + COL.line + '" stroke-width="0.2"') + line([0, -1.5], [0, 1.5], 'stroke="' + COL.line + '" stroke-width="0.2"');
   else body += L.ring.map(p => '<circle cx="' + n2(p[0]) + '" cy="' + n2(p[1]) + '" r="0.45" fill="' + COL.line + '"/>').join('');
   body += L.dims.map(d => d.svg).join('');
@@ -588,9 +845,10 @@ function renderDetail(ctx, o, scale, editor) {
   const info = [T.height + ': ' + (o.height == null ? '—' : fmtNum(o.height) + ' ' + T.m)];
   if (o.material) info.push(T.head.material + ': ' + materialLabel(o.material, ctx.lang).toLocaleLowerCase(ctx.lang === 'ru' ? 'ru' : 'kk'));
   const sub = o.kind === 'kulpytas' && o.subtype ? ' (' + subtypeLabel(o.subtype, ctx.lang) + ')' : '';
+  const fe = featuresSvg(ctx, { P: plane(+o.lat, +o.lon), mm: xy => [toMm(xy[0], scale), -toMm(xy[1], scale)], shift: [sx, sy], area: AREA }, false, 'pj-fclip-' + esc(o.id));
   const svg = frame() + north(ctx.lang) +
     titleBlock(ctx.names.title.concat(objTitle(o, ctx.lang) + sub + ' — ' + T.detail, ctx.names.obj ? ctx.names.obj : '')) +
-    '<g class="pj-body" transform="translate(' + n2(sx) + ' ' + n2(sy) + ')">' + body + '</g>' +
+    fe.under + '<g class="pj-body" transform="translate(' + n2(sx) + ' ' + n2(sy) + ')">' + body + '</g>' + fe.over +
     info.map((t, i) => text(FRAME + 7, PAGE.h - 13.8 - (info.length - 1 - i) * 5, t, FS.text)).join('') + scaleBar(scale, ctx.lang, true);
   return { svg, fits: L.fits, size: L.size };
 }
