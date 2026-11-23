@@ -44,6 +44,26 @@ contextBridge.exposeInMainWorld('mura', {
     /** Басқа құрылғының өзгерістері ашық жобаға жазылды — тізімдерді қайта оқу керек. */
     onApplied: cb => { ipcRenderer.on('mura:sync-applied', () => cb()); },
   },
+  /** Плагиндер («Баптаулар → Плагиндер»; main/plugins/, src/js/plugins-ui.js). Плагин коды бұл бетте орындалмайды. */
+  plugins: {
+    list: () => ipcRenderer.invoke('mura:plugins-list'),
+    contributions: () => ipcRenderer.invoke('mura:plugins-contrib'),
+    info: () => ipcRenderer.invoke('mura:plugins-info'),
+    inspect: file => ipcRenderer.invoke('mura:plugins-inspect', file || ''),
+    install: (token, grants) => ipcRenderer.invoke('mura:plugins-install', token, grants),
+    enable: (id, on) => ipcRenderer.invoke('mura:plugins-enable', id, !!on),
+    grants: (id, list) => ipcRenderer.invoke('mura:plugins-grants', id, list),
+    settings: (id, values) => ipcRenderer.invoke('mura:plugins-settings', id, values),
+    suspend: on => ipcRenderer.invoke('mura:plugins-suspend', !!on),
+    uninstall: (id, opts) => ipcRenderer.invoke('mura:plugins-uninstall', id, opts || {}),
+    stop: id => ipcRenderer.invoke('mura:plugins-stop', id),
+    invoke: (id, command, ctx, selection) => ipcRenderer.invoke('mura:plugins-invoke', id, command, ctx, selection),
+    panelEvent: (id, panel, kind, button, values) => ipcRenderer.invoke('mura:plugins-panel', id, panel, kind, button, values),
+    sdk: () => ipcRenderer.invoke('mura:plugins-sdk'),
+    uiReply: (rid, ok, value) => ipcRenderer.invoke('mura:plugins-ui-reply', rid, !!ok, value),
+    onUi: cb => { ipcRenderer.on('mura:plugins-ui', (_e, req) => cb(req)); },
+    onChanged: cb => { ipcRenderer.on('mura:plugins-changed', () => cb()); },
+  },
   /** Алмасу буфері: картаның оң жақ мәзірі үшін. */
   clipRead: () => ipcRenderer.invoke('mura:clip-read'),
   clipWrite: text => ipcRenderer.invoke('mura:clip-write', text),

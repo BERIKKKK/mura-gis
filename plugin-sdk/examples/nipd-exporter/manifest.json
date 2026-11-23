@@ -1,0 +1,43 @@
+{
+  "$schema": "../../schema/manifest.schema.json",
+  "id": "kz.mura.nipd-exporter",
+  "name": { "kk": "NIPD GeoJSON Exporter", "ru": "NIPD GeoJSON Exporter" },
+  "version": "1.0.0",
+  "apiVersion": "1",
+  "minAppVersion": "2.2.0",
+  "author": { "name": "Mura GIS (үлгі плагин)", "url": "https://github.com/BERIKKKK/mura-gis" },
+  "description": {
+    "kk": "Қорғау аймағы құралындағы ескерткіш аумағының полигонын ғана НИПД порталына арналған GeoJSON-ға экспорттайды: өрістерді сәйкестендіреді, түрі мен міндеттілігін және геометрияны тексереді, қажет болса координаттарды түрлендіреді.",
+    "ru": "Экспортирует только полигон территории памятника из инструмента «Охранная зона» в GeoJSON для портала НИПД: сопоставляет поля, проверяет типы, обязательность и геометрию, при необходимости преобразует координаты."
+  },
+  "license": "MIT",
+  "entry": "main.js",
+  "icon": "assets/icon.svg",
+  "platforms": ["desktop"],
+  "permissions": ["geometry.read", "attributes.read", "files.export"],
+  "contributes": {
+    "zone.export": [
+      { "command": "export", "title": "NIPD GeoJSON", "tooltip": { "kk": "Ескерткіш аумағының полигоны — НИПД GeoJSON схемасы бойынша", "ru": "Полигон территории памятника — по схеме GeoJSON НИПД" } }
+    ]
+  },
+  "settings": [
+    { "key": "lang", "type": "select", "title": { "kk": "Экспорт тілі", "ru": "Язык экспорта" },
+      "description": { "kk": "Интерфейс тілінен тәуелсіз. «Құжат тілі бойынша» — Mura GIS-тегі «Құжат тілі» баптауы.", "ru": "Не зависит от языка интерфейса. «По языку документа» — настройка «Язык документа» в Mura GIS." },
+      "options": [
+        { "value": "auto", "title": { "kk": "Құжат тілі бойынша", "ru": "По языку документа" } },
+        { "value": "kk", "title": "Қазақша" },
+        { "value": "ru", "title": "Русский" }
+      ], "default": "auto" },
+    { "key": "crs", "type": "select", "title": { "kk": "Координаттар жүйесі", "ru": "Система координат" },
+      "description": { "kk": "Әдепкі — схемадағы crs (жоқ болса WGS 84). «UTM (автоматты)» — аумақтың бойлығына сәйкес WGS 84 / UTM аймағы.", "ru": "По умолчанию — crs из схемы (если нет — WGS 84). «UTM (авто)» — зона WGS 84 / UTM по долготе территории." },
+      "options": [
+        { "value": "schema", "title": { "kk": "Схемадағыдай", "ru": "Как в схеме" } },
+        { "value": "EPSG:4326", "title": "WGS 84 (EPSG:4326)" },
+        { "value": "EPSG:3857", "title": "Web Mercator (EPSG:3857)" },
+        { "value": "auto-utm", "title": { "kk": "WGS 84 / UTM (автоматты)", "ru": "WGS 84 / UTM (авто)" } }
+      ], "default": "schema" },
+    { "key": "schema", "type": "text", "title": { "kk": "Өрістер схемасы (JSON)", "ru": "Схема полей (JSON)" },
+      "description": { "kk": "Бос болса — плагинмен бірге келетін config/nipd-schema.json. НИПД-ның ресми өрістер құрылымын осында қойыңыз.", "ru": "Если пусто — config/nipd-schema.json из плагина. Вставьте сюда официальную структуру полей НИПД." },
+      "default": "" }
+  ]
+}

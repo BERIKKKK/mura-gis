@@ -2628,4 +2628,6 @@ paintLoaded();
 refreshSaved();
 
 // Тест/жөндеу үшін
-globalThis.__qa = { rectangle, computeZones, parseZonesGeojson, checkLegal, legalLines, legalDistance, refreshSaved, genitive, state, syncFromMark, syncAllMarks, syncDiff, zonesForMark, linkZoneToMark, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };
+/** Ағымдағы аймақтың көшірмесі (тек оқу): плагиндердің «Қорғау аймағы → Экспорт» кеңейту нүктесі үшін (js/plugins-ui.js). */
+const snapshot = () => ({ id: state.loadedId || null, markId: state.markId || null, fields: fieldValues(), pts: state.pts.map(p => ({ lat: p.lat, lon: p.lon })), ok: !!(R && !R.error), docLang: docLang() });
+globalThis.__qa = { snapshot, rectangle, computeZones, parseZonesGeojson, checkLegal, legalLines, legalDistance, refreshSaved, genitive, state, syncFromMark, syncAllMarks, syncDiff, zonesForMark, linkZoneToMark, get R() { return R; }, buildDocx, renderScheme, geojson, docText, qmlStyle, buildGeoBundle };

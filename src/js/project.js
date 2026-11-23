@@ -244,7 +244,7 @@
     if (start && !cur && tab !== 'sync') return;
     if (start) closeStart();
     closeSettings();
-    if (!cur && tab !== 'lang' && tab !== 'sync') tab = 'toolbar';
+    if (!cur && tab !== 'lang' && tab !== 'sync' && tab !== 'plugins') tab = 'toolbar';
     setTab = tab || setTab || 'project';
     if (globalThis.QAUI && globalThis.QAUI.closePop) globalThis.QAUI.closePop();
     setDlg = document.createElement('div');
@@ -257,8 +257,10 @@
           '<button type="button" role="tab" data-tab="toolbar">Құралдар панелі</button>' +
           '<button type="button" role="tab" data-tab="lang">Тіл / Язык</button>' +
           (M.sync ? '<button type="button" role="tab" data-tab="sync">' + tx('Синхрондау', 'Синхронизация') + '</button>' : '') +
+          (M.plugins ? '<button type="button" role="tab" data-tab="plugins">' + tx('Плагиндер', 'Плагины') + '</button>' : '') +
         '</div>' +
         (M.sync ? '<div class="mura-pane mura-sy" data-pane="sync" id="muraSyncPane"></div>' : '') +
+        (M.plugins ? '<div class="mura-pane mura-pl" data-pane="plugins" id="muraPluginsPane"></div>' : '') +
         '<div class="mura-pane" data-pane="lang">' +
           '<h4 class="mura-set-h">' + tx('Интерфейс тілі', 'Язык интерфейса') + '</h4>' +
           langButtons() +
@@ -335,12 +337,13 @@
   }
   function paintTab(tab) {
     if (!setDlg) return;
-    if (!cur && tab !== 'lang' && tab !== 'sync') tab = 'toolbar';
+    if (!cur && tab !== 'lang' && tab !== 'sync' && tab !== 'plugins') tab = 'toolbar';
     setTab = tab;
     [].forEach.call(setDlg.querySelectorAll('[data-tab]'), function (b) { b.setAttribute('aria-selected', b.dataset.tab === tab ? 'true' : 'false'); });
     [].forEach.call(setDlg.querySelectorAll('[data-pane]'), function (p) { p.hidden = p.dataset.pane !== tab; });
     if (tab === 'toolbar') paintTb();
     if (tab === 'sync' && window.MuraSyncUI) window.MuraSyncUI.mount($('muraSyncPane'));
+    if (tab === 'plugins' && window.MuraPluginsUI) window.MuraPluginsUI.mount($('muraPluginsPane'));
     var first = setDlg.querySelector('[data-pane="' + tab + '"] input, [data-pane="' + tab + '"] select');
     if (first && tab === 'project') first.focus();
   }
@@ -370,6 +373,7 @@
     if (!setDlg) return;
     setDlg.remove(); setDlg = null;
     if (window.MuraSyncUI) window.MuraSyncUI.unmount();
+    if (window.MuraPluginsUI) window.MuraPluginsUI.unmount();
     if (!cur && !start) openStart(false);          // жоба ашылмаған (бастапқы терезеден «Бұлттан…») — терезеге оралу
   }
 
@@ -458,6 +462,7 @@
     else if (cmd === 'start') openStart(false);
     else if (cmd === 'settings') openSettings('project');
     else if (cmd === 'toolbar') openSettings('toolbar');
+    else if (cmd === 'plugins') openSettings('plugins');
     else if (cmd === 'save') saveProject();
   });
   document.addEventListener('keydown', function (e) {

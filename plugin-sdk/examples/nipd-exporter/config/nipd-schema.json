@@ -1,0 +1,21 @@
+{
+  "$comment": "ҮЛГІ. Бұл — НИПД-ның ресми құрылымы ЕМЕС: өріс атаулары мен талаптары мысал ретінде берілген. Порталдың нақты талаптарын алған соң осы файлды (не плагин баптауларындағы «Өрістер схемасы» өрісін) соған сәйкес өзгертіңіз. source — дереккөз жолы: mark.* (ескерткіш белгісі), zone.* (қорғау аймағы жазбасы), computed.* (плагин есептегені); тізім болса — бірінші бос еместігі.",
+  "name": "NIPD monument territory (example)",
+  "version": "0.1-example",
+  "crs": "EPSG:4326",
+  "geometryType": "Polygon",
+  "fields": [
+    { "name": "mura_id", "type": "string", "required": true, "pattern": "^[0-9a-f]{16}$", "source": ["computed.mura_id"] },
+    { "name": "obj_name", "type": "string", "required": true, "maxLength": 500, "source": ["mark.name", "zone.name"] },
+    { "name": "obj_type", "type": "string", "required": false, "maxLength": 200, "source": ["computed.type_title"] },
+    { "name": "category", "type": "string", "required": false, "maxLength": 100, "source": ["computed.category_title"] },
+    { "name": "dating", "type": "string", "required": false, "maxLength": 300, "source": ["mark.period", "zone.period"] },
+    { "name": "region", "type": "string", "required": true, "maxLength": 120, "source": ["mark.oblast", "zone.oblast"] },
+    { "name": "district", "type": "string", "required": false, "maxLength": 120, "source": ["mark.district", "zone.district"] },
+    { "name": "location", "type": "string", "required": false, "maxLength": 1500, "source": ["mark.place", "zone.place"] },
+    { "name": "area_ha", "type": "number", "required": true, "min": 0, "source": ["computed.area_ha"] },
+    { "name": "lang", "type": "string", "required": true, "enum": ["kk", "ru"], "source": ["computed.lang"] },
+    { "name": "export_date", "type": "date", "required": true, "source": ["computed.export_date"] },
+    { "name": "source_system", "type": "string", "required": true, "value": "Mura GIS" }
+  ]
+}

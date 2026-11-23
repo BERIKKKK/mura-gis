@@ -15,7 +15,7 @@
     "dist:linux": "electron-builder --linux --publish never",
     "release:win": "node scripts/build-win.js --win --publish always",
     "release:linux": "electron-builder --linux --publish always",
-    "test": "node scripts/test-graph.mjs && node scripts/test-periods.mjs && node scripts/test-plan.mjs && node scripts/test-sync.mjs",
+    "test": "node scripts/test-graph.mjs && node scripts/test-periods.mjs && node scripts/test-plan.mjs && node scripts/test-sync.mjs && node scripts/test-plugins.mjs",
     "smoke": "electron scripts/smoke.js",
     "smoke:marks": "electron scripts/smoke-marks.js",
     "smoke:routes": "electron scripts/smoke-routes.js",
@@ -23,7 +23,9 @@
     "smoke:ru": "electron scripts/smoke-ru.js",
     "smoke:plan": "electron scripts/smoke-plan.js",
     "smoke:sync": "electron scripts/smoke-sync.js",
-    "smoke:perf": "electron scripts/smoke-perf.js"
+    "smoke:perf": "electron scripts/smoke-perf.js",
+    "smoke:plugins": "electron scripts/smoke-plugins.js",
+    "plugins:pack": "node plugin-sdk/tools/pack.mjs plugin-sdk/examples/nipd-exporter && node plugin-sdk/tools/pack.mjs plugin-sdk/template"
   },
   "dependencies": {
     "electron-updater": "^6.8.11"
@@ -44,6 +46,9 @@
     "files": [
       "main/**",
       "src/**",
+      "plugin-sdk/**",
+      "!plugin-sdk/**/dist/**",
+      "!plugin-sdk/**/out/**",
       "package.json"
     ],
     "publish": [

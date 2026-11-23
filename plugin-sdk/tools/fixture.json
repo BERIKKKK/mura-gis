@@ -1,0 +1,18 @@
+{
+  "$comment": "tools/run.mjs үшін үлгі деректер: ағымдағы аймақ (selection), жоба қабаттары, жоба метадеректері. Өз деректеріңізбен ауыстырыңыз (--fixture файл.json).",
+  "lang": "kk",
+  "docLang": "kk",
+  "appVersion": "2.2.0",
+  "project": { "open": true, "name": "Тест жобасы", "oblast": "Түркістан облысы", "district": "Отырар ауданы", "counts": { "marks": 1, "zones": 1, "routes": 0 } },
+  "selection": {
+    "layer": "zones", "id": "a1b2c3d4e5f60718", "saved": true, "markId": "0123456789abcdef",
+    "fields": { "name": "Отырар қалашығы", "name_ru": "Городище Отырар", "period": "I–XVIII ғғ.", "period_ru": "I–XVIII вв.", "oblast": "Түркістан облысы", "district": "Отырар ауданы", "place": "Шәуілдір ауылынан 10 км оңтүстік-батыста", "d1": "40", "d2": "40", "d3": "40" },
+    "pts": [ { "lat": 42.8530, "lon": 68.3020 }, { "lat": 42.8530, "lon": 68.3060 }, { "lat": 42.8500, "lon": 68.3060 }, { "lat": 42.8500, "lon": 68.3020 } ]
+  },
+  "layers": {
+    "marks": [ { "id": "0123456789abcdef", "name": "Отырар қалашығы", "name_ru": "Городище Отырар", "type": "archeo", "category": "rep", "status": "state", "period": "I–XVIII ғғ.", "period_ru": "I–XVIII вв.", "oblast": "Түркістан облысы", "district": "Отырар ауданы", "place": "Шәуілдір ауылынан 10 км оңтүстік-батыста", "lat": 42.8515, "lon": 68.304 } ],
+    "zones": [], "routes": [], "places": [], "plan_objects": []
+  },
+  "settings": {},
+  "answers": { "dialog": "primary", "confirm": true, "pick": { "lat": 42.85, "lon": 68.3 } }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "../schema/manifest.schema.json",
+  "id": "kz.example.hello",
+  "name": { "kk": "Сәлем, Mura GIS (шаблон)", "ru": "Привет, Mura GIS (шаблон)" },
+  "version": "1.0.0",
+  "apiVersion": "1",
+  "minAppVersion": "2.2.0",
+  "author": { "name": "Your Name", "url": "https://github.com/your-name" },
+  "description": { "kk": "Жаңа плагиннің шаблоны: «⋯ Қосымша құралдар» мәзіріне әрекет қосады, жоба мәліметін көрсетеді, картадан нүкте таңдатып, уақытша геометрия салады.", "ru": "Шаблон нового плагина: добавляет действие в меню «⋯ Дополнительные инструменты», показывает сведения проекта, просит выбрать точку на карте и рисует временную геометрию." },
+  "license": "MIT",
+  "entry": "main.js",
+  "icon": "assets/icon.svg",
+  "platforms": ["desktop"],
+  "permissions": ["project.metadata", "map.layers"],
+  "contributes": {
+    "tools.menu": [ { "command": "hello", "title": { "kk": "Сәлем (шаблон плагин)", "ru": "Привет (шаблон плагина)" } } ]
+  },
+  "settings": [
+    { "key": "radius", "type": "number", "title": { "kk": "Шеңбер радиусы, м", "ru": "Радиус круга, м" }, "default": 100 }
+  ]
+}
