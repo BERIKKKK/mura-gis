@@ -30,7 +30,7 @@
 | `icon` | жоқ | `.svg` не `.png` (≤ 256 КБ) |
 | `platforms` | жоқ | Жоғарыдағы тізім |
 | `permissions` | жоқ | Төмендегі рұқсаттар |
-| `contributes` | жоқ | `{ "zone.export" \| "tools.menu": [{ command, title, tooltip? }] }` (әр нүктеге ≤ 10) |
+| `contributes` | жоқ | `{ "zone.export" \| "tools.menu" \| "mark.suggest": [{ command, title, tooltip? }] }` (әр нүктеге ≤ 10) |
 | `settings` | жоқ | `[{ key, type: string\|text\|number\|boolean\|select, title, description?, options?, default? }]` — «Баптаулар → Плагиндер» бөлімінде салынады |
 
 `permissions.json` (міндетті емес): `{ "geometry.read": "не үшін керек" }` — орнату терезесінде рұқсаттың жанында көрсетіледі.
@@ -45,6 +45,7 @@
 | `files.export` | `mura.export.saveFile` | орташа |
 | `network.access` | плагиннің `fetch` / `WebSocket` — **тек HTTPS / WSS** | жоғары (әдепкі бойынша берілмейді) |
 | `project.metadata` | `mura.project.info` | төмен |
+| `files.import` | `mura.files.open` — пайдаланушы таңдаған файлдарды оқу (Mura GIS 2.4.2+) | орташа |
 | `geometry.write`, `attributes.write` | API 1-де **әдісі жоқ**: сұрауға болады, бірақ берілмейді | — |
 
 Пайдаланушы рұқсатты кез келген уақытта қайтара алады («Баптаулар → Плагиндер → Рұқсаттар»), сондықтан
@@ -58,6 +59,17 @@ mura.commands.register('export', async (ctx) => { … return нәтиже; });
 
 `ctx`: `{ point, lang, docLang, zone?, service? }`. `lang` — интерфейс тілі, `docLang` — құжат (экспорт) тілі,
 интерфейс тілінен тәуелсіз. `zone.export` үшін `zone: { id, markId, saved }`.
+
+### `mark.suggest` (Mura GIS 2.4.2+)
+
+Көрінетін батырмасы жоқ нүкте: белгі терезесі ашылғанда, атауы не координатасы өзгергенде бағдарлама команданы өзі
+шақырады. Ашық тұрған белгі — `mura.attributes.selection()` (`layer: 'marks'`: атауы, мерзімі, облыс, аудан, орны, түрі…;
+`attributes.read` керек) және `mura.geometry.selection()` (Point; `geometry.read` керек). Команда
+`{ items: [{ title, detail?, fields }] }` қайтарады (≤ 10): бағдарлама оларды «Плагин ұсынысы» тізімінде көрсетеді,
+пайдаланушы таңдаса — `fields` бойынша белгі терезесінің өрістерін **өзі** толтырады (мәтін өрістері: name, name_ru,
+period, period_ru, place, place_ru, district, oblast, note, note_ru; тізімдер: type, category, status — тек рұқсат етілген
+мәндер). Жоба деректерін плагин өзгертпейді: сақтауды пайдаланушы басады. Қате не ұзақ жауап үнсіз еленеді.
+Мысал — `examples/decree-matcher`.
 
 ## Деректер қабаттары
 
@@ -104,6 +116,13 @@ mura.commands.register('export', async (ctx) => { … return нәтиже; });
 Орнын пайдаланушы таңдайды, плагин толық жолды білмейді. Шегі 100 МБ. Орындалатын және жүйелік түрлер (`.exe`, `.bat`, `.js`, `.lnk`, `.ps1`, …)
 сақталмайды (`code: 'blocked'`). «Экспорт форматын тіркеу» — манифесттегі `contributes["zone.export"]`; «экспортқа дейін тексеру» —
 `geometry.validate` + `attributes.validate` (NIPD үлгісін қараңыз).
+
+## Files API (`files.import`, Mura GIS 2.4.2+)
+
+`files.open({ multiple?, filters?, title? })` → `[{ name, size, data: Uint8Array }]` (бас тартса — `[]`). Файлды әр жолы
+пайдаланушы «Ашу» терезесінде таңдайды; плагинге тек атауы мен мазмұны беріледі, толық жолы берілмейді.
+Шектер: ≤ 10 файл, әрқайсысы ≤ 100 МБ, барлығы ≤ 200 МБ. SDK тестілеу құралында (`tools/run.mjs`) файлдар
+fixture-дегі `files: ["жол", …]` тізімінен алынады; плагин өз файлдарын `<script src="lib/…">` арқылы қоса алады.
 
 ## UI Extension API
 

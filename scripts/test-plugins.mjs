@@ -127,7 +127,7 @@ await t('менеджер: қосу/өшіру, рұқсат, баптау, жа
 await t('каталог: ұсынылған NIPD, архиві тұрақты, орнатқанда мәртебесі official; файлдан — file', () => {
   const C = require(ROOT + '/main/plugins/catalog.js');
   const l = C.list();
-  eq(l.map(x => x.id), ['kz.mura.nipd-exporter']);
+  eq(l.map(x => x.id), ['kz.mura.nipd-exporter', 'kz.mura.decree-matcher']);
   const b = C.pack(l[0].dir);
   eq(b.equals(C.pack(l[0].dir)), true, 'бірдей архив');
   const m2 = new PluginManager(path.join(tmp, 'plugins2'), { appVersion: '2.3.0' });
@@ -213,6 +213,75 @@ await t('attrs: valueMap және datetime', () => {
   const r = A.map({ m: 'local', x: '2020-08-18' }, s);
   eq(r, { c: 'Местного значения', d: '2020-08-18T00:00:00Z' }); eq(A.validate(r, s).ok, true);
   eq(A.validate({ c: 'x', d: '2020-08-18' }, s).ok, false);
+});
+
+/* ---------- 2.4.2: files.import, mark.suggest, «Атау сәйкестендіргіш» ---------- */
+const LY = require(ROOT + '/plugin-sdk/lib/layers.cjs');
+await t('API 2.4.2: files.import рұқсаты, mark.suggest нүктесі; белгі көшірмесі (тек рұқсат етілген өрістер)', () => {
+  const v = M.validateManifest({ ...base, permissions: ['files.import'], contributes: { 'mark.suggest': [{ command: 's', title: 'S' }] } });
+  eq(v.ok, true); eq(v.manifest.permissions, ['files.import']); eq(Object.keys(v.manifest.contributes), ['mark.suggest']);
+  const s = LY.selection({ layer: 'marks', id: '0123456789abcdef', saved: true, lat: 50.1, lon: 57.2, fields: { name: 'А', district: 'Б', secret: 'x' } });
+  eq([s.layer, s.saved, s.geometry.coordinates, s.attributes.name, s.attributes.district, s.attributes.secret], ['marks', true, [57.2, 50.1], 'А', 'Б', undefined]);
+  eq(LY.selection({ layer: 'marks', id: 'bad', lat: 'x' }).id, null);
+});
+
+// Тест құжаттары: қазақша DOCX және орысша PDF — бір қаулы (scripts/fixtures/decree-fixture.cjs)
+const { makeDocx, makePdf } = require(ROOT + '/scripts/fixtures/decree-fixture.cjs');
+const DM = ROOT + '/plugin-sdk/examples/decree-matcher';
+const DMF = require(DM + '/lib/files.js'), DMD = require(DM + '/lib/decree.js'), DMM = require(DM + '/lib/match.js');
+const kkFile = path.join(tmp, 'q306.kaz.docx'), ruFile = path.join(tmp, 'q306.rus.pdf');
+fs.writeFileSync(kkFile, makeDocx()); fs.writeFileSync(ruFile, makePdf());
+await t('Атау сәйкестендіргіш: DOCX және PDF кестесі — тіл, қаулы, аудан, атау/мерзім, тасымал, қорытынды', async () => {
+  const k = DMD.analyze(await DMF.read('k', fs.readFileSync(kkFile)));
+  eq([k.lang, k.meta.number, k.meta.date, k.meta.regNumber, k.meta.oblast, k.meta.category], ['kk', '306', '2020-08-18', '7334', 'Ақтөбе облысы', 'local']);
+  eq(k.rows.map(r => [r.n, r.district, r.name, r.period, r.type]), [[1, 'Тест ауданы', 'Тест-ІІІ қорғаны', 'Қола дәуірі', 'archeo'], [2, 'Тест ауданы', 'Айтпайка бейіті', 'Ерте темір дәуірі', 'archeo']]);
+  const r = DMD.analyze(await DMF.read('r', fs.readFileSync(ruFile)));
+  eq([r.lang, r.meta.number, r.meta.regNumber, r.expected, r.rows.length], ['ru', '306', '7334', 2, 2]);
+  eq(r.meta.title, 'Об утверждении Государственного списка памятников истории и культуры местного значения Актюбинской области');
+  eq([r.rows[0].district, r.rows[0].name, r.rows[0].period, r.rows[0].place], ['Тестовый район', 'Курган Тест-ІІІ', 'Эпоха бронзы', 'в 5 километрах к северу от села Кос-Истек']);
+  eq(DMD.splitNamePeriod(['Комплекс А. (2006 год) и Б. (2007 год)']).period, '', 'жақшадағы жыл атауда қалады');
+});
+await t('Атау сәйкестендіргіш: атау (рим цифры, қ/к), аудан, «ауылдан N км» бойынша ұсыныс', () => {
+  eq(DMM.roman('ІҮ'), '4'); eq(DMM.key('Қарабұтақ-ІІІ бейіті').nums, ['3']);
+  eq(DMM.sim(DMM.key('Карабутак-3'), DMM.key('Қарабұтақ-ІІІ бейіті')) > 0.9, true);
+  eq(DMM.sim(DMM.key('Карабутак-4'), DMM.key('Қарабұтақ-ІІІ бейіті')) < 0.3, true, 'нөмірі басқа');
+  const p = DMM.parsePlace('в 12 километрах 700 метрах к юго западу от села Кос-Истек', 'ru');
+  eq([p.village, p.az, p.dist], ['Кос-Истек', 225, 12700]);
+  eq(DMM.parsePlace('Ырғыз ауылынан шығыс-оңтүстік шығысқа қарай 22 шақырым', 'kk').az, 112.5);
+  const rows = [{ n: 1, district_kk: 'А ауданы', name_kk: 'Тест-ІІІ қорғаны', name_ru: 'Курган Тест-ІІІ', place_kk: 'Қос-Естек ауылынан солтүстікке қарай 5 шақырым' },
+    { n: 2, district_kk: 'А ауданы', name_kk: 'Айтпайка бейіті', place_kk: 'Қос-Естек ауылынан оңтүстікке қарай 3 шақырым' }];
+  const dec = { id: 'x', meta: {}, prepared: DMM.prepare({ rows }) };
+  eq(DMM.suggest([dec], { name: 'Тест-3' }, new Map())[0].row.n, 1, 'атау бойынша');
+  const idx = DMM.placeIndex([{ name: 'Қос-Естек', lat: 50, lon: 57 }]);
+  const near = DMM.dest(50, 57, 180, 3000);
+  const s = DMM.suggest([dec], { name: '', lat: near.lat, lon: near.lon }, idx);
+  eq([s[0].row.n, s[0].d < 50], [2, true], 'атаусыз — орны бойынша');
+});
+const dmFx = o => ({ lang: 'kk', storage: {}, layers: {}, answers: { dialog: 'primary' }, ...o });
+let dmStore = null;
+await t('Атау сәйкестендіргіш: кемінде 2 файл; екі тілдегі қаулы жүктеледі, файлдың өзі сақталмайды', async () => {
+  const r1 = await run({ dir: DM, command: 'manage', fixture: dmFx({ files: [kkFile], answers: { panel: ['load'] } }), out: path.join(tmp, 'dm1'), quiet: true });
+  if (!JSON.stringify(r1.panel).includes('Кемінде 2 файл')) throw new Error('1 файлға ескерту жоқ');
+  eq(r1.storage.index, undefined);
+  const r2 = await run({ dir: DM, command: 'manage', fixture: dmFx({ files: [kkFile, ruFile], answers: { panel: ['load'], dialog: 'primary', values: { exp_r7334: 2 } } }), out: path.join(tmp, 'dm2'), quiet: true });
+  eq(r2.storage.index.map(d => [d.id, d.number, d.rows, d.districts]), [['r7334', '306', 2, 1]]);
+  const rec = r2.storage['d:r7334'];
+  eq(rec.rows[0].slice(0, 5), [1, 'Тест ауданы', 'Тестовый район', 'Тест-ІІІ қорғаны', 'Курган Тест-ІІІ']);
+  if (JSON.stringify(r2.storage).length > 20000) throw new Error('файлдың мазмұны сақталған сияқты');
+  dmStore = r2.storage;
+  const r3 = await run({ dir: DM, command: 'manage', fixture: dmFx({ storage: dmStore, answers: { panel: ['del'], panelValues: { pick: 'r7334' }, confirm: true } }), out: path.join(tmp, 'dm3'), quiet: true });
+  eq([r3.storage.index, r3.storage['d:r7334']], [[], undefined], 'өшірілді');
+});
+await t('Атау сәйкестендіргіш: mark.suggest — белгі атауы/ауданы бойынша өрістер екі тілде', async () => {
+  const sel = { layer: 'marks', id: null, saved: false, lat: 50.2, lon: 57.3, fields: { name: 'Тест-3 қорғаны', district: 'Тест ауданы', oblast: 'Ақтөбе облысы' } };
+  const r = await run({ dir: DM, command: 'suggest', fixture: dmFx({ storage: dmStore, selection: sel }), out: path.join(tmp, 'dm4'), quiet: true });
+  const it = r.result.items[0];
+  eq([it.title, it.fields.name, it.fields.name_ru, it.fields.period, it.fields.period_ru, it.fields.type, it.fields.category, it.fields.district],
+    ['№1 Тест-ІІІ қорғаны', 'Тест-ІІІ қорғаны', 'Курган Тест-ІІІ', 'Қола дәуірі', 'Эпоха бронзы', 'archeo', 'local', 'Тест ауданы']);
+  const r2 = await run({ dir: DM, command: 'suggest', fixture: dmFx({ storage: dmStore, selection: { ...sel, fields: { ...sel.fields, oblast: 'Түркістан облысы' } } }), out: path.join(tmp, 'dm5'), quiet: true });
+  eq(r2.result.items.length, 0, 'басқа облыс');
+  const r3 = await run({ dir: DM, command: 'suggest', fixture: dmFx({ storage: {}, selection: sel }), out: path.join(tmp, 'dm6'), quiet: true });
+  eq(r3.result.items, [], 'қаулы жоқ');
 });
 
 fs.rmSync(tmp, { recursive: true, force: true });

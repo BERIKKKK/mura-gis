@@ -7,8 +7,8 @@
 declare namespace MuraPlugin {
   type Lang = 'kk' | 'ru';
   type Text = string | { kk?: string; ru?: string; en?: string; [lang: string]: string | undefined };
-  type Permission = 'geometry.read' | 'geometry.write' | 'attributes.read' | 'attributes.write' | 'map.layers' | 'files.export' | 'network.access' | 'project.metadata';
-  type ExtensionPoint = 'zone.export' | 'tools.menu';
+  type Permission = 'geometry.read' | 'geometry.write' | 'attributes.read' | 'attributes.write' | 'map.layers' | 'files.export' | 'network.access' | 'project.metadata' | 'files.import';
+  type ExtensionPoint = 'zone.export' | 'tools.menu' | 'mark.suggest';
   type Layer = 'marks' | 'zones' | 'routes' | 'places' | 'plan_objects';
   type Position = [number, number] | [number, number, number];
   type Geometry =
@@ -34,7 +34,19 @@ declare namespace MuraPlugin {
     /** tools.menu: белсенді қызмет (marks | routes | zone | plan …). */
     service?: string;
   }
-  interface Selection<T> { layer: 'zones'; id: string | null; saved: boolean }
+  /** zone.export / tools.menu: ағымдағы аймақ; mark.suggest: белгі терезесінде ашық тұрған белгі (сақталмаған болса id: null). */
+  interface Selection<T> { layer: 'zones' | 'marks'; id: string | null; saved: boolean }
+  /** mark.suggest командасының нәтижесі: бағдарлама ұсыныстарды белгі терезесінде көрсетеді, таңдалса өрістерді өзі толтырады. */
+  interface MarkSuggestion {
+    /** Тізімдегі жазу (≤ 200 таңба), мыс. «№216 Ақбұлақсай қорғаны». */
+    title: string;
+    /** Қосымша (≤ 300 таңба): аудан, мерзім, қашықтық, дереккөз. */
+    detail?: string;
+    /** Толтырылатын өрістер (бос емесі ғана): мәтін өрістері, type: archeo|arch|ensemble|sacred|art, category: ''|intl|rep|local, status: state|prelim|archreg|excluded. */
+    fields: Partial<Record<'name' | 'name_ru' | 'period' | 'period_ru' | 'place' | 'place_ru' | 'district' | 'oblast' | 'note' | 'note_ru' | 'type' | 'category' | 'status', string>>;
+  }
+  interface MarkSuggestResult { items: MarkSuggestion[] }
+  interface OpenedFile { name: string; size: number; data: Uint8Array }
   interface GeometrySelection extends Selection<Geometry> { geometry: Geometry | null }
   interface AttributesSelection extends Selection<unknown> { attributes: Record<string, unknown> & { mark_id: string | null } }
 
@@ -112,6 +124,8 @@ declare namespace MuraPlugin {
     };
     /** files.export — орнын пайдаланушы «Сақтау» терезесінде таңдайды. */
     export: { saveFile(o: { suggestedName: string; data: string | ArrayBuffer | ArrayBufferView | object; filters?: Array<{ name: string; extensions: string[] }>; title?: string }): Promise<{ saved: boolean; name?: string; size?: number }> };
+    /** files.import (Mura GIS 2.4.2+) — файлды пайдаланушы «Ашу» терезесінде таңдайды; плагин жолын білмейді. Бас тартса — []. ≤ 10 файл, әрқайсысы ≤ 100 МБ. */
+    files: { open(o?: { multiple?: boolean; filters?: Array<{ name: string; extensions: string[] }>; title?: string }): Promise<OpenedFile[]> };
     ui: {
       notify(text: string, opts?: { type?: 'info' | 'error' }): Promise<true>;
       confirm(text: string, opts?: { title?: Text }): Promise<boolean>;

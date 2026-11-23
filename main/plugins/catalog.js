@@ -11,6 +11,7 @@ const SDK = path.join(__dirname, '..', '..', 'plugin-sdk');
 /** Каталог: тек осы тізімдегі қалталар «ұсынылған» болады. */
 const ENTRIES = [
   { dir: path.join(SDK, 'examples', 'nipd-exporter'), tags: ['export', 'nipd'] },
+  { dir: path.join(SDK, 'examples', 'decree-matcher'), tags: ['marks', 'decree'] },
 ];
 const SKIP = new Set(['node_modules', 'dist', 'out']);
 

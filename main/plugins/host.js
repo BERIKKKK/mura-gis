@@ -305,6 +305,7 @@ class PluginHost {
       case 'attributes.list': { this.need(it, 'attributes.read'); const name = String(args[0] || ''); const rows = this.layer(name); return page(rows, args[1] && typeof args[1] === 'object' ? args[1] : {}).map(r => ({ id: r.id, attributes: LY.attributes(name, r) })); }
       case 'attributes.get': { this.need(it, 'attributes.read'); const name = String(args[0] || ''); const r = this.layer(name).find(x => x.id === String(args[1] || '')); return r ? { id: r.id, attributes: LY.attributes(name, r) } : null; }
       case 'export.saveFile': this.need(it, 'files.export'); return this.saveFile(it, args[0]);
+      case 'files.open': this.need(it, 'files.import'); return this.openFiles(it, args[0]);
       case 'ui.notify': case 'ui.confirm': case 'ui.dialog': case 'ui.panel.open': case 'ui.panel.update': case 'ui.panel.close':
         sizeArg(args, 2e6);
         return this.d.ui(id, method.slice(3), clone(args));
@@ -342,6 +343,35 @@ class PluginHost {
     fs.renameSync(tmp, r.filePath);
     this.note(it.id, 'info', 'Файл сақталды: ' + path.basename(r.filePath) + ' (' + data.length + ' байт)');
     return { saved: true, name: path.basename(r.filePath), size: data.length };
+  }
+
+  /** Files API (files.import): файлды әрқашан пайдаланушы таңдайды («Ашу» терезесі); плагинге тек атауы мен мазмұны
+      беріледі, толық жолы берілмейді. Шегі: ≤ 10 файл, әрқайсысы ≤ 100 МБ, барлығы ≤ 200 МБ. */
+  async openFiles(it, o) {
+    o = o && typeof o === 'object' ? o : {};
+    const filters = (Array.isArray(o.filters) ? o.filters : []).slice(0, 5).map(f => ({ name: String(f && f.name || '').slice(0, 60) || 'File',
+      extensions: (Array.isArray(f && f.extensions) ? f.extensions : []).map(x => String(x).replace(/[^A-Za-z0-9]/g, '').slice(0, 10)).filter(Boolean).slice(0, 8) }))
+      .filter(f => f.extensions.length);
+    const pname = M.localize(it.p.manifest.name, this.d.lang());
+    const ru = this.d.lang() === 'ru';
+    const r = await this.E.dialog.showOpenDialog(this.d.mainWindow(), {
+      title: 'Плагин «' + pname + (ru ? '» — выбор файлов' : '» — файл таңдау') + (o.title ? ': ' + String(o.title).slice(0, 80) : ''),
+      properties: ['openFile', ...(o.multiple ? ['multiSelections'] : [])], filters: filters.length ? filters : undefined,
+    });
+    if (r.canceled || !r.filePaths || !r.filePaths.length) return [];
+    if (r.filePaths.length > 10) throw new PluginError(ru ? 'Можно выбрать не более 10 файлов.' : 'Бір рет 10 файлдан артық таңдауға болмайды.', 'arg');
+    let total = 0;
+    const out = [];
+    for (const f of r.filePaths) {
+      const st = fs.statSync(f);
+      if (!st.isFile()) continue;
+      if (st.size > 100 * 1024 * 1024) throw new PluginError((ru ? 'Файл слишком большой (предел 100 МБ): ' : 'Файл тым үлкен (шегі 100 МБ): ') + path.basename(f), 'arg');
+      total += st.size;
+      if (total > 200 * 1024 * 1024) throw new PluginError(ru ? 'Файлы слишком большие (всего не более 200 МБ).' : 'Файлдар тым үлкен (барлығы 200 МБ-тан аспауы керек).', 'arg');
+      out.push({ name: path.basename(f), size: st.size, data: new Uint8Array(fs.readFileSync(f)) });
+    }
+    this.note(it.id, 'info', 'Файл оқылды: ' + out.map(x => x.name + ' (' + x.size + ' байт)').join(', '));
+    return out;
   }
 }
 

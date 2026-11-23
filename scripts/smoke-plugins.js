@@ -5,6 +5,7 @@
      • оқшаулау: плагинде require/process жоқ, желі (http, ws, img, beacon), mura://app/, file://, eval, жаңа терезе бұғатталған,
        рұқсатсыз API шақыруы мен .exe сақтау техникалық деңгейде қабылданбайды;
      • плагин қатесі, шексіз цикл — тек плагин процесі тоқтайды, бағдарлама жауап береді;
+     • «Атау сәйкестендіргіш» (2.4.2): files.import арқылы екі файл (DOCX + PDF), белгі терезесінде «Плагин ұсынысы» өрістерді толтырады;
      • өшіру элементтерді жасырады, жою жоба деректерін сақтайды.
    Іске қосу: npx electron scripts/smoke-plugins.js   (деректер уақытша қалтада; «Сақтау»/«Ашу» терезелері ауыстырылған) */
 const electron = require('electron');
@@ -24,9 +25,9 @@ const wait = t => new Promise(r => setTimeout(r, t));
 
 // «Сақтау» және «Ашу» терезелері — тестте файл жолын бірден қайтарады
 const saved = [];
-let openPath = '';
+let openPath = '', openPaths = null;
 dialog.showSaveDialog = async (_w, o) => { const f = path.join(tmp, 'export', path.basename((o && o.defaultPath) || 'x')); fs.mkdirSync(path.dirname(f), { recursive: true }); saved.push(f); return { canceled: false, filePath: f }; };
-dialog.showOpenDialog = async () => ({ canceled: !openPath, filePaths: openPath ? [openPath] : [] });
+dialog.showOpenDialog = async () => (openPaths ? { canceled: false, filePaths: openPaths } : { canceled: !openPath, filePaths: openPath ? [openPath] : [] });
 
 // Плагин желіге шыға ала ма — жергілікті сервер әр сұранысты санайды
 let hits = 0;
@@ -97,7 +98,7 @@ async function run(win) {
   await js("MuraProject.openSettings('plugins'), 0"); await wait(600);
   eq(await js("[...document.querySelectorAll('.mura-pl-sub [data-sub]')].map(b => b.dataset.sub).join()"), 'installed,install,dev', 'үш бөлім');
   await js("document.querySelector('.mura-pl-sub [data-sub=install]').click(), 0"); await wait(300);
-  eq(await js("[...document.querySelectorAll('[data-cat]')].map(b => b.dataset.cat).join()"), 'kz.mura.nipd-exporter', 'ұсынылған плагиндер');
+  eq(await js("[...document.querySelectorAll('[data-cat]')].map(b => b.dataset.cat).join()"), 'kz.mura.nipd-exporter,kz.mura.decree-matcher', 'ұсынылған плагиндер');
   if (!/Mura GIS әзірлеушісі/.test(await js("document.querySelector('.mura-pl-cat').innerText"))) throw new Error('ұсынылған плагин мәртебесі жоқ');
   await js("document.querySelector('[data-cat]').click(), 0");
   await until("!!document.querySelector('.mura-pl-disc')", 8000, 'тексеру нәтижесі');
@@ -178,6 +179,45 @@ async function run(win) {
   eq(await js("document.querySelector('.mura-pl-dlg [data-key=included_by_authority]').value"), 'Акимат Туркестанской области', 'ортақ өріс есте қалды');
   await js("document.querySelector('.mura-pl-dlg [data-btn=cancel]').click(), 0"); await inv2;
 
+  // 3б. «Атау сәйкестендіргіш»: каталогтан орнату, қаулының екі файлы (қазақша DOCX + орысша PDF), белгі терезесінде ұсыныс
+  const FX = require('./fixtures/decree-fixture.cjs');
+  const kkFile = path.join(tmp, 'q306.kaz.docx'), ruFile = path.join(tmp, 'q306.rus.pdf');
+  fs.writeFileSync(kkFile, FX.makeDocx()); fs.writeFileSync(ruFile, FX.makePdf());
+  const dmr = await js("mura.plugins.inspectCatalog('kz.mura.decree-matcher').then(r => r.report)");
+  eq([dmr.ok, dmr.source], [true, 'official'], 'атау сәйкестендіргіш тексерілді');
+  await js(`mura.plugins.install('${dmr.token}', ['files.import', 'attributes.read', 'geometry.read'])`); await wait(500);
+  // Бір файл — қабылданбайды
+  openPaths = [kkFile];
+  const mg1 = js("mura.plugins.invoke('kz.mura.decree-matcher', 'manage', { point: 'tools.menu' }, null)");
+  await until("!!document.querySelector('.mura-pl-panel [data-btn=load]')", 15000, 'қаулылар панелі');
+  await mg1;
+  await js("document.querySelector('.mura-pl-panel [data-btn=load]').click(), 0");
+  await until("/Кемінде 2 файл/.test(document.querySelector('.mura-pl-panel').innerText)", 15000, '1 файлға ескерту');
+  // Екі файл — тексеру терезесі, сан енгізіледі, сақталады
+  openPaths = [kkFile, ruFile];
+  await js("document.querySelector('.mura-pl-panel [data-btn=load]').click(), 0");
+  await until("!!document.querySelector('.mura-pl-dlg [data-btn=save]')", 20000, 'тексеру терезесі');
+  const chk = await js("document.querySelector('.mura-pl-dlg').innerText");
+  if (!/q306.kaz.docx/.test(chk) || !/q306.rus.pdf/.test(chk) || !/№ 306/.test(chk)) throw new Error('тексеру терезесі: ' + chk.slice(0, 500));
+  await js("document.querySelector('.mura-pl-dlg [data-key=exp_r7334]').value = '2'; document.querySelector('.mura-pl-dlg [data-btn=save]').click(), 0");
+  await until("/Сақталды/.test(document.querySelector('.mura-pl-panel').innerText)", 15000, 'қаулы сақталды');
+  openPaths = null;
+  out.decreePanel = (await js("document.querySelector('.mura-pl-panel').innerText")).split(/\n/).filter(l => /306/.test(l)).slice(0, 2);
+  await js("document.querySelector('.mura-pl-panel [data-btn=close]').click(), 0"); await wait(300);
+  // Белгі терезесі: атауы жазылғанда ұсыныс шығады, таңдалса екі тілдегі өрістер толтырылады
+  const nMarks = await js('__marks.items.length');
+  await js("__marks.openDialog({ lat: 50.2, lon: 57.3 }), 0");
+  await until("!!document.getElementById('mkName')", 5000, 'белгі терезесі');
+  await js("const i = document.getElementById('mkName'); i.value = 'Тест-3 қорғаны'; i.dispatchEvent(new Event('input', { bubbles: true })), 0");
+  await until("!document.getElementById('mkSugBox').hidden && document.getElementById('mkSugSel').options.length > 1", 20000, 'плагин ұсынысы');
+  out.suggest = await js("[...document.getElementById('mkSugSel').options].slice(1).map(o => o.text)");
+  if (!/^№1 Тест-ІІІ қорғаны/.test(out.suggest[0])) throw new Error('ұсыныс: ' + JSON.stringify(out.suggest));
+  await js("const s = document.getElementById('mkSugSel'); s.value = '1'; s.dispatchEvent(new Event('change', { bubbles: true })), 0");
+  const filled = await js("({ name: mkName.value, name_ru: document.querySelector('[name=name_ru]').value, period: document.querySelector('[name=period]').value, period_ru: document.querySelector('[name=period_ru]').value, type: mkType.value, cat: mkCat.value })");
+  eq(filled, { name: 'Тест-ІІІ қорғаны', name_ru: 'Курган Тест-ІІІ', period: 'Қола дәуірі', period_ru: 'Эпоха бронзы', type: 'archeo', cat: 'local' }, 'өрістер толтырылды');
+  eq(await js('__marks.items.length'), nMarks, 'ұсыныс белгіні өзі сақтамайды');
+  await js("document.getElementById('mkCancel').click(), 0"); await wait(300);
+
   // 4. Оқшаулау
   const evilFile = path.join(tmp, 'evil.muraplug');
   fs.writeFileSync(evilFile, evilPlugin(port));
@@ -227,9 +267,10 @@ async function run(win) {
   eq((await js("mura.plugins.invoke('kz.mura.nipd-exporter', 'export', { point: 'zone.export' }, null)")).ok, false, 'өшірілген плагин орындалмайды');
   await js("mura.plugins.enable('kz.mura.nipd-exporter', true)"); await wait(500);
   eq(await js("document.getElementById('muraPlZoneExp').hidden"), false, 'қайта қосылды');
-  eq(await js("document.querySelectorAll('#muraPlMenu button[data-plugin]').length"), 5, '⋯ мәзірінде evil әрекеттері');
+  eq(await js("document.querySelectorAll('#muraPlMenu button[data-plugin]').length"), 6, '⋯ мәзірінде evil әрекеттері (5) + атау сәйкестендіргіш');
   await js("mura.plugins.uninstall('kz.mura.nipd-exporter', { data: true })");
-  await js("mura.plugins.uninstall('kz.test.evil', {})"); await wait(500);
+  await js("mura.plugins.uninstall('kz.test.evil', {})");
+  await js("mura.plugins.uninstall('kz.mura.decree-matcher', { data: true })"); await wait(500);
   eq(await js("mura.plugins.contributions().then(r => r.items.length)"), 0, 'жойылғаннан кейін кеңейту жоқ');
   eq(await js("!document.getElementById('muraPlMenu') || document.getElementById('muraPlMenu').hidden"), true, '⋯ мәзірі тазартылды');
   eq(await js("fetch(QA_API + '&op=list', { method: 'POST', body: new FormData() }).then(r => r.json()).then(r => r.items.length)"), before, 'аймақтар сақталды');
