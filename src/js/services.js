@@ -138,15 +138,19 @@
     app.dispatchEvent(new CustomEvent('mura:service', { detail: { id: svc, prev: prev } }));
   }
 
-  // «⋯»: тек сыймаған құралдар үшін («Тазалау» екінші қатарда — js/desktop.js); мәзір бос болса, батырма да жасырылады
-  var moreBtn = $('qaMoreBtn');
+  // «⋯»: сыймаған құралдар («Тазалау» екінші қатарда — js/desktop.js) және плагиндердің әрекеттері (js/plugins-ui.js →
+  // #muraPlMenu) үшін; мәзір бос болса, батырма да жасырылады
+  var moreBtn = $('qaMoreBtn'), moreMenu = $('qaMoreMenu');
   function paintMore() {
     if (reset) reset.classList.toggle('mura-off', cur !== 'zone');
     if (!moreBtn) return;
     var overflow = [].some.call(tmain.querySelectorAll('.qa-tbtn[data-prio]'), function (b) { return b.hidden && !b.closest('.mura-off'); });
-    moreBtn.hidden = !overflow && !(cur === 'zone' && reset && !reset.classList.contains('mura-gone'));
+    var pl = $('muraPlMenu');
+    var plugins = !!(pl && !pl.hidden && pl.querySelector('button[data-plugin]'));
+    moreBtn.hidden = !overflow && !plugins && !(cur === 'zone' && reset && !reset.classList.contains('mura-gone'));
   }
   new MutationObserver(paintMore).observe(tmain, { subtree: true, attributes: true, attributeFilter: ['hidden'] });
+  if (moreMenu) new MutationObserver(paintMore).observe(moreMenu, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden'] });
 
   /* ---------- Басқа қызметтің әрекеті басталса — жолақ соған ауысады ---------- */
   // Тек күй шын өзгергенде (өшулі → қосулы, жасырын → ашық); жүктелу кезіндегі бастапқы орнатулар есепке алынбайды
