@@ -111,6 +111,10 @@ async function run(win) {
   await js(`document.getElementById('rtFindBtn').click()`); await wait(600); await scan();
   await js(`MuraSvc.set('zone')`); await wait(500);
   await js(`document.querySelector('.bm-trigger') && document.querySelector('.bm-trigger').click()`); await wait(600); await scan();
+  // Үстіңгі WMS қабаттары: НИПД және қолданушы бөлімдері, «WMS қосу» терезесі
+  await js(`document.querySelectorAll('.ov-sec').forEach(b => b.click())`); await wait(800); await scan();
+  await js(`document.body.click(); MuraOverlays.current.openAddDialog()`); await wait(400); await scan();
+  await js(`document.querySelector('.ov-dlg [data-x]').click()`);
   await js(`document.body.click()`);
   await js(`document.getElementById('qaOpenInfo').click()`); await wait(800);
   fs.writeFileSync(shot, (await win.webContents.capturePage()).toPNG());

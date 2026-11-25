@@ -67,6 +67,11 @@ contextBridge.exposeInMainWorld('mura', {
     onUi: cb => { ipcRenderer.on('mura:plugins-ui', (_e, req) => cb(req)); },
     onChanged: cb => { ipcRenderer.on('mura:plugins-changed', () => cb()); },
   },
+  /** WMS сервистері (js/wms.js): мәтіндік сұрау (GetCapabilities, GetFeatureInfo) және оны тоқтату. Карта суреттері мұнда өтпейді. */
+  wms: {
+    get: (url, opts) => ipcRenderer.invoke('mura:wms-get', url, opts || {}),
+    abort: id => ipcRenderer.invoke('mura:wms-abort', id),
+  },
   /** Алмасу буфері: картаның оң жақ мәзірі үшін. */
   clipRead: () => ipcRenderer.invoke('mura:clip-read'),
   clipWrite: text => ipcRenderer.invoke('mura:clip-write', text),
