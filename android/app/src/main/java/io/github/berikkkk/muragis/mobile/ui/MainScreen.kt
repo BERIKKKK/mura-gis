@@ -220,6 +220,7 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         if (!mapReady) return@LaunchedEffect
         controller.navigation = headingUp
     }
+    LaunchedEffect(mapReady, prefs.navCenter) { if (mapReady) controller.navCenter = prefs.navCenter }
     // Трек жазылып жатқанда: картаны саусақпен жылжытқаннан кейін 15 с ішінде қимыл болмаса, карта қайтадан орынға ереді
     LaunchedEffect(follow, track?.running, followOffAt) {
         if (follow || track?.running != true) return@LaunchedEffect
