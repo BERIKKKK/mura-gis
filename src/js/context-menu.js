@@ -14,6 +14,7 @@ const map = globalThis.MuraMarks && globalThis.MuraMarks.map;
 const app = $('qaApp'), mapEl = $('qaMap');
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const IC = {
+  info: '<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>',
   route: '<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   paste: '<path d="M11 14h10"/><path d="M16 4h2a2 2 0 0 1 2 2v1.344"/><path d="m17 18 4-4-4-4"/><path d="M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 1.793-1.113"/><rect x="8" y="2" width="8" height="4" rx="1"/>',
@@ -148,6 +149,9 @@ if (map) map.on('contextmenu', async e => {
     'sep',
     ...gmapsItems(p),
   ];
+  // Үстіңгі WMS қабаттары (НИПД т.б.): нысан туралы ақпарат — тек осы мәзірден (картаны басу құралдарға тиесілі қалады)
+  const ovl = globalThis.MuraOverlays?.current, ql = ovl ? ovl.queryable() : [];
+  if (ql.length) items.push('sep', { label: tx('Үстіңгі қабаттардан ақпарат', 'Сведения из накладываемых слоёв'), hint: 'GetFeatureInfo · ' + ql.length, icon: IC.info, run: () => ovl.identify(e.latlng) });
   if (sel) items.push('sep', { label: 'Көшіру', hint: sel.length > 40 ? sel.slice(0, 40) + '…' : sel, icon: IC.copy, run: () => clipWrite(sel) });
   const m = openMenu(oe.clientX, oe.clientY, esc(fmtDec(p)), items);
   // Алмасу буферін тексеру (асинхронды): координата болса — «Қою» белсенді

@@ -49,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -78,6 +79,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.berikkkk.muragis.core.geo.Geo
 import io.github.berikkkk.muragis.core.geo.LatLon
+import io.github.berikkkk.muragis.core.geo.MotionMode
 import io.github.berikkkk.muragis.core.geo.Utm
 import io.github.berikkkk.muragis.core.routing.RouteNetwork
 import io.github.berikkkk.muragis.mobile.R
@@ -108,7 +110,10 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
     val pin by vm.pin.collectAsState()
     val track by vm.track.collectAsState()
     val follow by vm.follow.collectAsState()
-    val headingUp by vm.headingUp.collectAsState()
+    val northLock by vm.northLock.collectAsState()
+    // Тек «жүріп келе жатыр ма» керек — жылдамдық әр секунд өзгергенде бүкіл экран қайта құрылмауы үшін
+    val motionState = vm.motion.collectAsState()
+    val moving by remember { derivedStateOf { motionState.value.mode != MotionMode.STILL } }
     val followOffAt by vm.followOffAt.collectAsState()
     /** Картаның қазіргі бұрылу бұрышы (компас тілі осыған қарай бұрылады). */
     val bearingState = remember { mutableFloatStateOf(0f) }
@@ -193,33 +198,32 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
         if (mapReady) controller.setRoutes(routes.filter { it.id in shownRoutes || it.id == selectedRoute }, selectedRoute, edit?.base?.id?.ifEmpty { null })
     }
     LaunchedEffect(mapReady, edit) { if (mapReady) controller.setEditRoute(edit?.points ?: emptyList(), edit?.selected ?: -1) }
-    // Қозғалыс бағытын таңдау (GPS ↔ компас) — жылдамдық шегінде ауыса бермеуі үшін күйі сақталады
-    val dirPicker = remember { DirectionPicker() }
-    // Орын белгісі: бағыт белгілі болса — үшбұрыш (қозғалыста — жүру бағыты, тұрғанда — навигацияда компас).
+    // Орын белгісі қозғалыс режиміне қарай: тұрғанда — нүкте, жаяу — нүкте + бағыт трапециясы, көлікте — үшбұрыш.
     // Белгі көрсетілмесе де орын беріледі — камера соған ереді (белгі мен камера бір тегіс қозғалыспен жүреді).
     LaunchedEffect(mapReady) {
         if (!mapReady) return@LaunchedEffect
-        combine(vm.location.location, vm.prefs, vm.headingUp, vm.heading.heading) { l, p, hu, h -> Triple(l to p.showLocation, hu, h) }
-            .collect { (lv, hu, h) ->
-                val (l, show) = lv
-                controller.setLocation(l?.latitude, l?.longitude, l?.accuracy ?: 0f, l?.let { dirPicker.pick(it, h?.takeIf { hu }) }, show)
+        combine(vm.location.location, vm.prefs, vm.motion) { l, p, mo -> Triple(l, p.showLocation, mo) }
+            .collect { (l, show, mo) ->
+                val dir = mo.course?.takeIf { mo.mode != MotionMode.STILL }
+                controller.setLocation(l?.latitude, l?.longitude, l?.accuracy ?: 0f, mo.mode, dir, show)
             }
     }
-    // GPS-ке еру және навигация режиміндегі бұру: орын не компас өзгерген сайын камера жаңарады
+    // GPS-ке еру және навигация көрінісі: орын не қозғалыс өзгерген сайын камера жаңарады
     LaunchedEffect(mapReady, follow) { if (mapReady) controller.setFollowFocus(follow) }
-    // (Ағындар тікелей жиналады — компастың жиі өзгерісі бүкіл экранды қайта құрмауы үшін)
+    // (Ағындар тікелей жиналады — жиі өзгерістер бүкіл экранды қайта құрмауы үшін)
     LaunchedEffect(mapReady) {
         if (!mapReady) return@LaunchedEffect
-        // Навигация режимінде карта бағытпен бұрылады: қозғалыста — жүру бағыты (GPS), тұрғанда — компас
-        combine(vm.location.location, vm.follow, vm.headingUp, vm.heading.heading) { l, f, hu, h ->
-            (f && l != null) to (if (hu) (l?.let { dirPicker.pick(it, h) } ?: h) else null)
-        }.collect { (f, b) -> controller.follow(f, b?.toDouble()) }
+        // Жүріп келе жатқанда (жаяу не көлік) карта өздігінен қозғалыс бағытымен бұрылады — компас солтүстікті бекітпесе
+        // және камера орынға еріп тұрса. Тоқтағанда карта соңғы бұрышында қалады.
+        combine(vm.location.location, vm.follow, vm.motion, vm.northLock) { l, f, mo, lock ->
+            val on = f && l != null
+            Triple(on, on && !lock && mo.mode != MotionMode.STILL && mo.course != null, mo.course)
+        }.collect { (f, nav, c) ->
+            controller.follow(f)
+            controller.setNavigation(nav, c?.toDouble())
+        }
     }
-    LaunchedEffect(loc) { loc?.let { vm.heading.updateDeclination(it.latitude, it.longitude, it.altitude) } }
-    LaunchedEffect(mapReady, headingUp) {
-        if (!mapReady) return@LaunchedEffect
-        controller.navigation = headingUp
-    }
+    LaunchedEffect(mapReady, prefs.navCenter) { if (mapReady) controller.navCenter = prefs.navCenter }
     // Трек жазылып жатқанда: картаны саусақпен жылжытқаннан кейін 15 с ішінде қимыл болмаса, карта қайтадан орынға ереді
     LaunchedEffect(follow, track?.running, followOffAt) {
         if (follow || track?.running != true) return@LaunchedEffect
@@ -271,7 +275,7 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
 
     // Навигация не трек жазу кезінде экран өшпейді
     val view = androidx.compose.ui.platform.LocalView.current
-    val keepOn = headingUp || track?.running == true
+    val keepOn = (follow && moving) || track?.running == true
     DisposableEffect(keepOn) {
         view.keepScreenOn = keepOn
         onDispose { view.keepScreenOn = false }
@@ -305,16 +309,9 @@ fun MainScreen(vm: MainViewModel, mapView: MapView, act: MainActivity) {
                 pick != null -> PickBar(vm, pick!!, controller, act)
                 !layersOpen -> {
                     SideButtons(
-                        prefs.zoomLeft, bearing = { bearingState.floatValue }, headingUp = headingUp,
+                        prefs.zoomLeft, bearing = { bearingState.floatValue }, northLock = northLock,
                         onZoom = { controller.zoomBy(it); scaleAt = android.os.SystemClock.elapsedRealtime() },
-                        onCompass = {
-                            if (vm.toggleHeadingUp()) act.withLocation {
-                                // Бағыт бойынша режимде карта орынға да ереді (навигатордағыдай)
-                                vm.updatePrefs { it.copy(showLocation = true) }
-                                vm.location.setTracking(true)
-                                vm.setFollow(true)
-                            }
-                        },
+                        onCompass = { if (vm.toggleNorthLock()) controller.northUp() },
                         onMark = { vm.setPick(Pick.MARK) },
                     )
                     ScaleBar(controller, onLeft = !prefs.zoomLeft, shownAt = scaleAt)
@@ -417,7 +414,7 @@ fun Crosshair() {
 
 /** Zoom (+/−) және оның астында «Белгі қою»: картаның оң не сол жағында (баптаудан). */
 @Composable
-private fun BoxScope.SideButtons(left: Boolean, bearing: () -> Float, headingUp: Boolean, onZoom: (Double) -> Unit, onCompass: () -> Unit, onMark: () -> Unit) {
+private fun BoxScope.SideButtons(left: Boolean, bearing: () -> Float, northLock: Boolean, onZoom: (Double) -> Unit, onCompass: () -> Unit, onMark: () -> Unit) {
     Column(
         Modifier.align(if (left) Alignment.CenterStart else Alignment.CenterEnd).padding(horizontal = 10.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -427,7 +424,7 @@ private fun BoxScope.SideButtons(left: Boolean, bearing: () -> Float, headingUp:
             Box(Modifier.width(52.dp).height(1.dp).background(Color(0x17FFFFFF)))
             ChromeIconButton(Icons.Filled.Remove, stringResource(R.string.zoom_out)) { onZoom(-1.0) }
         }
-        CompassButton(bearing, headingUp, onCompass)
+        CompassButton(bearing, northLock, onCompass)
         Box(
             Modifier.size(width = 52.dp, height = 56.dp).shadow(6.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Chrome.accent)
                 .clickable(role = Role.Button, onClickLabel = stringResource(R.string.place_mark), onClick = onMark),
@@ -474,34 +471,20 @@ private fun niceScale(metersPerDp: Double): Pair<Double, Float> {
     return m to (m / metersPerDp).toFloat()
 }
 
-/**
- * Орынның бағыты: жүріп келе жатса — GPS-тің қозғалыс бағыты, әйтпесе — компас ([compass], болса).
- * Баяу жүргенде GPS бағыты секіріп тұрады, сондықтан ол кезде компас сенімдірек. Ауысу шегі екеу (≥ 1,2 м/с — GPS-ке,
- * < 0,7 м/с — компасқа): жылдамдық ~1 м/с маңында ауытқығанда карта екі бағыттың арасында бұрылып-бұрылып тұрмайды.
- */
 /** «Дәлдеу» басылғанда карта кемінде осы масштабқа жақындайды (~1 м/px: көшелер, үйлер, соқпақтар көрінеді). */
 private const val LOCATE_ZOOM = 17.0
 
-private class DirectionPicker {
-    private var moving = false
-    fun pick(l: android.location.Location, compass: Float?): Float? {
-        val v = if (l.hasSpeed()) l.speed else 0f
-        moving = if (moving) v >= 0.7f else v >= 1.2f
-        return if (moving && l.hasBearing()) l.bearing else compass
-    }
-}
-
 /**
  * Компас (zoom батырмаларының астында): тілі әрдайым солтүстікті көрсетеді (карта бұрылса — бірге бұрылады).
- * Басқанда: солтүстік жоғарыда ↔ навигация режимі (карта қозғалыс бағытымен бұрылады, орын экранның төменгі бөлігінде;
- * қосулыда жиегі ерекшеленеді).
+ * Басқанда — карта солтүстікке бағытталады және жүріп келе жатса да бұрылмайды (жиегі ерекшеленеді); қайта басқанда —
+ * карта қайтадан қозғалыс бағытымен өздігінен бұрылады.
  */
 @Composable
-private fun CompassButton(bearing: () -> Float, headingUp: Boolean, onClick: () -> Unit) {
-    val label = stringResource(if (headingUp) R.string.compass_north else R.string.compass_heading)
+private fun CompassButton(bearing: () -> Float, northLock: Boolean, onClick: () -> Unit) {
+    val label = stringResource(if (northLock) R.string.compass_heading else R.string.compass_north)
     Box(
         Modifier.size(width = 52.dp, height = 56.dp).shadow(6.dp, RoundedCornerShape(16.dp)).clip(RoundedCornerShape(16.dp)).background(Chrome.bg)
-            .then(if (headingUp) Modifier.border(2.dp, Chrome.accent, RoundedCornerShape(16.dp)) else Modifier)
+            .then(if (northLock) Modifier.border(2.dp, Chrome.accent, RoundedCornerShape(16.dp)) else Modifier)
             .clickable(role = Role.Button, onClickLabel = label, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,

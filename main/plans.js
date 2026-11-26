@@ -4,7 +4,8 @@
      shape ('' — тек нүкте | circle | ellipse | free), height, diam, ax_a, ax_b, ax_az, pts [[lat, lon]…] (еркін контур),
      dim [i, j] (еркін контурдың өлшем сызығы — төбелердің нөмірі), dim_az (шеңбердің диаметр сызығының бағыты),
      lbl [dx, dy] (жалпы жоспардағы белгінің ығысуы, мм), dimlbl [dx, dy] (жеке жоспардағы өлшем жазуының ығысуы, мм),
-     surface [код…] (қорғанның бетіндегі белгі: stones — тас үйінді, pit — ойық / тонау шұңқыры; бос болса — null) }.
+     surface [код…] (қорғанның бетіндегі белгі: stones — тас үйінді, pit — ойық / тонау шұңқыры; бос болса — null),
+     mus [[[lat, lon]…]…] (мұртты қорғанның «мұрттары» — тас жалдар, әрқайсысы сынық сызық; тек kurgan-да; жоқ болса — null) }.
    Биіктік пен өлшемдер метрмен; бос (null) — «өлшенбеген», 0 — енгізілген нөл.
    Жоспар: { id, mark_id, lang, scale_general, scale_detail (0 — автоматты), ptr (елді мекен: { lat, lon, place_id }), ptr_name/ptr_name_ru,
      ptr_name_man, ptr_from ('' — ескерткіштің негізгі координатасы, не нысанның id-і), ptr_o_lat/ptr_o_lon (бастапқы нүкте),
@@ -42,6 +43,7 @@ const EXPL_COLS = ['material', 'size', 'state', 'note'];
 const oneOf = (list, v) => (list.includes(String(v ?? '')) ? String(v) : '');
 const LIMITS = { name: 200, name_ru: 200, note: 3000, note_ru: 3000 };
 const MAX_PTS = 2000;
+const MAX_MUS = 8;              // бір қорғанның мұрттары (әдетте екеу)
 const MAX_IMPORT = 20000;
 const user = () => { try { return os.userInfo().username; } catch (e) { return ''; } };
 const cut = (v, n) => [...String(v ?? '').trim()].slice(0, n).join('');
@@ -134,7 +136,23 @@ function cleanObject(d) {
   f.dimlbl = pair(d.dimlbl);
   const sf = f.kind === 'kurgan' && Array.isArray(d.surface) ? SURFACES.filter(x => d.surface.includes(x)) : [];
   f.surface = sf.length ? sf : null;
+  f.mus = f.kind === 'kurgan' ? cleanMus(d.mus) : null;
   return f;
+}
+
+/** Мұрттар: әрқайсысы — кемінде екі бөлек төбесі бар сынық сызық; жарамсыз төбе мен сызық алынады, бос болса — null. */
+function cleanMus(raw) {
+  if (!Array.isArray(raw)) return null;
+  if (raw.length > MAX_MUS) throw fieldError('mus', 'Мұрт тым көп (' + MAX_MUS + '-ден аспауы керек).', 'Слишком много «усов» (не более ' + MAX_MUS + ').');
+  const out = [];
+  for (const ln of raw) {
+    if (!Array.isArray(ln)) continue;
+    if (ln.length > MAX_PTS) throw fieldError('mus', 'Мұрттың төбесі тым көп.', 'Слишком много вершин «уса».');
+    const pts = ln.map(p => [num(p && p[0]), num(p && p[1])]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180).map(p => [r8(p[0]), r8(p[1])]);
+    const uniq = pts.filter((p, i) => i === 0 || p[0] !== pts[i - 1][0] || p[1] !== pts[i - 1][1]);
+    if (uniq.length >= 2) out.push(uniq);
+  }
+  return out.length ? out : null;
 }
 
 /** Жағдаят белгісін тексеріп, қалыпқа келтіру (docs/PLAN-STAGE3.md). */
@@ -376,4 +394,4 @@ class PlansStore {
   }
 }
 
-module.exports = { PlansStore, cleanObject, cleanPlan, cleanExpl, cleanFeature, selfIntersects, KINDS, MATERIALS, SUBTYPES, STATES, FEAT_KINDS, SURFACES };
+module.exports = { PlansStore, cleanObject, cleanMus, cleanPlan, cleanExpl, cleanFeature, selfIntersects, KINDS, MATERIALS, SUBTYPES, STATES, FEAT_KINDS, SURFACES };

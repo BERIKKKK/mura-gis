@@ -12,6 +12,7 @@
 .leaflet-tooltip.pj-num.is-sel { color: #e8178a; }
 .pj-handle { width: 14px; height: 14px; border-radius: 3px; background: #fff; border: 2px solid #e8178a; box-sizing: border-box; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); cursor: grab; }
 .pj-handle.is-center { border-radius: 50%; background: #e8178a; border-color: #fff; }
+.pj-handle.is-small { border-radius: 50%; }
 .pj-hud { position: absolute; z-index: 650; left: 50%; top: calc(var(--qa-top) + 4px); transform: translateX(-50%); max-width: min(600px, calc(100% - 120px)); pointer-events: none; }
 .pj-hud b { font-size: 14px; }
 .pj-hud small { display: block; font-weight: 400; color: #444; white-space: normal; }

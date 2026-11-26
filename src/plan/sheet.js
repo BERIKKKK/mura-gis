@@ -8,6 +8,7 @@
    3-кезең (docs/PLAN-STAGE3.md): жағдаят белгілері (ctx.features) — жол, ЭБЖ, горизонталь, ағаш, егістік, жазу т.б., жоспарға қосылған
    «Өзге нысандар» (ctx.places — шақырушы places қабатынан береді) және қорғанның беті (o.surface). Аудандар мен сызықтар нысандардың
    астында, белгілер мен жазулар үстінде; сызба аймағымен қиылады; масштабты автоматты таңдауға әсер етпейді.
+   Мұртты қорғанның мұрттары (o.mus) — нысанның бөлігі: контурлардың астында үшбұрыштар тізбегімен салынады, масштабқа әсер етеді.
    DOM-сыз модуль: scripts/test-plan.mjs тексереді. */
 import { plane, contourXY, hasContour, toMm, SCALES, scaleBarStep, fmtNum, fmtMeasure, fmtDist, inverse, dist2, cmpNum } from './geo.js';
 
@@ -130,6 +131,8 @@ export const SURFACES = [
   { v: 'stones', kk: 'Тас үйінді', ru: 'Каменная наброска' },
   { v: 'pit', kk: 'Ойық (тонау шұңқыры)', ru: 'Западина (грабительская воронка)' },
 ];
+/** Мұртты қорғанның «мұрттары» — тас жалдар (o.mus: сынық сызықтар тізімі). */
+export const MUS = { kk: 'Мұрт (тас жал)', ru: 'Усы (каменные гряды)' };
 export const featCat = v => (FEAT_KINDS.find(k => k.v === v) || {}).cat || '';
 export const featLabel = (v, lang) => label(FEAT_KINDS, v, lang);
 
@@ -338,6 +341,21 @@ export function surfaceSvg(o, ring) {
   if (o.surface.includes('pit')) s += '<circle cx="' + n2(c[0]) + '" cy="' + n2(c[1]) + '" r="' + n2(Math.max(0.5, r * 0.35)) + '" fill="#d9822b" stroke="#111" stroke-width="0.2"/>';
   return '<g class="pj-surface">' + s + '</g>';
 }
+/** Мұрттар (мм-дегі сынық сызықтар): тас жал — бойымен тізілген шағын ашық үшбұрыштар (дала сызбаларындағыдай),
+    өлшемі масштабтан тыс (≈ 1 мм). Ұшы сызықтың сол жағына қарайды — бағыты сызу ретіне байланысты. */
+export function musSvg(lines) {
+  let s = '';
+  for (const p of lines || []) {
+    if (!Array.isArray(p) || p.length < 2) continue;
+    along(p, 1.15, (q, u) => {
+      const n = [u[1], -u[0]], h = 0.42, a = 0.5;
+      s += poly([[q[0] - u[0] * h, q[1] - u[1] * h], [q[0] + u[0] * h, q[1] + u[1] * h], [q[0] + n[0] * a, q[1] + n[1] * a]], 'fill="#fff" stroke="#111" stroke-width="0.15" stroke-linejoin="round"');
+    });
+  }
+  return s ? '<g class="pj-mus">' + s + '</g>' : '';
+}
+/** Шартты белгілер блогындағы мұрттың үлгісі (орталығы x, y). */
+const musSample = (x, y) => musSvg([[[x - 2.3, y + 0.25], [x + 3, y + 0.25]]]);
 /** Сызықтың жазуы: ең ұзын бөлігінің ортасында, бойымен (солдан оңға оқылады); горизонтальда — сызықтың үстінде (астындағы сызық ақ жиекпен үзіледі). */
 function lineLabel(p, t, kind) {
   let bi = 0, bl = -1;
@@ -508,11 +526,13 @@ function layoutGeneral(ctx, scale, area = areaFor(ctx)) {
     const off = Array.isArray(o.lbl) ? o.lbl : [0, 0];
     const lb = labelBox(o, bb.x1 + 1.5 + off[0], (bb.y0 + bb.y1) / 2 + 2 + off[1]);
     lb.num = o.num;
-    return { o, c, ring, bb, lb };
+    const mus = Array.isArray(o.mus) ? o.mus.map(ln => ln.map(q => mm(P.fwd(+q[0], +q[1])))) : [];
+    return { o, c, ring, bb, lb, mus };
   });
   let u = null;
   for (const it of items) {
     u = union(u, it.bb);
+    for (const ln of it.mus) if (ln.length) u = union(u, bboxOf(ln));       // мұрттар масштабқа әсер етеді, белгінің орнына — жоқ
     u = union(u, { x0: it.lb.x, y0: it.lb.y - 4.4, x1: it.lb.x + it.lb.w, y1: it.lb.y + 4.4 });
   }
   if (!u) u = { x0: -1, y0: -1, x1: 1, y1: 1 };
@@ -592,6 +612,7 @@ function legendItems(ctx) {
       .map(k => ({ svg: (x, y) => '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="1.6" fill="' + COL.fill + '" stroke="#111" stroke-width="0.25"/>' +
         (k.v === 'pit' ? '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="0.6" fill="#d9822b" stroke="#111" stroke-width="0.15"/>'
           : [[-0.6, -0.5], [0.6, -0.5], [0, 0.55]].map(d => '<circle cx="' + n2(x + d[0]) + '" cy="' + n2(y + d[1]) + '" r="0.25" fill="#111"/>').join('')), t: lower(k[ctx.lang], ctx.lang) })),
+    ...(objs.some(o => Array.isArray(o.mus) && o.mus.length) ? [{ svg: musSample, t: lower(MUS[ctx.lang], ctx.lang) }] : []),
     ...FEAT_KINDS.filter(k => k.cat !== 'text' && (ctx.features || []).some(f => f.kind === k.v)).map(k => ({ svg: (x, y) => featSample(k.v, x, y), t: lower(k[ctx.lang], ctx.lang) })),
     ...PLACE_KINDS.filter(k => (ctx.places || []).some(p => (p.kind || 'other') === k.v)).map(k => ({ svg: (x, y) => placeGlyph(k.v, x, y), t: lower(k[ctx.lang], ctx.lang) })),
   ];
@@ -733,6 +754,8 @@ function renderGeneral(ctx, scale, editor) {
   let body = '';
   // Қоршаулар астында (ішіндегі нысандар үстінен көрінеді), содан кейін қалған контурлар, соңында белгілер
   const order = L.items.slice().sort((a, b) => (a.o.kind === 'korshau' ? 0 : 1) - (b.o.kind === 'korshau' ? 0 : 1));
+  // Мұрттар контурлардың астында (қорғанға жалғасқан ұшы үйіндінің астына кіреді)
+  body += musSvg(L.items.flatMap(it => it.mus.map(ln => ln.map(tr))));
   for (const it of order) {
     if (it.ring) body += contourSvg(it.ring.map(tr), it.o, L.stage2, dataObj(it.o)) + surfaceSvg(it.o, it.ring.map(tr));
     else if (L.stage2) body += '<g' + dataObj(it.o) + '>' + glyph(it.o.kind || 'kurgan', it.c[0] + sx, it.c[1] + sy) + '</g>';
@@ -804,6 +827,7 @@ function layoutDetail(ctx, o, scale, editor) {
   const P = plane(+o.lat, +o.lon);
   const mm = xy => [toMm(xy[0], scale), -toMm(xy[1], scale)];
   const ring = contourXY(o, P).map(mm);
+  const mus = Array.isArray(o.mus) ? o.mus.map(ln => ln.map(q => mm(P.fwd(+q[0], +q[1])))) : [];
   const m = TXT[ctx.lang].m;
   const dims = [];
   const drag = editor ? 'dim:' + o.id : '';
@@ -822,13 +846,14 @@ function layoutDetail(ctx, o, scale, editor) {
     if (xy[i] && xy[j]) dims.push(dimLine(mm(xy[i]), mm(xy[j]), fmtNum(dist2(xy[i], xy[j]), 1) + ' ' + m, { off, drag }));
   }
   let u = bboxOf(ring);
+  for (const ln of mus) if (ln.length) u = union(u, bboxOf(ln));
   for (const d of dims) u = union(u, d.box);
   const cap = o.shape === 'ellipse' || o.shape === 'rect' ? fmtNum(o.ax_a) + ' × ' + fmtNum(o.ax_b) + ' ' + m : '';
   if (cap) u = union(u, { x0: -textW(cap, FS.text) / 2, y0: u.y1, x1: textW(cap, FS.text) / 2, y1: u.y1 + 7 });
   const aw = AREA.x1 - AREA.x0 - 12, ah = AREA.y1 - AREA.y0 - 12;
   const fits = u.x1 - u.x0 <= aw && u.y1 - u.y0 <= ah;
   const shift = [(AREA.x0 + AREA.x1) / 2 - (u.x0 + u.x1) / 2, (AREA.y0 + AREA.y1) / 2 - (u.y0 + u.y1) / 2];
-  return { ring, dims, cap, capY: bboxOf(ring).y1 + 6, fits, shift, size: [u.x1 - u.x0, u.y1 - u.y0] };
+  return { ring, mus, dims, cap, capY: bboxOf(ring).y1 + 6, fits, shift, size: [u.x1 - u.x0, u.y1 - u.y0] };
 }
 
 function renderDetail(ctx, o, scale, editor) {
@@ -836,7 +861,7 @@ function renderDetail(ctx, o, scale, editor) {
   const [sx, sy] = L.shift;
   const stage2 = isStage2(ctx.objects);
   const f = fillOf(o, stage2);
-  let body = (f === COL.fill ? poly(L.ring, 'fill="' + COL.fill + '" fill-opacity="0.45" stroke="' + COL.line + '" stroke-width="0.35"') : contourSvg(L.ring, o, stage2)) + surfaceSvg(o, L.ring);
+  let body = musSvg(L.mus) + (f === COL.fill ? poly(L.ring, 'fill="' + COL.fill + '" fill-opacity="0.45" stroke="' + COL.line + '" stroke-width="0.35"') : contourSvg(L.ring, o, stage2)) + surfaceSvg(o, L.ring);
   if (o.shape !== 'free') body += line([-1.5, 0], [1.5, 0], 'stroke="' + COL.line + '" stroke-width="0.2"') + line([0, -1.5], [0, 1.5], 'stroke="' + COL.line + '" stroke-width="0.2"');
   else body += L.ring.map(p => '<circle cx="' + n2(p[0]) + '" cy="' + n2(p[1]) + '" r="0.45" fill="' + COL.line + '"/>').join('');
   body += L.dims.map(d => d.svg).join('');

@@ -87,11 +87,8 @@ fun MenuScreen(vm: MainViewModel, page: MenuPage, controller: MapController, act
                     MenuPage.PLACES -> PlacesPage(vm, controller)
                     MenuPage.ROUTES -> RoutesPage(vm, controller)
                     MenuPage.COORDS -> CoordsPage(vm, controller)
-                    MenuPage.SETTINGS -> Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                        PageTitle(stringResource(R.string.tab_settings), null)
-                        InterfaceSettings(vm)
-                        SettingsContent(vm, act)
-                    }
+                    MenuPage.SETTINGS, MenuPage.SET_LOOK, MenuPage.SET_LANG, MenuPage.SET_MAP, MenuPage.SET_SYNC, MenuPage.SET_BACKUP ->
+                        SettingsPage(vm, page, act)
                     MenuPage.ABOUT -> AboutPage(vm)
                 }
             }

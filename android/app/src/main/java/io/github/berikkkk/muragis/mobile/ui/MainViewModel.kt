@@ -18,6 +18,8 @@ import io.github.berikkkk.muragis.core.db.MapLayer
 import io.github.berikkkk.muragis.core.geo.Bounds
 import io.github.berikkkk.muragis.core.geo.Coords
 import io.github.berikkkk.muragis.core.geo.Geo
+import io.github.berikkkk.muragis.core.geo.Motion
+import io.github.berikkkk.muragis.core.geo.MotionClassifier
 import io.github.berikkkk.muragis.core.gpkg.MuraProject
 import io.github.berikkkk.muragis.core.io.FormatException
 import io.github.berikkkk.muragis.core.io.ImportedMonument
@@ -60,7 +62,6 @@ import io.github.berikkkk.muragis.mobile.data.TrackRec
 import io.github.berikkkk.muragis.mobile.map.RasterSpec
 import io.github.berikkkk.muragis.mobile.map.StyleBuilder
 import io.github.berikkkk.muragis.mobile.util.Connectivity
-import io.github.berikkkk.muragis.mobile.util.HeadingSensor
 import io.github.berikkkk.muragis.mobile.util.LocationTracker
 import io.github.berikkkk.muragis.mobile.work.DownloadWorker
 import io.github.berikkkk.muragis.mobile.work.ImportMapWorker
@@ -85,10 +86,13 @@ import java.net.URL
 
 /** Толық экранды мәзірдің беттері. */
 enum class MenuPage {
-    ROOT, MONUMENTS, PLACES, ROUTES, COORDS, SETTINGS, ABOUT;
+    ROOT, MONUMENTS, PLACES, ROUTES, COORDS, SETTINGS, ABOUT,
+
+    /** Баптаулар бөлімдері (Баптаулар → Көрініс / Тіл / Карта / Синхрондау / Сақтық көшірмелер). */
+    SET_LOOK, SET_LANG, SET_MAP, SET_SYNC, SET_BACKUP;
 
     /** «Артқа» апаратын бет. */
-    val parent get() = ROOT
+    val parent get() = if (name.startsWith("SET_")) SETTINGS else ROOT
 }
 
 /** Жаңартуды тексеру күйі. */
@@ -152,12 +156,15 @@ data class MonumentFilter(
     /** Облыс / аудан — [placeKey] мәндері; "" — көрсетілмеген. */
     val oblasts: Set<String> = emptySet(),
     val districts: Set<String> = emptySet(),
+    /** Жобалар — [Monument.projectId] мәндері; "" — жобасыз. Бос жиын — барлығы. */
+    val projects: Set<String> = emptySet(),
 ) {
-    val active get() = query.isNotBlank() || types.isNotEmpty() || categories.isNotEmpty() || statuses.isNotEmpty() || oblasts.isNotEmpty() || districts.isNotEmpty()
+    val active get() = query.isNotBlank() || types.isNotEmpty() || categories.isNotEmpty() || statuses.isNotEmpty() || oblasts.isNotEmpty() || districts.isNotEmpty() || projects.isNotEmpty()
     fun matches(m: Monument): Boolean =
         (query.isBlank() || m.name.matches(query) || m.period.matches(query) || m.place.matches(query) || m.district.matches(query) || m.oblast.matches(query) || m.note.matches(query)) &&
             (types.isEmpty() || m.type in types) && (categories.isEmpty() || m.category in categories) && (statuses.isEmpty() || m.status in statuses) &&
-            (oblasts.isEmpty() || placeKey(m.oblast) in oblasts) && (districts.isEmpty() || placeKey(m.district) in districts)
+            (oblasts.isEmpty() || placeKey(m.oblast) in oblasts) && (districts.isEmpty() || placeKey(m.district) in districts) &&
+            (projects.isEmpty() || m.projectId in projects)
 
     companion object {
         /** Облыс/аудан атауының тілге тәуелсіз кілті (жұмыс үстеліндегідей — қазақша мәні негізгі). */
@@ -165,10 +172,10 @@ data class MonumentFilter(
     }
 }
 
-/** Өзге нысандар сүзгісі: іздеу және түрі (тізім мен картаға ортақ). */
-data class PlaceFilter(val query: String = "", val kind: PlaceKind? = null) {
-    val active get() = query.isNotBlank() || kind != null
-    fun matches(p: Place): Boolean = (kind == null || p.kind == kind) &&
+/** Өзге нысандар сүзгісі: іздеу, түрі және жобасы ("" — жобасыз; бос жиын — барлығы) — тізім мен картаға ортақ. */
+data class PlaceFilter(val query: String = "", val kind: PlaceKind? = null, val projects: Set<String> = emptySet()) {
+    val active get() = query.isNotBlank() || kind != null || projects.isNotEmpty()
+    fun matches(p: Place): Boolean = (kind == null || p.kind == kind) && (projects.isEmpty() || p.projectId in projects) &&
         (query.isBlank() || p.name.matches(query) || p.kind.label(Lang.KK).contains(query, true) || p.kind.label(Lang.RU).contains(query, true))
 }
 
@@ -189,7 +196,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val g = (app as MuraApp).graph
     val connectivity = Connectivity(app)
     val location = LocationTracker(app)
-    val heading = HeadingSensor(app)
     val prefs: StateFlow<Prefs> = g.settings.prefs
     val online: StateFlow<Boolean> = connectivity.online
 
@@ -201,8 +207,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _follow = MutableStateFlow(false); val follow: StateFlow<Boolean> = _follow
     /** Еру соңғы рет саусақпен өшірілген сәт (elapsedRealtime) — трек жазу кезінде біраз уақыттан кейін ерудің қайта қосылуы үшін. */
     private val _followOffAt = MutableStateFlow(0L); val followOffAt: StateFlow<Long> = _followOffAt
-    /** Навигация режимі (компас батырмасы): карта қозғалыс бағытымен бұрылады (әйтпесе солтүстік жоғарыда). */
-    private val _headingUp = MutableStateFlow(false); val headingUp: StateFlow<Boolean> = _headingUp
+    /**
+     * Қозғалыс режимі (тұр / жаяу / көлік) және бағыты — тек GPS нүктелерінен (интернетсіз). Навигация көрінісі осыған
+     * қарай өздігінен қосылады; GPS ауытқуынан режим жиі ауыспайды ([MotionClassifier]).
+     */
+    private val motionClassifier = MotionClassifier()
+    val motion: StateFlow<Motion> = location.location.map { l ->
+        if (l == null) { motionClassifier.reset(); Motion() }
+        else motionClassifier.update(
+            l.elapsedRealtimeNanos / 1_000_000, l.latitude, l.longitude, if (l.hasAccuracy()) l.accuracy else Float.MAX_VALUE,
+            l.speed.takeIf { l.hasSpeed() }, l.bearing.takeIf { l.hasBearing() },
+        )
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, Motion())
+    /** Компас батырмасымен солтүстік бекітілді: қозғалыста да карта бұрылмайды (компасты қайта басқанша). */
+    private val _northLock = MutableStateFlow(false); val northLock: StateFlow<Boolean> = _northLock
     val track: StateFlow<TrackRec?> = g.recorder.state
     private val _monuments = MutableStateFlow<List<Monument>>(emptyList()); val monuments: StateFlow<List<Monument>> = _monuments
     private val _routes = MutableStateFlow<List<Route>>(emptyList()); val routes: StateFlow<List<Route>> = _routes
@@ -237,6 +255,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val filteredMonuments: StateFlow<List<Monument>> = combine(_monuments, _filter, prefs) { list, f, p ->
         Sorting.sortMonuments(list.filter { f.matches(it) }, p.dataLang)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Жоба id → атауы (синхрондау жобалары; сүзгідегі атаулар үшін). */
+    val projectNames: StateFlow<Map<String, String>> = g.sync.ui.map { u -> (u.localOnly + u.projects).associate { it.id to it.name } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val filteredPlaces: StateFlow<List<Place>> = combine(_places, _placeFilter, prefs) { list, f, p ->
         Sorting.sortPlaces(list.filter { f.matches(it) }, p.dataLang)
@@ -428,14 +450,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _follow.value = on
     }
 
-    /** Компас батырмасы: солтүстік жоғарыда ↔ навигация режимі (карта қозғалыс бағытымен бұрылады, орынға ереді). */
-    fun toggleHeadingUp(): Boolean {
-        if (_headingUp.value) { _headingUp.value = false; heading.setActive(false); msg(R.string.msg_north_up); return false }
-        if (!heading.available) { msg(R.string.err_no_compass); return false }
-        _headingUp.value = true
-        heading.setActive(true)
-        msg(R.string.msg_heading_up)
-        return true
+    /**
+     * Компас батырмасы: картаны солтүстікке бағыттау (жүріп келе жатса да бұрылмайды). Солтүстік бекітулі тұрғанда
+     * қайта басылса — карта қайтадан қозғалыс бағытымен бұрылады. true — солтүстік бекітілді.
+     */
+    fun toggleNorthLock(): Boolean {
+        val on = !_northLock.value
+        _northLock.value = on
+        msg(if (on) R.string.msg_north_up else R.string.msg_heading_up)
+        return on
     }
 
     /* ======================= Ескерткіштер ======================= */
@@ -739,7 +762,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         updatePrefs { it.copy(showLocation = false) }
         location.setTracking(false)
         _follow.value = false
-        if (_headingUp.value) { _headingUp.value = false; heading.setActive(false) }
         msg(R.string.msg_gps_off)
     }
 
@@ -1195,7 +1217,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         location.setTracking(false)
-        heading.setActive(false)
         super.onCleared()
     }
 }

@@ -21,7 +21,8 @@ Mobile (болашақ): тек **Ескерткіштер → Маршрутт�
 | Плагиндер (міндетті емес; оқшауланған процесс; `docs/PLUGINS.md`, `plugin-sdk/`) | `main/plugins/`, `src/js/plugins-ui.js`, `plugin-sdk/lib/` (ортақ) | `userData/plugins/` (жобадан бөлек) | IPC `mura:plugins-*`, `mura-plugin://<id>/` |
 
 Ортақ қабық: `src/js/services.js` (қызметтер жолағы, `1`–`4` пернелері), `context-menu.js`, `basemaps.js`, `regions.js`,
-`desktop*.js`. Модульдер бір-бірімен `globalThis.MuraMarks` / `globalThis.MuraRoutes` арқылы сөйлеседі.
+`desktop*.js`; үстіңгі WMS қабаттары (НИПД, қолданушы сервистері) — `wms.js`, `wms-ui.js`, `main/wms.js` (`docs/WMS.md`;
+баптаулар localStorage-та, XYZ карталарынан бөлек; НИПД деректерін офлайн кэштеу/жаппай жүктеу — рұқсатсыз жасалмайды). Модульдер бір-бірімен `globalThis.MuraMarks` / `globalThis.MuraRoutes` арқылы сөйлеседі.
 
 ## Қатаң шектеулер
 
@@ -53,7 +54,7 @@ Mobile (болашақ): тек **Ескерткіштер → Маршрутт�
 2. Басқа модульдерге, Desktop ↔ Mobile деректер үйлесімділігіне, болашақ «Жоспар»/«Паспорттау» байланысына әсерін бағала
    (`docs/ROADMAP.md` → «Үйлесімділік сұрақтары»).
 3. Тек қажетті өзгерісті енгіз; болашаққа арналған абстракция мен пайдаланылмайтын код қоспа.
-4. Регрессия: `npm test`, `npm run smoke`, `npm run smoke:marks`, `npm run smoke:routes`, `npm run smoke:save`, `npm run smoke:plan`, `npm run smoke:sync`, `npm run smoke:plugins`.
+4. Регрессия: `npm test`, `npm run smoke`, `npm run smoke:marks`, `npm run smoke:routes`, `npm run smoke:save`, `npm run smoke:plan`, `npm run smoke:sync`, `npm run smoke:plugins`, `npm run smoke:wms`.
    Plugin API: жаңа әдіс/өріс — тек қосымша; бар әдістің мағынасы өзгерсе — жаңа `apiVersion`. Плагин кодын бағдарлама терезесінде
    орындама, плагиннен келген мәтінді HTML ретінде салма, ядроны плагинге тәуелді етпе (`docs/PLUGINS.md`).
    Синхрондау ережелері екі платформада бірдей болуы керек: `main/sync/engine.js` өзгерсе — `SyncEngine.kt` да (және керісінше).

@@ -17,29 +17,29 @@
 
   /* ---------- Кірістірілген каталог ---------- */
   var BUILTIN = [
-    { id: 'osm', kind: 'std', label: 'OpenStreetMap', sw: 'std',
+    { id: 'osm', kind: 'std', grp: 'std', label: 'OpenStreetMap', sw: 'std',
       url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', maxNative: 19,
       attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' },
-    { id: 'otm', kind: 'std', label: 'OpenTopoMap (топокарта)', sw: 'topo',
+    { id: 'otm', kind: 'std', grp: 'topo', label: 'OpenTopoMap (топокарта)', sw: 'topo',
       url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', subdomains: 'abc', maxNative: 17,
       attribution: '© OpenStreetMap, SRTM · © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)' },
-    { id: 'esri-topo', kind: 'std', label: 'Esri World Topo', sw: 'topo2',
+    { id: 'esri-topo', kind: 'std', grp: 'topo', label: 'Esri World Topo', sw: 'topo2',
       url: ESRI + 'World_Topo_Map/MapServer/tile/{z}/{y}/{x}', maxNative: 19,
       attribution: '© Esri, HERE, Garmin, OpenStreetMap' },
     // Кеңестік Бас штаб (Генштаб) топокарталары — nakarte.me тайл-серверінен (AtloMaps мозаикасы: 1:100 000 → 1:50 000,
     // бүкіл КСРО аумағы, нақты масштаб z13-ке дейін). Ақтөбе облысы толық қамтылған (2026-11-19 тексерілді).
-    { id: 'gsh', kind: 'std', label: 'Генштаб (КСРО топокартасы)', sw: 'gsh',
+    { id: 'gsh', kind: 'std', grp: 'hist', label: 'Генштаб (КСРО топокартасы)', sw: 'gsh',
       url: 'https://tiles.nakarte.me/topomapper/{z}/{x}/{y}', maxNative: 13,
       attribution: 'Генштаб КСРО · AtloMaps · <a href="https://nakarte.me">nakarte.me</a>' },
-    { id: 'gsh1m', kind: 'std', label: 'Генштаб 1:1 000 000', sw: 'gsh',
+    { id: 'gsh1m', kind: 'std', grp: 'hist', label: 'Генштаб 1:1 000 000', sw: 'gsh',
       url: 'https://{s}.tiles.nakarte.me/topo001m/{z}/{x}/{y}', subdomains: 'abc', tms: true, maxNative: 10,
       attribution: 'Генштаб КСРО · <a href="https://nakarte.me">nakarte.me</a>' },
-    { id: 'sat', kind: 'sat', label: 'Спутник (Esri)', sw: 'sat',
+    { id: 'sat', kind: 'sat', grp: 'sat', label: 'Спутник (Esri)', sw: 'sat',
       url: SAT_URL, maxNative: 18, probe: true,
       attribution: '© Esri, Maxar, Earthstar Geographics' },
   ];
   // Esri Wayback — спутник суретінің бұрынғы нұсқалары, жылдар бойынша салыстыру (js/wayback.js; қабат пен панельді сол жасайды)
-  var WAYBACK = { id: 'wayback', kind: 'sat', label: 'Спутник: Esri Wayback (жылдар бойынша)', sw: 'sat',
+  var WAYBACK = { id: 'wayback', kind: 'sat', grp: 'sat', label: 'Спутник: Esri Wayback (жылдар бойынша)', sw: 'sat',
     make: function (map) { return window.MuraWayback.create(map); } };
   var BUILTIN_OVL = [
     { id: 'esri-places', overlay: true, label: 'Атаулар мен шекаралар (Esri)',
@@ -201,32 +201,47 @@
       b.className = 'bm-opt mura-opt';
       b.setAttribute('role', isOvl ? 'menuitemcheckbox' : 'menuitemradio');
       b.tabIndex = 0;
+      // Өз картасын өшіру — атауының астындағы сілтеме: таңдау белгісінен (оң жақтағы дөңгелек / құсбелгі) алыс,
+      // карта таңдағанда байқаусыз басылмайды
       b.innerHTML = (isOvl ? '<span class="mura-chk" aria-hidden="true"></span>' : '<span class="bm-sw bm-sw--' + esc(d.sw || 'custom') + '" aria-hidden="true"></span>') +
-        '<span class="bm-opt-label">' + esc(d.label) + (d.custom ? '<small>өз картаңыз</small>' : '') + '</span>' +
-        (d.custom ? '<button type="button" class="mura-del" title="Тізімнен өшіру" aria-label="Өшіру">×</button>' : '') +
+        '<span class="bm-opt-label">' + esc(d.label) + (d.custom ? '<small>өз картаңыз · <button type="button" class="mura-del-link" title="Тізімнен өшіру">тізімнен өшіру</button></small>' : '') + '</span>' +
         (isOvl ? '' : '<span class="bm-radio" aria-hidden="true"></span>');
       function act() { if (isOvl) toggleOverlay(d.id, onOvl.indexOf(d.id) < 0); else setBase(d.id); }
       b.addEventListener('click', function (e) {
-        if (e.target.closest('.mura-del')) { e.stopPropagation(); removeCustom(d.id); return; }
+        if (e.target.closest('.mura-del-link')) { e.stopPropagation(); removeCustom(d.id); return; }
         act();
       });
-      b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+      b.addEventListener('keydown', function (e) { if (e.target.closest('.mura-del-link')) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
       opts[d.id] = b;
       return b;
     }
     function title(text, extra) { var t = document.createElement('div'); t.className = 'bm-menu-title' + (extra ? ' ' + extra : ''); t.textContent = text; return t; }
+    function sub(text) { var t = document.createElement('div'); t.className = 'bm-sub'; t.textContent = text; return t; }
+    // Негізгі карталардың топтары (интерфейстегі реті); өз XYZ карталары — «Қолданушы карталары»
+    var BGRP = [['std', 'Қалыпты карталар'], ['topo', 'Топографиялық карталар'], ['sat', 'Спутниктік карталар'], ['hist', 'Тарихи карталар'], ['user', 'Қолданушы карталары']];
     function render() {
       opts = {};
       menu.innerHTML = '';
-      menu.appendChild(title('Негізгі карта'));
-      Object.keys(bases).forEach(function (id) { menu.appendChild(row(bases[id], false)); });
-      menu.appendChild(title('Үстіңгі қабаттар', 'mura-sub'));
-      Object.keys(overlays).forEach(function (id) { menu.appendChild(row(overlays[id], true)); });
+      menu.appendChild(title('Негізгі карталар'));
+      BGRP.forEach(function (g) {
+        var ids = Object.keys(bases).filter(function (id) { return (bases[id].grp || 'user') === g[0]; });
+        if (!ids.length && g[0] !== 'user') return;
+        menu.appendChild(sub(g[1]));
+        ids.forEach(function (id) { menu.appendChild(row(bases[id], false)); });
+      });
       var add = document.createElement('button');
       add.type = 'button'; add.className = 'mura-add';
       add.textContent = '+ Сыртқы карта қосу (XYZ)…';
       add.addEventListener('click', function () { close(); openAddDialog(); });
       menu.appendChild(add);
+      menu.appendChild(title('Үстіңгі қабаттар', 'mura-sub'));
+      // WMS: НИПД геопорталы және қолданушының WMS қабаттары (js/wms-ui.js)
+      if (ovl) { var ob = document.createElement('div'); ob.className = 'ov-box'; menu.appendChild(ob); ovl.renderInto(ob); }
+      var xyz = Object.keys(overlays);
+      if (xyz.length) {
+        menu.appendChild(sub('Esri және XYZ қабаттары'));
+        xyz.forEach(function (id) { menu.appendChild(row(overlays[id], true)); });
+      }
       paint();
     }
     function paint() {
@@ -239,6 +254,11 @@
     }
     function open() { menu.hidden = false; trig.setAttribute('aria-expanded', 'true'); box.classList.add('is-open'); }
     function close() { if (!menu || menu.hidden) return; menu.hidden = true; trig.setAttribute('aria-expanded', 'false'); box.classList.remove('is-open'); }
+
+    // Үстіңгі WMS қабаттары (НИПД, қолданушы сервистері) — XYZ карталарынан бөлек модуль
+    var ovl = window.MuraOverlays ? window.MuraOverlays.attach(map, { open: function () { if (menu) open(); }, close: function () { close(); } }) : null;
+    api.overlays = ovl;
+    if (window.MuraOverlays) window.MuraOverlays.current = ovl;
 
     var Ctl = L.Control.extend({
       options: { position: 'topright' },
@@ -256,7 +276,8 @@
         render();
         trig.addEventListener('click', function () { if (menu.hidden) open(); else close(); });
         box.addEventListener('keydown', function (e) { if (e.key === 'Escape') { close(); trig.focus(); } });
-        document.addEventListener('click', function (e) { if (!box.contains(e.target)) close(); });
+        // composedPath: мәзір ішіндегі батырма басылғаннан кейін қайта салынса да (WMS бөлімі), басу мәзір ішінде саналады
+        document.addEventListener('click', function (e) { if (e.composedPath().indexOf(box) < 0) close(); });
         map.on('click movestart', close);
         L.DomEvent.disableClickPropagation(box);
         L.DomEvent.disableScrollPropagation(box);
