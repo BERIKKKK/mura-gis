@@ -201,16 +201,17 @@
       b.className = 'bm-opt mura-opt';
       b.setAttribute('role', isOvl ? 'menuitemcheckbox' : 'menuitemradio');
       b.tabIndex = 0;
+      // Өз картасын өшіру — атауының астындағы сілтеме: таңдау белгісінен (оң жақтағы дөңгелек / құсбелгі) алыс,
+      // карта таңдағанда байқаусыз басылмайды
       b.innerHTML = (isOvl ? '<span class="mura-chk" aria-hidden="true"></span>' : '<span class="bm-sw bm-sw--' + esc(d.sw || 'custom') + '" aria-hidden="true"></span>') +
-        '<span class="bm-opt-label">' + esc(d.label) + (d.custom ? '<small>өз картаңыз</small>' : '') + '</span>' +
-        (d.custom ? '<button type="button" class="mura-del" title="Тізімнен өшіру" aria-label="Өшіру">×</button>' : '') +
+        '<span class="bm-opt-label">' + esc(d.label) + (d.custom ? '<small>өз картаңыз · <button type="button" class="mura-del-link" title="Тізімнен өшіру">тізімнен өшіру</button></small>' : '') + '</span>' +
         (isOvl ? '' : '<span class="bm-radio" aria-hidden="true"></span>');
       function act() { if (isOvl) toggleOverlay(d.id, onOvl.indexOf(d.id) < 0); else setBase(d.id); }
       b.addEventListener('click', function (e) {
-        if (e.target.closest('.mura-del')) { e.stopPropagation(); removeCustom(d.id); return; }
+        if (e.target.closest('.mura-del-link')) { e.stopPropagation(); removeCustom(d.id); return; }
         act();
       });
-      b.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+      b.addEventListener('keydown', function (e) { if (e.target.closest('.mura-del-link')) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
       opts[d.id] = b;
       return b;
     }
