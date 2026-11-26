@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.GpsFixed
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Route
@@ -241,6 +242,8 @@ fun PlacesPage(vm: MainViewModel, controller: MapController) {
     val f by vm.placeFilter.collectAsState()
     val list by vm.filteredPlaces.collectAsState()
     val q = f.query; val kind = f.kind
+    val projectNames by vm.projectNames.collectAsState()
+    val projects = remember(all, projectNames, f.projects) { projectOptions(all.map { it.projectId } + f.projects, projectNames) }
     var dataDialog by remember { mutableStateOf<DataDialog?>(null) }
     val lang = prefs.dataLang
     // Бірнеше нысанды белгілеу (ұзақ басу не «Белгілеу» батырмасы): өшіру, экспорт, картада көрсету
@@ -261,6 +264,14 @@ fun PlacesPage(vm: MainViewModel, controller: MapController) {
             item { FilterChip(selected = kind == null, onClick = { vm.setPlaceFilter(f.copy(kind = null)) }, label = { Text(stringResource(R.string.all_kinds), fontSize = 13.sp) }) }
             items(PlaceKind.entries) { k ->
                 FilterChip(selected = kind == k, onClick = { vm.setPlaceFilter(f.copy(kind = if (kind == k) null else k)) }, leadingIcon = { PlaceBadge(k, 18.dp) }, label = { Text(k.label(ui), fontSize = 13.sp) })
+            }
+        }
+        // Жоба бойынша іріктеу (бір не бірнеше жоба, «жобасыз»): тек бірнеше жоба болғанда көрінеді
+        if (projects.size > 1 || f.projects.isNotEmpty()) LazyRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(projects) { p ->
+                FilterChip(selected = p in f.projects, onClick = { vm.setPlaceFilter(f.copy(projects = f.projects.toggle(p))) },
+                    leadingIcon = { Icon(Icons.Filled.Folder, null, Modifier.size(16.dp)) },
+                    label = { Text(projectLabel(p, projectNames), fontSize = 13.sp) })
             }
         }
         if (sel.active) SelectionBar(sel, list.map { it.id },

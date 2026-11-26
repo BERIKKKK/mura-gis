@@ -80,12 +80,10 @@ class MainActivity : AppCompatActivity() {
         super.onResume(); mapView.onResume()
         resumes.intValue++
         if (vm.prefs.value.showLocation && hasLocation()) vm.location.setTracking(true)
-        if (vm.headingUp.value) vm.heading.setActive(true)
     }
     override fun onPause() {
         // GPS қажет болмаған кезде (қосымша фонда) тоқтатылады
         vm.location.setTracking(false)
-        vm.heading.setActive(false)
         mapView.onPause(); super.onPause()
     }
     override fun onStop() { mapView.onStop(); super.onStop() }

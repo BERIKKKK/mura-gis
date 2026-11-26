@@ -202,6 +202,29 @@ object SymbolIcons {
         return bmp
     }
 
+    /**
+     * Жаяу жүргендегі бағыт «шамы»: кескіннің ортасынан (орын нүктесінен) жоғары (солтүстікке) қарай кеңейетін
+     * жартылай мөлдір трапеция, алыс шеті біртіндеп сөнеді. Картада [icon-rotate] арқылы жүру бағытына бұрылады.
+     */
+    fun cone(sizePx: Int): Bitmap {
+        val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
+        val cv = Canvas(bmp)
+        val s = sizePx.toFloat(); val c = s / 2f
+        val near = c - s * 0.02f; val far = s * 0.04f
+        val path = Path().apply {
+            moveTo(c - s * 0.07f, near)
+            lineTo(c - s * 0.30f, far)
+            lineTo(c + s * 0.30f, far)
+            lineTo(c + s * 0.07f, near)
+            close()
+        }
+        val p = Paint(Paint.ANTI_ALIAS_FLAG)
+        p.style = Paint.Style.FILL
+        p.shader = android.graphics.LinearGradient(0f, near, 0f, far, Color.argb(150, 30, 111, 217), Color.argb(0, 30, 111, 217), android.graphics.Shader.TileMode.CLAMP)
+        cv.drawPath(path, p)
+        return bmp
+    }
+
     fun vertex(label: String, sizePx: Int, fill: Int, ring: Int): Bitmap {
         val bmp = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp)

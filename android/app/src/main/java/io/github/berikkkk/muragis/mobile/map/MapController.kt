@@ -8,6 +8,7 @@ import android.view.Choreographer
 import android.view.MotionEvent
 import io.github.berikkkk.muragis.core.geo.Bounds
 import io.github.berikkkk.muragis.core.geo.LatLon
+import io.github.berikkkk.muragis.core.geo.MotionMode
 import io.github.berikkkk.muragis.core.model.Lang
 import io.github.berikkkk.muragis.core.model.Monument
 import io.github.berikkkk.muragis.core.model.Place
@@ -124,6 +125,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
             ensureVertexImages(editPoints.size)
             val ps = (30 * density).toInt()
             s.addImage("loc-arrow", SymbolIcons.arrow((30 * density).toInt()))
+            s.addImage("loc-cone", SymbolIcons.cone((96 * density).toInt()))
             s.addImage("plan-a", SymbolIcons.vertex(ctx.getString(io.github.berikkkk.muragis.mobile.R.string.point_a), ps, Color.rgb(35, 36, 31), Color.WHITE))
             s.addImage("plan-b", SymbolIcons.vertex(ctx.getString(io.github.berikkkk.muragis.mobile.R.string.point_b), ps, Color.rgb(34, 81, 201), Color.WHITE))
             data.forEach { (k, v) -> s.getSourceAs<GeoJsonSource>(k)?.setGeoJson(v) }
@@ -202,12 +204,14 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
     }
 
     /**
-     * Орын: [direction] — қозғалыс/телефон бағыты (градус, солтүстіктен сағат тілімен); null болса — бағытсыз нүкте.
+     * Орын: [mode] — қозғалыс режимі (белгінің түрі: нүкте / нүкте + трапеция / үшбұрыш), [direction] — қозғалыс бағыты
+     * (градус, солтүстіктен сағат тілімен); тұрғанда не бағыт белгісіз болса — null (бағытсыз нүкте).
      * [visible] false болса — белгі көрсетілмейді, бірақ орын камераның еруі үшін есепке алынады.
      * Белгі жаңа нүктеге секірмейді: алдыңғы GPS нүктесінен жаңасына дейін нүктелер арасындағы уақыт ішінде бірқалыпты жылжиды.
      */
-    fun setLocation(lat: Double?, lon: Double?, accuracy: Float, direction: Float? = null, visible: Boolean = true) {
+    fun setLocation(lat: Double?, lon: Double?, accuracy: Float, mode: MotionMode = MotionMode.STILL, direction: Float? = null, visible: Boolean = true) {
         locVisible = visible
+        if (locMode != mode) { locMode = mode; locDirty = true }
         locDir = direction?.toDouble()
         locAcc = accuracy.toDouble()
         if (lat == null || lon == null) {
@@ -242,7 +246,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         if (lat != null && lon != null && locVisible) {
             // r0 — дәлдік радиусы 0-масштабтағы пиксельмен (256 px тайл, 512 px әлем ені MapLibre-де)
             val metersPerPx0 = 156543.03392 * cos(Math.toRadians(lat)) / 2.0
-            val props = JSONObject().put("r0", curAcc / metersPerPx0)
+            val props = JSONObject().put("r0", curAcc / metersPerPx0).put("m", locMode.ordinal)
             curDir?.let { props.put("brg", it) }
             a.put(point(lon, lat, props))
         }
@@ -422,28 +426,47 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
     }
 
     /**
-     * Навигация режимі: орын экранның төменгі бөлігінде (алдағы жол көбірек көрінеді) — камераның жоғарғы шегінісі.
-     * Шегініс пен бұрылу тегіс өзгереді; режим өшкенде карта солтүстікке қайтады.
+     * Навигация көрінісі (қозғалыс басталғанда өздігінен): карта [bearing] бағытымен бұрылады, орын экранның төменгі
+     * бөлігінде (алдағы жол көбірек көрінеді) — камераның жоғарғы шегінісі; [navCenter] қосулы болса — экранның дәл ортасында.
+     * [active] false болса (тоқтады, картаны саусақпен жылжытты) — карта соңғы бұрышында қалады (кенет солтүстікке
+     * бұрылмайды). Солтүстікке тек [northUp] қайтарады. Шегініс пен бұрылу тегіс өзгереді.
      */
-    var navigation = false
+    fun setNavigation(active: Boolean, bearing: Double?) {
+        if (bearing != null) navBearing = bearing
+        if (active && !navView) {
+            navView = true; navExit = false
+            if (map?.uiSettings?.focalPoint != null) setFollowFocus(true)
+        }
+        navActive = active
+        kick()
+    }
+
+    /** Компас батырмасы: карта солтүстікке тегіс бұрылады, навигация шегінісі алынады. */
+    fun northUp() {
+        navActive = false
+        navView = false
+        navExit = true
+        if (map?.uiSettings?.focalPoint != null) setFollowFocus(true)
+        kick()
+    }
+
+    /** Навигация режимінде орын экранның дәл ортасында (шегініссіз); өзгергенде шегініс тегіс ауысады. */
+    var navCenter = false
         set(v) {
             if (field == v) return
             field = v
-            navExit = !v
-            if (v) navBearing = null // алдыңғы навигацияның ескі бағытына бұрылмау үшін
             if (map?.uiSettings?.focalPoint != null) setFollowFocus(true)
             kick()
         }
-    private fun navTop(): Float = if (navigation) view.height * 0.35f else 0f
+    private fun navTop(): Float = if (navView && !navCenter) view.height * 0.35f else 0f
 
     /**
-     * Камера орынға ереді ([on]; масштаб өзгермейді) және, [bearing] берілсе, навигация режимінде карта бұрылады.
+     * Камера орынға ереді ([on]; масштаб өзгермейді).
      * Камера GPS нүктесіне емес, тегіс жылжитын орын белгісіне ереді — сондықтан қозғалыс секірмейді.
      */
-    fun follow(on: Boolean, bearing: Double? = null) {
+    fun follow(on: Boolean) {
         if (on && !followOn) camOffValid = false
         followOn = on
-        if (bearing != null) navBearing = bearing
         kick()
     }
 
@@ -462,6 +485,10 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
 
     private var followOn = false
     private var navBearing: Double? = null
+    /** Карта [navBearing]-ке бұрылады (қозғалыс бар, камера орынға еріп тұр). */
+    private var navActive = false
+    /** Навигация көрінісі (шегініс) қосулы — [northUp] басылғанша сақталады. */
+    private var navView = false
     /** Навигациядан шығу: солтүстікке және шегініссіз күйге қайту аяқталмады. */
     private var navExit = false
 
@@ -476,6 +503,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
     private var fixAt = 0L
     private var locAcc = 0.0
     private var locDir: Double? = null
+    private var locMode = MotionMode.STILL
     private var locVisible = true
     private var locDirty = false
 
@@ -527,7 +555,7 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
         val free = gestures == 0 && apiAnims == 0 && now >= holdUntil
         if (!free) {
             camOffValid = false
-            if (followOn || navigation || navExit) busy = true
+            if (followOn || navView || navExit) busy = true
         } else {
             val c = m.cameraPosition
             val b = CameraPosition.Builder(c)
@@ -545,11 +573,11 @@ class MapController(private val ctx: Context, val view: MapView, private val eve
                 val nl = lat + camOffLat; val nn = lon + camOffLon
                 if (t == null || t.latitude != nl || t.longitude != nn) { b.target(LatLng(nl, nn)); changed = true }
             }
-            // Навигацияда — қозғалыс бағыты, әйтпесе — солтүстік жоғарыда (режим өшкенде тегіс қайтады)
+            // Навигацияда — қозғалыс бағыты (тоқтағанда — соңғы бұрыш), компас басылса — солтүстікке тегіс қайту
             // (Навигациядан тыс шегініс пен бұрышқа тиіспейміз — мыс. fit() қойған шегініс сақталады.)
-            if (navigation || navExit) {
+            if (navView || navExit) {
                 var pending = false
-                val tb = if (navigation) navBearing else 0.0
+                val tb = when { navExit -> 0.0; navActive -> navBearing; else -> null }
                 if (tb != null) {
                     val d = angleDelta(c.bearing, tb)
                     if (abs(d) > 0.0) {

@@ -54,6 +54,8 @@
     <string name="f_name">Атауы</string>
     <string name="f_period">Мерзімі</string>
     <string name="f_oblast">Облыс</string>
+    <string name="f_project">Жоба</string>
+    <string name="f_project_none">Жобасыз</string>
     <string name="f_district">Аудан</string>
     <string name="f_place">Орналасқан жері</string>
     <string name="f_note">Ескертпе</string>
@@ -199,11 +201,10 @@
     <string name="msg_saved">Сақталды</string>
     <string name="msg_deleted_n">Өшірілді: %1$d</string>
     <string name="msg_gps_wait">GPS координатасы анықталуда…</string>
-    <string name="compass_heading">Навигация режимін қосу</string>
-    <string name="compass_north">Навигация режимін өшіру (солтүстік жоғарыда)</string>
-    <string name="msg_heading_up">Навигация режимі: карта қозғалыс бағытымен бұрылады</string>
+    <string name="compass_heading">Картаны қозғалыс бағытымен бұру</string>
+    <string name="compass_north">Картаны солтүстікке бағыттау</string>
+    <string name="msg_heading_up">Жүріп келе жатқанда карта қозғалыс бағытымен бұрылады</string>
     <string name="msg_north_up">Солтүстік жоғарыда</string>
-    <string name="err_no_compass">Бұл құрылғыда компас датчигі жоқ.</string>
     <string name="msg_gps_off">GPS өшірілді</string>
     <string name="msg_gps_needed_rec">Трек жазылып жатыр — GPS өшпейді. Алдымен жазуды тоқтатыңыз.</string>
     <string name="confirm_gps_off">GPS-ті өшіресіз бе? Орныңыз картада көрсетілмейді.</string>
@@ -532,4 +533,14 @@
     <string name="sync_st_error">Синхрондау қатесі: %1$s</string>
     <string name="sync_st_conflicts">Шешуді қажет ететін қайшылықтар бар (төменде).</string>
     <string name="sync_st_ok">Синхрондалды</string>
+    <!-- Баптаулар бөлімдері -->
+    <string name="set_look">Көрініс</string>
+    <string name="set_lang">Тіл</string>
+    <string name="set_lang_sub">Интерфейс: %1$s · деректер: %2$s · экспорт: %3$s</string>
+    <string name="set_map_sub">Кластерлеу, координата пішімі, орналасу, навигация, фонда жазу</string>
+    <string name="set_sync_off">Аккаунт қосылмаған — тек осы телефонда</string>
+    <string name="set_backups_sub">Көшірмелер: %1$d</string>
+    <string name="set_nav_pos">Навигацияда орынның орны</string>
+    <string name="nav_center">Ортада</string>
+    <string name="set_nav_pos_note">Навигация режимі — компасты басқанда карта жүру бағытымен бұрылады. «Төменде» — алдағы жол көбірек көрінеді; «Ортада» — орын экранның дәл ортасында ұсталады.</string>
 </resources>

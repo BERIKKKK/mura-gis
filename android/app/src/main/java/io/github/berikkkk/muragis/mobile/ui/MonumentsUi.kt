@@ -159,11 +159,23 @@ fun FilterDialog(vm: MainViewModel, f: MonumentFilter, all: List<Monument>, data
     val oblasts = remember(all) { all.map { MonumentFilter.placeKey(it.oblast) }.filter { it.isNotEmpty() }.distinct().sortedWith(compareBy(collator) { names[it] ?: it }) }
     val inOblast = all.filter { cur.oblasts.isEmpty() || MonumentFilter.placeKey(it.oblast) in cur.oblasts }
     val districts = inOblast.map { MonumentFilter.placeKey(it.district) }.distinct().sortedWith(compareBy<String> { it.isEmpty() }.thenBy(collator) { names[it] ?: it })
+    val projectNames by vm.projectNames.collectAsState()
+    val projects = remember(all, projectNames) { projectOptions(all.map { it.projectId } + f.projects, projectNames) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.filter)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                // Жоба: бір не бірнеше жоба және «жобасыз» жазбалар (бірдей белгілер әр жобада қосарланса — біреуін ғана көрсету үшін)
+                if (projects.size > 1 || cur.projects.isNotEmpty()) {
+                    SectionTitle(stringResource(R.string.f_project))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        projects.forEach { p ->
+                            FilterChip(selected = p in cur.projects, onClick = { cur = cur.copy(projects = cur.projects.toggle(p)) },
+                                label = { Text(projectLabel(p, projectNames), fontSize = 12.sp) })
+                        }
+                    }
+                }
                 if (oblasts.size > 1 || cur.oblasts.isNotEmpty()) {
                     SectionTitle(stringResource(R.string.f_oblast))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -211,7 +223,18 @@ fun FilterDialog(vm: MainViewModel, f: MonumentFilter, all: List<Monument>, data
     )
 }
 
-private fun <T> Set<T>.toggle(v: T) = if (v in this) this - v else this + v
+internal fun <T> Set<T>.toggle(v: T) = if (v in this) this - v else this + v
+
+/** Сүзгідегі жобалар: деректерде кездесетін (және таңдалған) жоба id-лері — атауы бойынша, «жобасыз» ("") соңында. */
+internal fun projectOptions(ids: Collection<String>, names: Map<String, String>): List<String> {
+    val collator = java.text.Collator.getInstance(java.util.Locale.forLanguageTag("kk"))
+    return ids.distinct().sortedWith(compareBy<String> { it.isEmpty() }.thenBy(collator) { names[it]?.ifBlank { null } ?: it })
+}
+
+/** Жобаның көрсетілетін атауы: "" — «Жобасыз»; атауы белгісіз болса — id-і. */
+@Composable
+internal fun projectLabel(id: String, names: Map<String, String>): String =
+    if (id.isEmpty()) stringResource(R.string.f_project_none) else names[id]?.ifBlank { null } ?: id
 
 /** Ескерткішті өңдеу: мәтіндер екі тілде бөлек қойындыларда, координаталар — дәл енгізу. */
 @OptIn(ExperimentalMaterial3Api::class)

@@ -33,8 +33,9 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
     private fun changed() { runCatching { onChange?.invoke() } }
 
     companion object {
-        /** 1 — бастапқы схема; 2 — өзге нысандар (places); 3 — синхрондау: жоба байланысы (project_id) және жобалар (sync_projects). */
-        const val SCHEMA_VERSION = 3
+        /** 1 — бастапқы схема; 2 — өзге нысандар (places); 3 — синхрондау: жоба байланысы (project_id) және жобалар (sync_projects);
+         *  4 — өзге нысандардың жобасы (places.project_id) — жоба бойынша іріктеу үшін. */
+        const val SCHEMA_VERSION = 4
         private val LOC = listOf("name", "period", "oblast", "district", "place", "note")
         private val ROUTE_LOC = listOf("name", "a_name", "b_name", "note")
     }
@@ -102,6 +103,11 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                 db.exec("""CREATE TABLE IF NOT EXISTS sync_projects (
                     id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL DEFAULT '', oblast TEXT NOT NULL DEFAULT '', district TEXT NOT NULL DEFAULT '',
                     created_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT '')""")
+            }
+            if (v < 4) {
+                // Өзге нысандардың жобасы: тек жаңа баған (әдепкі бос — «жобасыз»); бар жазбалар өзгермейді
+                if ("project_id" !in db.columnsOf("places")) db.exec("ALTER TABLE places ADD COLUMN project_id TEXT NOT NULL DEFAULT ''")
+                db.exec("CREATE INDEX IF NOT EXISTS places_project ON places(project_id)")
             }
             db.exec("PRAGMA user_version = $SCHEMA_VERSION")
         }
@@ -219,7 +225,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
         name = Localized(r.string("name_kk") ?: "", r.string("name_ru") ?: ""), kind = PlaceKind.of(r.string("kind")),
         createdAt = r.string("created_at") ?: "", createdBy = r.string("created_by") ?: "",
         updatedAt = r.string("updated_at") ?: "", updatedBy = r.string("updated_by") ?: "",
-        extra = r.string("extra") ?: "",
+        extra = r.string("extra") ?: "", projectId = r.string("project_id") ?: "",
     )
 
     fun places(): List<Place> = db.query("SELECT * FROM places WHERE deleted = 0", emptyList(), ::placeFrom)
@@ -227,20 +233,22 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
     fun place(id: String): Place? = db.query("SELECT * FROM places WHERE id = ? AND deleted = 0", listOf(id), ::placeFrom).firstOrNull()
 
     private fun writePlace(p: Place) {
-        val cols = listOf("id", "lat", "lon", "name_kk", "name_ru", "kind", "created_at", "created_by", "updated_at", "updated_by", "extra", "deleted")
-        val vals = listOf<Any?>(p.id, p.lat, p.lon, p.name.kk, p.name.ru, p.kind.code, p.createdAt, p.createdBy, p.updatedAt, p.updatedBy, p.extra, 0L)
+        val cols = listOf("id", "lat", "lon", "name_kk", "name_ru", "kind", "created_at", "created_by", "updated_at", "updated_by", "extra", "deleted", "project_id")
+        val vals = listOf<Any?>(p.id, p.lat, p.lon, p.name.kk, p.name.ru, p.kind.code, p.createdAt, p.createdBy, p.updatedAt, p.updatedBy, p.extra, 0L, p.projectId)
         db.exec("INSERT OR REPLACE INTO places (" + cols.joinToString(",") + ") VALUES (" + cols.joinToString(",") { "?" } + ")", vals)
     }
 
-    /** Сақтау (жаңа не бар жазба): created_* сақталады, updated_* жаңарады. */
+    /** Сақтау (жаңа не бар жазба): created_* сақталады, updated_* жаңарады; бар жазбаның жобасы өзгермейді (ескерткіштегідей). */
     fun savePlace(p: Place): Place {
         val c = Validation.clean(p)
         val now = Ids.now()
-        val old = db.query("SELECT created_at, created_by FROM places WHERE id = ?", listOf(c.id)) { (it.string("created_at") ?: "") to (it.string("created_by") ?: "") }.firstOrNull()
+        val old = db.query("SELECT created_at, created_by, project_id FROM places WHERE id = ?", listOf(c.id)) {
+            Triple(it.string("created_at") ?: "", it.string("created_by") ?: "", it.string("project_id") ?: "") }.firstOrNull()
         val rec = c.copy(
             createdAt = old?.first?.ifEmpty { null } ?: c.createdAt.ifEmpty { now },
             createdBy = old?.second?.ifEmpty { null } ?: c.createdBy.ifEmpty { user },
             updatedAt = now, updatedBy = user,
+            projectId = old?.third ?: c.projectId.ifEmpty { defaultProject },
         )
         db.tx { writePlace(rec) }
         return rec
@@ -270,7 +278,7 @@ class LocalStore(val db: SqlDb, private val user: String = "") {
                 val local = if (ip.hasId) db.query("SELECT * FROM places WHERE id = ?", listOf(inc.id), ::placeFrom).firstOrNull() else null
                 val stamp = inc.updatedAt.ifEmpty { now }
                 if (local == null) {
-                    writePlace(inc.copy(createdAt = inc.createdAt.ifEmpty { now }, updatedAt = stamp)); added++; continue
+                    writePlace(inc.copy(createdAt = inc.createdAt.ifEmpty { now }, updatedAt = stamp, projectId = defaultProject)); added++; continue
                 }
                 if (stamp <= local.updatedAt) { skipped++; continue }
                 var name = local.name

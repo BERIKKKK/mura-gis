@@ -64,6 +64,26 @@ class PlacesTest {
         assertEquals(LocalStore.SCHEMA_VERSION.toLong(), s2.db.scalarLong("PRAGMA user_version"))
     }
 
+    /** Жоба бойынша іріктеу: жаңа нысан белсенді жобаға жазылады, бар нысанның жобасы өңдегенде өзгермейді, қайта ашқанда сақталады. */
+    @Test fun placeProjectIsKept() {
+        val f = TestUtil.tmp("places-project.db")
+        val s = store(f)
+        val loose = s.savePlace(well)
+        assertEquals("", loose.projectId)
+        s.defaultProject = "aaaaaaaaaaaaaaaa"
+        val inP = s.savePlace(Place(lat = 48.0, lon = 58.0, kind = PlaceKind.QYSTAU))
+        assertEquals("aaaaaaaaaaaaaaaa", inP.projectId)
+        s.defaultProject = "bbbbbbbbbbbbbbbb"
+        s.savePlace(loose.copy(kind = PlaceKind.OTHER))                     // бар жазба — жобасы өзгермейді
+        s.savePlace(inP.copy(name = Localized("Қыстау", "")))
+        val imported = s.importPlaces(listOf(io.github.berikkkk.muragis.core.io.ImportedPlace(Place(lat = 47.0, lon = 57.0), setOf(Lang.KK), false)))
+        assertEquals(1, imported.added)
+        s.db.close()
+        val s2 = store(f)
+        val byProject = s2.places().groupBy { it.projectId }.mapValues { it.value.size }
+        assertEquals(mapOf("" to 1, "aaaaaaaaaaaaaaaa" to 1, "bbbbbbbbbbbbbbbb" to 1), byProject)
+    }
+
     @Test fun geojsonRoundTripAndDetection() {
         val s = store()
         val p = s.savePlace(well)
