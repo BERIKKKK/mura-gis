@@ -183,7 +183,7 @@ function newMark(pt) {
   else openDialog(pt);
 }
 map.on('click', e => {
-  if (!marking || dragging) return;
+  if (!marking || dragging || dlg?.pick) return;
   newMark({ lat: e.latlng.lat, lon: e.latlng.lng });
 });
 
@@ -193,9 +193,15 @@ const optionsHtml = (list, val) => list.map(x => '<option value="' + esc(x.v) + 
 const lastKey = 'mk-last-v1';            // соңғы таңдалған облыс/аудан/түр/санат/мәртебе — келесі белгіге әдепкі
 function lastDefaults() { try { return JSON.parse(store.get(lastKey) || '{}') || {}; } catch (e) { return {}; } }
 
+// «Картадан таңдау» белгішесі (нысана)
+const PICK_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">' +
+  '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/>' +
+  '<line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/></svg>';
+
 let dlg = null;
 function closeDialog() {
   if (!dlg) return;
+  if (dlg.pick) dlg.pick.stop();
   dlg.back.remove();
   document.removeEventListener('keydown', dlg.onKey, true);
   if (dlg.prev && dlg.prev.focus && document.contains(dlg.prev)) dlg.prev.focus({ preventScroll: true });
@@ -266,7 +272,8 @@ function openDialog(m, o = {}) {
       '</div>' +
       '<div class="qa-row2 mk-coords">' +
         '<div class="qa-f"><label for="mkLat">Ендік (N)</label><input type="text" id="mkLat" name="lat" autocomplete="off" spellcheck="false" value="' + esc(o.latText ?? (v.lat != null ? (+v.lat).toFixed(7) : '')) + '"></div>' +
-        '<div class="qa-f"><label for="mkLon">Бойлық (E)</label><input type="text" id="mkLon" name="lon" autocomplete="off" spellcheck="false" value="' + esc(o.lonText ?? (v.lon != null ? (+v.lon).toFixed(7) : '')) + '"></div>' +
+        '<div class="qa-f"><label for="mkLon">Бойлық (E)</label><div class="mk-cin"><input type="text" id="mkLon" name="lon" autocomplete="off" spellcheck="false" value="' + esc(o.lonText ?? (v.lon != null ? (+v.lon).toFixed(7) : '')) + '">' +
+          '<button type="button" class="mk-pick" id="mkPick" title="' + tx('Картадан таңдау', 'Выбрать на карте') + '" aria-label="' + tx('Картадан таңдау', 'Выбрать на карте') + '">' + PICK_SVG + '</button></div></div>' +
       '</div>' +
       '<p class="qa-hint mk-coordok" id="mkCoordOk"></p>' +
       I18N.biField({ id: 'mkNote', name: 'note', label: tx('Ескертпе', 'Примечание'), kk: v.note, ru: v.note_ru, max: 3000, rows: 2 }) +
@@ -450,6 +457,30 @@ function openDialog(m, o = {}) {
       if (saved && !map.getBounds().contains([saved.lat, saved.lon])) map.panTo([saved.lat, saved.lon]);
     } catch (ex) { showErr(ex.message); btn.disabled = false; }
   });
+  /* Координатаны картадан таңдау: терезе уақытша жасырылады (енгізілгені сақталады), картаны басқанда
+     координата өрістерге жазылып, терезе қайта көрінеді. Esc — бас тарту. */
+  back.querySelector('#mkPick').addEventListener('click', () => {
+    if (dlg.pick) return;
+    for (const b of [addBtn, rulerBtn, compassBtn]) if (pressed(b)) b.click();   // қорғау аймағының режимдері картаны баспасын
+    const onPick = e => {
+      F.lat.value = e.latlng.lat.toFixed(7); F.lon.value = e.latlng.lng.toFixed(7);
+      stop();
+      paintCoord(); askLater();
+      showErr('');
+    };
+    function stop() {
+      map.off('click', onPick);
+      mapEl.classList.remove('is-mk-picking');
+      back.hidden = false;
+      if (dlg) dlg.pick = null;
+      F.lon.focus({ preventScroll: true });
+    }
+    dlg.pick = { stop };
+    back.hidden = true;
+    mapEl.classList.add('is-mk-picking');
+    setTimeout(() => { if (dlg?.pick?.stop === stop) map.on('click', onPick); }, 0);
+    toast(tx('Ескерткіштің орнын картадан басыңыз (Esc — бас тарту)', 'Щёлкните место памятника на карте (Esc — отмена)'));
+  });
   back.querySelector('#mkCancel').addEventListener('click', closeDialog);
   back.querySelector('#mkDel')?.addEventListener('click', () => removeMark(m));
   back.querySelector('#mkGo')?.addEventListener('click', () => { closeDialog(); flyTo(m); });
@@ -457,7 +488,11 @@ function openDialog(m, o = {}) {
   back.querySelector('#mkPlan')?.addEventListener('click', () => { closeDialog(); globalThis.MuraPlan?.openForMark(m); });
   back.addEventListener('mousedown', e => { if (e.target === back) back.dataset.down = '1'; });
   back.addEventListener('click', e => { if (e.target === back && back.dataset.down) closeDialog(); delete back.dataset.down; });
-  const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeDialog(); } };
+  const onKey = e => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault(); e.stopPropagation();
+    if (dlg?.pick) dlg.pick.stop(); else closeDialog();
+  };
   document.addEventListener('keydown', onKey, true);
   dlg = { back, onKey, temp, prev: document.activeElement };
   app.appendChild(back);

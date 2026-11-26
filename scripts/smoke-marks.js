@@ -314,6 +314,24 @@ async function run(win) {
     eq(!!sD && (await zrec(zD)).mark_id, sD && sD.id, 'аймақ жаңа белгіге байланысты');
     M.openDialog(sD); await wait(400);
     eq(document.getElementById('mkZoneSel').value, zD, 'байланысқан аймақ көрсетіледі');
+    // Координатаны картадан таңдау: белгіше → терезе жасырылады → картаны басу → өрістер толады, терезе қайта көрінеді
+    {
+      const fm = document.querySelector('.mk-dlg'), back = fm.parentElement, nB = M.items.length;
+      fm.elements.note.value = 'таңдау алдындағы мәтін';
+      document.getElementById('mkPick').click(); await wait(50);
+      eq(back.hidden + ' ' + map.getContainer().classList.contains('is-mk-picking'), 'true true', 'таңдау режимі: терезе жасырылды');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); await wait(50);
+      eq(back.isConnected + ' ' + back.hidden + ' ' + fm.elements.lat.value, 'true false ' + (+sD.lat).toFixed(7), 'Esc — таңдаудан бас тарту, терезе қалды');
+      M.setMarking(true);
+      document.getElementById('mkPick').click(); await wait(50);
+      const ll = L.latLng(50.64123456, 57.64234567);
+      map.fire('click', { latlng: ll, containerPoint: map.latLngToContainerPoint(ll), originalEvent: new MouseEvent('click') }); await wait(200);
+      M.setMarking(false);
+      eq(fm.elements.lat.value + ' ' + fm.elements.lon.value + ' ' + back.hidden, '50.6412346 57.6423457 false', 'картадан таңдалған координата');
+      eq(fm.elements.note.value + ' ' + document.querySelectorAll('.mk-dlg').length + ' ' + M.items.length, 'таңдау алдындағы мәтін 1 ' + nB, 'енгізілгені сақталды, жаңа белгі ашылмады');
+      eq(map.getContainer().classList.contains('is-mk-picking'), false, 'таңдау режимі өшті');
+      out.pickCoord = document.getElementById('mkCoordOk').textContent;
+    }
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
 
     // Өзге нысандар: белгі қою → «Өзге нысандар» → түрі, атауы → сақтау (ескерткіштерге түспейді); GeoJSON; импорт; маршрут А/Б
