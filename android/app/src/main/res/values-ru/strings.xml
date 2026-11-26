@@ -201,11 +201,10 @@
     <string name="msg_saved">Сохранено</string>
     <string name="msg_deleted_n">Удалено: %1$d</string>
     <string name="msg_gps_wait">Определение координат GPS…</string>
-    <string name="compass_heading">Включить режим навигации</string>
-    <string name="compass_north">Выключить режим навигации (север вверху)</string>
-    <string name="msg_heading_up">Режим навигации: карта поворачивается по направлению движения</string>
+    <string name="compass_heading">Поворачивать карту по направлению движения</string>
+    <string name="compass_north">Направить карту на север</string>
+    <string name="msg_heading_up">При движении карта поворачивается по направлению движения</string>
     <string name="msg_north_up">Север вверху</string>
-    <string name="err_no_compass">На этом устройстве нет датчика компаса.</string>
     <string name="msg_gps_off">GPS выключен</string>
     <string name="msg_gps_needed_rec">Идёт запись трека — GPS не выключается. Сначала остановите запись.</string>
     <string name="confirm_gps_off">Выключить GPS? Ваше местоположение не будет показано на карте.</string>
