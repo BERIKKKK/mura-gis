@@ -26,6 +26,8 @@
     ellipse: '<ellipse cx="12" cy="12" rx="10" ry="6"/>',
     free: '<path d="M4 8 10 3l9 4-2 10-8 4-6-6z"/>',
     rect: '<rect width="18" height="12" x="3" y="6" rx="1"/>',
+    mus: '<circle cx="5" cy="12" r="3"/><path d="M8 10c4-4 9-5 13-4" stroke-dasharray="2 2"/><path d="M8 14c4 4 9 5 13 4" stroke-dasharray="2 2"/>',
+    del: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/>',
     edit: '<path d="M5 3a2 2 0 0 0-2 2"/><path d="M19 3a2 2 0 0 1 2 2"/><path d="M21 19a2 2 0 0 1-2 2"/><path d="M5 21a2 2 0 0 1-2-2"/><path d="M9 3h1"/><path d="M9 21h1"/><path d="M14 3h1"/><path d="M14 21h1"/><path d="M3 9v1"/><path d="M21 9v1"/><path d="M3 14v1"/><path d="M21 14v1"/>',
     sit: '<path d="M3 20c3-1 4-5 7-6s5 2 8 0 3-4 3-4"/><path d="M8 4v5"/><circle cx="8" cy="5" r="2.5"/><circle cx="17" cy="16" r="0.5"/>',
     fline: '<path d="M3 18c4-1 5-8 9-8s5 6 9 4"/>',

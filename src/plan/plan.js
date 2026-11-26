@@ -9,6 +9,7 @@
 import { plane, contourLL, hasContour, inverse, dist2, azXY, selfIntersects, fmtNum, fmtDist, parseNum, cmpNum, SCALES } from './geo.js';
 import { renderPage, pdfHtml, objTitle, pointerValues, KINDS, MATERIALS, SUBTYPES, STATES, materialLabel, subtypeLabel, stateLabel, glyph, isStage2, explOf, PAPERS, paperSize,
   FEAT_KINDS, featCat, featLabel, featGlyph, featSample, SURFACES, PLACE_KINDS } from './sheet.js';
+const MUS_LINE = { weight: 4, dashArray: '1 6', lineCap: 'round', interactive: false };     // мұрт картада: нүктелі жуан сызық
 import { parseDxf, decodeDxf, parseCsv, guessColumns, csvItems, parseGeojson, parseKml, parseKmz, parseGpx, groupsOf, kindsFor, toRecords, allXY, thin as thinPts } from './importer.js';
 import { CRS_LIST, makeTransform, guessCrs, utmZone, gkZone } from './crs.js';
 import { contours, MAX_POINTS as TIN_MAX } from './tin.js';
@@ -97,6 +98,15 @@ function drawLayer() {
   layer.clearLayers();
   if (!markId) return;
   drawFeatures();          // жағдаят — нысандардың астында
+  // Мұрттар (тас жалдар) — контурлардың астында
+  for (const o of markObjects()) {
+    if (!Array.isArray(o.mus) || (mode && mode.kind === 'edit' && mode.id === o.id)) continue;
+    for (const ln of o.mus) {
+      L.polyline(ln, { ...MUS_LINE, color: o.id === selId ? ST.sel : ST.line }).addTo(layer);
+      L.polyline(ln, { opacity: 0, weight: 14, className: 'pj-shape' }).on('click', ev => { if (mode) return; L.DomEvent.stop(ev); select(o.id); })
+        .on('dblclick', ev => { if (mode) return; L.DomEvent.stop(ev); openObjDialog(o); }).addTo(layer);
+    }
+  }
   for (const o of markObjects()) {
     const sel = o.id === selId;
     const ll = hasContour(o) ? contourLL(o) : null;
@@ -221,6 +231,7 @@ function objMeta(o) {
   if (o.subtype) parts.push(subtypeLabel(o.subtype, UI));
   if (o.state) parts.push(stateLabel(o.state, UI));
   if (Array.isArray(o.surface)) for (const k of o.surface) { const x = SURFACES.find(s => s.v === k); if (x) parts.push((UI === 'ru' ? x.ru : x.kk).toLocaleLowerCase(UI)); }
+  if (Array.isArray(o.mus) && o.mus.length) parts.push(tx('мұрттары: ', 'усов: ') + o.mus.length);
   return parts.join(' · ');
 }
 function renderPanel(m, list) {
@@ -356,8 +367,8 @@ function startMode(m) {
   globalThis.MuraRoutes?.stop?.();
   mode = { pts: [], ...m };
   mapEl.classList.add('is-pjmap');
-  if ((m.kind === 'draw' && m.shape === 'free') || (m.kind === 'fdraw' && isMulti(m.fkind))) map.doubleClickZoom.disable();
-  $('pjDraw').setAttribute('aria-pressed', m.kind === 'draw' || m.kind === 'edit' ? 'true' : 'false');
+  if ((m.kind === 'draw' && m.shape === 'free') || (m.kind === 'fdraw' && isMulti(m.fkind)) || m.kind === 'mus') map.doubleClickZoom.disable();
+  $('pjDraw').setAttribute('aria-pressed', m.kind === 'draw' || m.kind === 'edit' || m.kind === 'mus' ? 'true' : 'false');
   $('pjSit').setAttribute('aria-pressed', m.kind === 'fdraw' || m.kind === 'fedit' ? 'true' : 'false');
   if (m.kind === 'edit') startEdit();
   if (m.kind === 'fedit') startFeatEdit();
@@ -402,9 +413,11 @@ function paintHud(ll) {
     return setHud(nm + ': ' + tx('төбелерді басыңыз', 'щёлкайте вершины') + ' (' + n + ')',
       tx('Екі рет басу не Enter — аяқтау; Backspace — соңғы төбе; Esc — бас тарту', 'Двойной щелчок или Enter — завершить; Backspace — последняя вершина; Esc — отмена'));
   }
+  if (k === 'mus') return setHud(tx('Мұрт (тас жал): төбелерді қорғаннан бастап басыңыз', 'Ус (каменная гряда): щёлкайте вершины, начиная от кургана') + ' (' + n + ')',
+    tx('Екі рет басу не Enter — аяқтау; Backspace — соңғы төбе; Esc — бас тарту', 'Двойной щелчок или Enter — завершить; Backspace — последняя вершина; Esc — отмена'));
   if (k === 'fedit') return setHud(tx('Белгіні түзету: тұтқаларды сүйреңіз', 'Исправление знака: перетаскивайте маркеры'),
     tx('Өзгеріс бірден сақталады; сызықтың төбесін өшіру — тінтуірдің оң жағы · Esc — аяқтау', 'Изменения сохраняются сразу; удалить вершину линии — правая кнопка · Esc — завершить'));
-  if (k === 'edit') return setHud(tx('Контурды редакциялау: тұтқаларды сүйреңіз', 'Редактирование контура: перетаскивайте маркеры'), tx('Орталық — жылжыту, шеттері — өлшемі мен пішіні; өзгеріс бірден сақталады · Esc — аяқтау', 'Центр — перемещение, края — размер и форма; изменения сохраняются сразу · Esc — завершить'));
+  if (k === 'edit') return setHud(tx('Контурды редакциялау: тұтқаларды сүйреңіз', 'Редактирование контура: перетаскивайте маркеры'), tx('Орталық — жылжыту (мұрттарымен бірге), шеттері — өлшемі мен пішіні, ұсақ тұтқалар — мұрттың төбелері (оң жағы — өшіру); өзгеріс бірден сақталады · Esc — аяқтау', 'Центр — перемещение (вместе с усами), края — размер и форма, мелкие маркеры — вершины усов (правая кнопка — удалить); изменения сохраняются сразу · Esc — завершить'));
   if (k !== 'draw') return;
   const c = mode.pts[0] && plane(mode.pts[0][0], mode.pts[0][1]);
   const cur = ll && c ? c.fwd(ll.lat, ll.lng) : null;
@@ -428,6 +441,13 @@ function paintHud(ll) {
 
 function rubber(ll) {
   tempLayer.clearLayers();
+  if (mode && mode.kind === 'mus') {
+    // Қорғанның бұрынғы мұрттары — бағдар үшін
+    for (const ln of mode.draft.mus || []) L.polyline(ln, { ...MUS_LINE, color: ST.line }).addTo(tempLayer);
+    for (const p of mode.pts) L.circleMarker(p, { radius: 4, color: ST.sel, fillColor: '#fff', fillOpacity: 1, weight: 2, interactive: false }).addTo(tempLayer);
+    if (mode.pts.length) L.polyline(ll ? mode.pts.concat([[ll.lat, ll.lng]]) : mode.pts, { color: ST.sel, weight: 2, interactive: false }).addTo(tempLayer);
+    return;
+  }
   if (!mode || mode.kind !== 'draw') return;
   const pts = mode.pts, sty = { color: ST.sel, weight: 2, fillColor: ST.fill, fillOpacity: 0.3, interactive: false, dashArray: '5 5' };
   for (const p of pts) L.circleMarker(p, { radius: 4, color: ST.sel, fillColor: '#fff', fillOpacity: 1, weight: 2, interactive: false }).addTo(tempLayer);
@@ -453,7 +473,7 @@ function rubber(ll) {
 }
 
 map.on('mousemove', e => {
-  if (mode && mode.kind === 'draw') { rubber(e.latlng); paintHud(e.latlng); }
+  if (mode && (mode.kind === 'draw' || (mode.kind === 'mus' && mode.pts.length))) { rubber(e.latlng); paintHud(e.latlng); }
   if (mode && mode.kind === 'fdraw' && isMulti(mode.fkind) && mode.pts.length) { rubberF(e.latlng); paintHud(e.latlng); }
 });
 map.on('click', e => {
@@ -484,6 +504,7 @@ map.on('click', e => {
     openFeatDialog(null, { draft: d });
     return;
   }
+  if (k === 'mus') { mode.pts.push([ll.lat, ll.lng]); rubber(ll); paintHud(ll); return; }
   if (k !== 'draw') return;
   const pts = mode.pts;
   if (mode.shape === 'free' && pts.length >= 3 && near(ll, pts[0], 10)) { finishDraw(); return; }
@@ -494,13 +515,15 @@ map.on('click', e => {
 map.on('dblclick', e => {
   if (mode && mode.kind === 'draw' && mode.shape === 'free') { L.DomEvent.stop(e); if (mode.pts.length > 3) mode.pts.pop(); finishDraw(); }
   // Екі рет басу алдымен екі «click» береді — соңғы (қайталанған) төбе алынады
+  else if (mode && mode.kind === 'mus') { L.DomEvent.stop(e); if (mode.pts.length > 2) mode.pts.pop(); finishMus(); }
   else if (mode && mode.kind === 'fdraw' && isMulti(mode.fkind)) { L.DomEvent.stop(e); if (mode.pts.length > (featCat(mode.fkind) === 'area' ? 3 : 2)) mode.pts.pop(); finishFeatLine(); }
 });
 document.addEventListener('keydown', e => {
   if (!mode || dlg) return;
   if (e.key === 'Escape') { e.preventDefault(); stopMode(); }
   else if (mode.kind === 'draw' && mode.shape === 'free' && e.key === 'Enter') { e.preventDefault(); finishDraw(); }
-  else if (mode.kind === 'draw' && e.key === 'Backspace' && mode.pts.length) { e.preventDefault(); mode.pts.pop(); rubber(); paintHud(); }
+  else if (mode.kind === 'mus' && e.key === 'Enter') { e.preventDefault(); finishMus(); }
+  else if ((mode.kind === 'draw' || mode.kind === 'mus') && e.key === 'Backspace' && mode.pts.length) { e.preventDefault(); mode.pts.pop(); rubber(); paintHud(); }
   else if (mode.kind === 'fdraw' && isMulti(mode.fkind) && e.key === 'Enter') { e.preventDefault(); finishFeatLine(); }
   else if (mode.kind === 'fdraw' && e.key === 'Backspace' && mode.pts.length) { e.preventDefault(); mode.pts.pop(); rubberF(); paintHud(); }
 }, true);
@@ -532,33 +555,57 @@ function finishDraw() {
   openObjDialog(d.id ? objects.find(o => o.id === d.id) || d : null, { draft: d });
 }
 
-/** «Сызу» мәзірі: пішінді таңдау не сақталған контурды редакциялау. */
+/** Мұрт сызылды: терезеден шақырылса — жобаға қосылып, терезе қайта ашылады; мәзірден — нысан бірден сақталады. */
+async function finishMus() {
+  const m = mode;
+  const pts = m.pts.filter((p, i, a) => !i || p[0] !== a[i - 1][0] || p[1] !== a[i - 1][1]);
+  if (pts.length < 2) { toast(tx('Мұртта кемінде екі төбе болуы керек.', 'В «усе» должно быть не менее двух вершин.'), true); return; }
+  const d = { ...m.draft, mus: (m.draft.mus || []).concat([pts]) };
+  stopMode(true);
+  render();
+  if (m.after) { m.after(d); return; }
+  try { await api('save', { data: JSON.stringify(d) }); toast(tx('Мұрт қосылды.', 'Ус добавлен.')); } catch (e) { toast(e.message, true); }
+}
+async function clearMus(o) {
+  if (!(await ask(tx('№' + o.num + ' қорғанның мұрттарын (' + o.mus.length + ') өшіру керек пе?', 'Удалить усы (' + o.mus.length + ') кургана №' + o.num + '?'), { danger: true }))) return;
+  try { await api('save', { data: JSON.stringify({ ...o, mus: null }) }); } catch (e) { toast(e.message, true); }
+}
+
+/** «Сызу» мәзірі: пішінді таңдау, мұрт сызу не сақталған контурды редакциялау. */
 function drawMenu(btn) {
   const o = curObj();
   if (!o) { toast(tx('Алдымен нысанды таңдаңыз не қосыңыз.', 'Сначала выберите или добавьте объект.')); return; }
   const r = btn.getBoundingClientRect();
   const go = shape => startMode({ kind: 'draw', shape, draft: { ...o } });
+  const kurgan = (o.kind || 'kurgan') === 'kurgan', nMus = Array.isArray(o.mus) ? o.mus.length : 0;
   globalThis.MuraCtx?.openMenu(r.left, r.bottom + 4, esc(objName(o)), [
     { label: tx('Шеңбер', 'Окружность'), hint: tx('орталығы, содан кейін шеті', 'центр, затем край'), icon: IC.circle, run: () => go('circle') },
     { label: tx('Эллипс', 'Эллипс'), hint: tx('орталығы, үлкен осьтің ұшы, кіші осьтің ұшы', 'центр, конец большой оси, конец малой оси'), icon: IC.ellipse, run: () => go('ellipse') },
     { label: tx('Тіктөртбұрыш', 'Прямоугольник'), hint: tx('кесене, сағана там, қоршау: орталығы, ұзын және қысқа қабырға', 'мавзолей, саганатам, ограда: центр, длинная и короткая сторона'), icon: IC.rect || IC.free, run: () => go('rect') },
     { label: tx('Еркін контур', 'Свободный контур'), hint: tx('кемінде үш төбе, тұйықтау', 'не менее трёх вершин, замкнуть'), icon: IC.free, run: () => go('free') },
     'sep',
-    { label: tx('Контурды редакциялау', 'Редактировать контур'), hint: tx('орнын, өлшемін, пішінін картада түзету', 'исправить положение, размер, форму на карте'), icon: IC.edit, disabled: !hasContour(o), run: () => startMode({ kind: 'edit', id: o.id }) },
+    { label: tx('Мұрт (тас жал)', 'Ус (каменная гряда)'), hint: kurgan ? tx('мұртты қорған: жалдың төбелері қорғаннан бастап, Enter — аяқтау', 'курган с усами: вершины гряды от кургана, Enter — завершить') : tx('тек қорғанда', 'только у кургана'),
+      icon: IC.mus || IC.free, disabled: !kurgan, run: () => startMode({ kind: 'mus', draft: { ...o } }) },
+    { label: tx('Мұрттарды өшіру', 'Удалить усы'), hint: nMus ? String(nMus) : '', icon: IC.del || IC.edit, disabled: !nMus, run: () => clearMus(o) },
+    'sep',
+    { label: tx('Контурды редакциялау', 'Редактировать контур'), hint: tx('орнын, өлшемін, пішінін, мұрттарын картада түзету', 'исправить положение, размер, форму, усы на карте'), icon: IC.edit, disabled: !hasContour(o) && !nMus, run: () => startMode({ kind: 'edit', id: o.id }) },
   ]);
 }
 
 /* ---------- Сақталған контурды редакциялау: картадағы тұтқалар ---------- */
-const handleIcon = (cls = '') => L.divIcon({ className: 'pj-handle' + cls, iconSize: [14, 14], iconAnchor: [7, 7] });
+const handleIcon = (cls = '', s = 14) => L.divIcon({ className: 'pj-handle' + cls, iconSize: [s, s], iconAnchor: [s / 2, s / 2] });
 function startEdit() {
   const o = objects.find(x => x.id === mode.id);
   if (!o) return;
   let w = JSON.parse(JSON.stringify(o));      // өңделіп жатқан көшірме
-  const preview = L.polygon(contourLL(w), { color: ST.sel, weight: 2, fillColor: ST.fill, fillOpacity: 0.35, interactive: false }).addTo(tempLayer);
+  const preview = hasContour(w) ? L.polygon(contourLL(w), { color: ST.sel, weight: 2, fillColor: ST.fill, fillOpacity: 0.35, interactive: false }).addTo(tempLayer) : null;
+  const musLines = (w.mus || []).map(ln => L.polyline(ln, { ...MUS_LINE, color: ST.sel }).addTo(tempLayer));
+  const paintMus = () => musLines.forEach((pl, k) => { if (w.mus && w.mus[k]) pl.setLatLngs(w.mus[k]); });
   const handles = [];
   const P = () => plane(+w.lat, +w.lon);
   const place = () => {
-    preview.setLatLngs(contourLL(w));
+    if (preview) preview.setLatLngs(contourLL(w));
+    paintMus();
     const hs = spots();
     handles.forEach((h, i) => { if (hs[i]) h.setLatLng(hs[i]); });
   };
@@ -570,7 +617,7 @@ function startEdit() {
       const t = (w.ax_az || 0) * Math.PI / 180;
       return [c, p.inv(w.ax_a / 2 * Math.sin(t), w.ax_a / 2 * Math.cos(t)), p.inv(w.ax_b / 2 * Math.cos(t), -w.ax_b / 2 * Math.sin(t))];
     }
-    return [c, ...w.pts];
+    return [c, ...(w.shape === 'free' && Array.isArray(w.pts) ? w.pts : [])];
   };
   const save = async () => {
     try { await api('save', { data: JSON.stringify(w) }); await refreshPtrSnapshot(w.id); }
@@ -583,10 +630,12 @@ function startEdit() {
     h.on('drag', () => {
       const q = h.getLatLng();
       if (i === 0) {
-        // Жылжыту: бүкіл контур метрлік жазықтықта ығысады
+        // Жылжыту: бүкіл контур мен мұрттар метрлік жазықтықта ығысады
         const p0 = plane(start.ll.lat, start.ll.lng), dxy = p0.fwd(q.lat, q.lng);
+        const mv = pt => { const a = p0.fwd(pt[0], pt[1]); return p0.inv(a[0] + dxy[0], a[1] + dxy[1]); };
         w.lat = q.lat; w.lon = q.lng;
-        if (w.shape === 'free') w.pts = start.w.pts.map(pt => { const a = p0.fwd(pt[0], pt[1]); return p0.inv(a[0] + dxy[0], a[1] + dxy[1]); });
+        if (w.shape === 'free') w.pts = start.w.pts.map(mv);
+        if (Array.isArray(start.w.mus)) { w.mus = start.w.mus.map(ln => ln.map(mv)); paintMus(); }
       } else if (w.shape === 'circle') {
         const xy = P().fwd(q.lat, q.lng);
         w.diam = Math.round(2 * Math.hypot(xy[0], xy[1]) * 10) / 10;
@@ -598,11 +647,27 @@ function startEdit() {
         w.pts[i - 1] = [q.lat, q.lng];
       }
       setHud(objName(w), objMeta(w));
-      preview.setLatLngs(contourLL(w));
+      if (preview) preview.setLatLngs(contourLL(w));
     });
     h.on('dragend', () => { place(); save(); });
     handles.push(h);
   });
+  // Мұрттың төбелері: сүйреу; оң жағы — төбені өшіру (екі төбе қалса — бүкіл мұртты)
+  (w.mus || []).forEach((ln, k) => ln.forEach((ll, j) => {
+    const h = L.marker(ll, { icon: handleIcon(' is-small', 10), draggable: true, keyboard: false, zIndexOffset: 900 }).addTo(tempLayer);
+    h.on('drag', () => { const q = h.getLatLng(); w.mus[k][j] = [q.lat, q.lng]; paintMus(); });
+    h.on('dragend', save);
+    h.on('contextmenu', async ev => {
+      L.DomEvent.stop(ev);
+      if (w.mus[k].length <= 2) {
+        if (!(await ask(tx('Бұл мұртты толық өшіру керек пе?', 'Удалить этот ус целиком?'), { danger: true }))) return;
+        w.mus.splice(k, 1);
+        if (!w.mus.length) w.mus = null;
+      } else w.mus[k].splice(j, 1);
+      await save();
+      if (hasContour(w) || w.mus) startMode({ kind: 'edit', id: w.id }); else stopMode();
+    });
+  }));
 }
 
 /* ======================= Жағдаят белгілері (3-кезең, docs/PLAN-STAGE3.md) ======================= */
@@ -1109,6 +1174,9 @@ function openObjDialog(o, opts = {}) {
       '<div class="qa-f"><label for="pjState">' + tx('Техникалық жай-күйі', 'Техническое состояние') + '</label><select id="pjState" name="state">' + optList(STATES, v.state, '—') + '</select></div></div>' +
     '<div class="qa-f" data-kind="kurgan"><label>' + tx('Бетінде (жоспарда контурдың ішінде көрсетіледі)', 'На поверхности (показывается внутри контура на плане)') + '</label><div class="pj-surf">' +
       SURFACES.map(x => '<label class="qa-check"><input type="checkbox" name="surface" value="' + x.v + '"' + (Array.isArray(v.surface) && v.surface.includes(x.v) ? ' checked' : '') + '> ' + esc(UI === 'ru' ? x.ru : x.kk) + '</label>').join('') + '</div></div>' +
+    '<div class="qa-f" data-kind="kurgan"><label>' + tx('Мұрттары (мұртты қорғанның тас жалдары)', 'Усы (каменные гряды кургана с усами)') + '</label>' +
+      '<div class="pj-btnrow"><span class="qa-hint" id="pjMusInfo"></span><button type="button" class="lnk" id="pjMusDraw">' + svgIc(IC.mus, 15) + ' ' + tx('Мұрт сызу', 'Начертить ус') + '</button>' +
+      '<button type="button" class="lnk lnk--danger" id="pjMusClr">' + tx('Мұрттарды өшіру', 'Удалить усы') + '</button></div></div>' +
     (I18N.biField ? I18N.biField({ id: 'pjName', name: 'name', label: tx('Атауы (қажет болса)', 'Название (при необходимости)'), kk: v.name, ru: v.name_ru, max: 200 }) : '') +
     '<fieldset class="pj-fs"><legend>' + tx('Тірек нүктесі (WGS 84)', 'Опорная точка (WGS 84)') + '</legend>' +
       '<div class="qa-row2"><div class="qa-f"><label for="pjLat">' + tx('Ендік (N)', 'Широта (N)') + '</label><input type="text" id="pjLat" name="lat" autocomplete="off" spellcheck="false" value="' + esc(v.latText ?? coord(v.lat)) + '"></div>' +
@@ -1144,6 +1212,12 @@ function openObjDialog(o, opts = {}) {
   const clearErr = () => { back.querySelectorAll('.pj-ferr').forEach(el => { el.textContent = ''; el.hidden = true; }); back.querySelectorAll('.is-bad').forEach(el => el.classList.remove('is-bad')); const g = back.querySelector('#pjErr'); g.hidden = true; };
   clearErr();
   let pts = Array.isArray(v.pts) ? v.pts.slice() : null;
+  let mus = Array.isArray(v.mus) && v.mus.length ? v.mus.slice() : null;
+  const paintMus = () => {
+    back.querySelector('#pjMusInfo').textContent = mus ? tx('Мұрттары: ', 'Усов: ') + mus.length : tx('Мұрты жоқ.', 'Усов нет.');
+    back.querySelector('#pjMusClr').hidden = !mus;
+  };
+  paintMus();
   const paintShape = () => {
     const s = F.shape.value;
     back.querySelectorAll('label[data-rect]').forEach(l => { l.textContent = s === 'rect' ? l.dataset.rect : l.dataset.ell; });
@@ -1180,7 +1254,7 @@ function openObjDialog(o, opts = {}) {
       material: F.material.value, subtype: F.kind.value === 'kulpytas' ? F.subtype.value : '', state: F.state.value,
       surface: F.kind.value === 'kurgan' ? [...back.querySelectorAll('input[name="surface"]:checked')].map(x => x.value) : null,
       height: parseNum(F.height.value), diam: parseNum(F.diam.value), ax_a: parseNum(F.ax_a.value), ax_b: parseNum(F.ax_b.value), ax_az: parseNum(F.ax_az.value), dim_az: parseNum(F.dim_az.value),
-      pts, dim: di !== '' && dj !== '' && di !== dj ? [+di, +dj] : null,
+      pts, dim: di !== '' && dj !== '' && di !== dj ? [+di, +dj] : null, mus,
     };
   };
   const reopen = d => openObjDialog(o, { ...opts, draft: d });
@@ -1202,6 +1276,13 @@ function openObjDialog(o, opts = {}) {
     closeDialog();
     startMode({ kind: 'draw', shape, draft: { ...d, shape }, after: () => reopen(d) });
   });
+  // Мұрт: картада сызылып, терезе қайта ашылады (сақтау — «Сақтау» батырмасымен)
+  back.querySelector('#pjMusDraw').addEventListener('click', () => {
+    const d = collect();
+    closeDialog();
+    startMode({ kind: 'mus', draft: d, after: d2 => reopen(d2 || d) });
+  });
+  back.querySelector('#pjMusClr').addEventListener('click', () => { mus = null; paintMus(); });
   back.querySelector('[data-x]').addEventListener('click', closeDialog);
   back.querySelector('#pjDel')?.addEventListener('click', () => { closeDialog(); removeObj(o); });
 

@@ -245,6 +245,26 @@ async function run(win) {
     document.querySelector('.pj-objdlg input[name="surface"][value="stones"]').checked = true;
     document.querySelector('.pj-objdlg [type=submit]').click(); await wait(400);
     out.surface = JSON.stringify(MuraPlan.objects.find(o => o.num === '1').surface);
+    // Мұртты қорған: терезеден мұрт сызу (үш төбе, Enter) → терезе қайта ашылады → сақтау; «Сызу» мәзірінен екінші мұрт
+    MuraPlan.openObjDialog(MuraPlan.objects.find(o => o.num === '1')); await wait(100);
+    $('pjMusDraw').click(); await wait(100);
+    out.musMode = MuraPlan.mode;
+    for (const [x, y] of [[8, 2], [30, 15], [60, 20]]) map.fire('click', { latlng: at(x, y) });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await wait(150);
+    out.musDlg = !!document.querySelector('.pj-objdlg') + ' / ' + $('pjMusInfo').textContent;
+    document.querySelector('.pj-objdlg [type=submit]').click(); await wait(400);
+    MuraPlan.select(MuraPlan.objects.find(o => o.num === '1').id); await wait(100);
+    $('pjDraw').click(); await wait(100);
+    [...document.querySelectorAll('.mura-ctx button')].find(b => b.textContent.includes('Мұрт (тас жал)'))?.click(); await wait(100);
+    for (const [x, y] of [[8, -2], [30, -15], [60, -20]]) map.fire('click', { latlng: at(x, y) });
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); await wait(400);
+    const km = MuraPlan.objects.find(o => o.num === '1');
+    out.mus = (km.mus || []).map(l => l.length).join(',');
+    out.musSheet = MuraPlan.renderPage('general', '', 0).svg.includes('class="pj-mus"') + ' / ' + MuraPlan.renderPage('detail', km.id, 0).svg.includes('class="pj-mus"');
+    $('pjDraw').click(); await wait(100);
+    [...document.querySelectorAll('.mura-ctx button')].find(b => b.textContent.includes('Контурды редакциялау'))?.click(); await wait(150);
+    out.musEdit = MuraPlan.mode + ' / ' + document.querySelectorAll('.pj-handle.is-small').length;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await wait(100);
     // Өзге нысан (құдық) жоспарға қосылады — сілтеме арқылы
     const wq = P.inv(-25, -20);
     await __places.api('save', { data: JSON.stringify({ kind: 'well', name: 'Ескі құдық', name_ru: 'Старый колодец', lat: wq[0], lon: wq[1] }) });
@@ -436,6 +456,9 @@ async function run(win) {
   check(/^fedit \/ тұтқа: 3$/.test(r.feditMode), 'картада түзету: әр төбеде тұтқа');
   check(r.areaDlg === 'true / true' && r.area === '4 төбе / ЕГІСТІК', 'егістік ауданы картада сызылды (' + r.area + ')');
   check(r.surfShown && r.surface === '["stones"]', 'қорғанның беті: тас үйінді сақталды');
+  check(r.musMode === 'mus' && r.musDlg === 'true / Мұрттары: 1' && r.mus === '3,3', 'мұртты қорған: терезеден және мәзірден екі мұрт сызылды (' + r.musDlg + ' | ' + r.mus + ')');
+  check(r.musSheet === 'true / true', 'мұрттар жалпы және жеке жоспарда салынады');
+  check(r.musEdit === 'edit / 6', 'редакциялауда мұрттың әр төбесінде тұтқа (' + r.musEdit + ')');
   check(r.places === '1 / true', 'құдық жоспарға қосылды (сілтеме), панельде көрінеді');
   check(r.sheet2 === 'true / true / true / true', 'жалпы жоспарда: егістік, тас үйінді, құдық');
   check(/^true \/ local \/ 123 \/ height$/.test(r.impDlg) && /Импортталады: 121/.test(r.impInfo), 'CSV импорты: жергілікті жүйе, X — солтүстік, биіктік белгілері (' + r.impDlg + ' | ' + r.impInfo + ')');

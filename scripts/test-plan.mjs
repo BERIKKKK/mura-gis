@@ -261,6 +261,36 @@ ok(pdfHtml(['<svg/>'], 't', { w: 297, h: 420 }).includes('@page{size:297mm 420mm
   ok(JSON.stringify(cp.places) === '["' + well.id + '"]' && JSON.stringify(cp.place_lbl) === '{"' + well.id + '":[1,2]}' && JSON.stringify(cleanPlan({ mark_id: mark.id }).places) === '[]', 'жоспардың өзге нысандары: тек id, ығысу тек солардікі');
 }
 
+/* ---------- Мұртты қорған: мұрттар (тас жалдар) ---------- */
+{
+  const ring = xy => xy.map(([x, y]) => { const q = P.inv(x, y); return [q[0], q[1]]; });
+  const base = { id: 'c'.repeat(16), num: '1', kind: 'kurgan', shape: 'circle', diam: 8, height: 0.3, ...at(0, 0) };
+  const mus = [ring([[5, 2], [40, 25], [90, 30]]), ring([[5, -2], [40, -25], [90, -30]])];
+  const km = { ...base, mus };
+  const ctxM = o => ({ mark, objects: [o], plan: null, lang: 'kk', names });
+  const s = renderPage(ctxM(km), 'general', null, 1000).svg;
+  const tri = ((s.match(/<g class="pj-mus">(.*?)<\/g>/) || [])[1] || '').match(/<polygon /g) || [];
+  // Бір мұрттың ұзындығы ≈ 41,9 + 50,2 м → 1:1000-де ≈ 92 мм → 1,15 мм сайын 80 үшбұрыш; екеуі — 160
+  ok(tri.length >= 156 && tri.length <= 162, 'мұрттар: жал бойымен үшбұрыштар тізбегі (' + tri.length + ')');
+  ok(s.includes('<g class="pj-body"><g class="pj-mus">'), 'мұрттар контурдың астында салынады');
+  ok(renderPage(ctxM(base), 'general', null, 0).scale < renderPage(ctxM(km), 'general', null, 0).scale, 'мұрттар автоматты масштабқа әсер етеді (' + renderPage(ctxM(base), 'general', null, 0).scale + ' → ' + renderPage(ctxM(km), 'general', null, 0).scale + ')');
+  ok(renderPage(ctxM(base), 'general', null, 1000).svg.indexOf('pj-mus') < 0, 'мұртсыз қорған бұрынғыдай');
+  const d = renderPage(ctxM(km), 'detail', km, 0);
+  ok(d.svg.includes('pj-mus') && d.fits, 'жеке жоспар: мұрттары бар, бетке сыяды (1:' + d.scale + ')');
+  const kes = { id: 'e'.repeat(16), num: '2', kind: 'kesene', shape: '', ...at(-15, 5) };
+  ok(renderPage({ ...ctxM(km), objects: [km, kes] }, 'general', null, 0).svg.includes('>мұрт (тас жал)<'), 'шартты белгілерде: мұрт (тас жал)');
+
+  const req = createRequire(import.meta.url);
+  const { cleanObject } = req('../main/plans.js');
+  const c = cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, mus: [[[50, 57], [50, 57], [50.001, 57.002]], [[50, 57]], 'x', [[50, 57], [91, 57]]] });
+  ok(c.mus.length === 1 && c.mus[0].length === 2, 'мұрттар: қайталанған және жарамсыз төбелер, бір төбелі сызық алынады');
+  ok(cleanObject({ mark_id: mark.id, num: '1', kind: 'kesene', lat: 50, lon: 57, mus }).mus === null && cleanObject({ mark_id: mark.id, num: '1', lat: 50, lon: 57 }).mus === null &&
+    cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, mus: [] }).mus === null, 'мұрттар: тек қорғанда; ескі жазбада және бос тізімде — null');
+  let field = '';
+  try { cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, mus: Array(9).fill(mus[0]) }); } catch (e) { field = e.field; }
+  ok(field === 'mus', 'мұрттар: 8-ден көп болмайды');
+}
+
 /* ---------- 3-кезең: импорт, координаттар жүйелері, нүктелерден горизонтальдар ---------- */
 {
   const req = createRequire(import.meta.url);
