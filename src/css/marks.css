@@ -27,6 +27,13 @@ body.mura .mk-group .qa-total { margin-left: 4px; }
 .mk-dlg textarea { min-height: 52px; resize: vertical; }
 .mk-dlg .qa-f { margin-bottom: 9px; }
 .mk-dlg .mk-coords input { font-family: ui-monospace, Consolas, monospace; }
+/* Бойлық өрісінің оң жанындағы «Картадан таңдау» белгішесі */
+.mk-dlg .mk-cin { display: flex; gap: 6px; align-items: stretch; }
+.mk-dlg .mk-cin input { flex: 1 1 auto; min-width: 0; }
+.mk-pick { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: 38px; padding: 0; border: 1px solid var(--line, rgba(0,0,0,.15)); border-radius: 8px; background: transparent; color: var(--terr); cursor: pointer; }
+.mk-pick:hover, .mk-pick:focus-visible { background: rgba(0,0,0,.05); }
+.qa-map.is-mk-picking, .qa-map.is-mk-picking .leaflet-grab { cursor: crosshair; }
+.qa-map.is-mk-picking .leaflet-marker-icon, .qa-map.is-mk-picking .leaflet-interactive { pointer-events: none; }
 .mk-coordok { margin: -4px 0 9px; font-family: ui-monospace, Consolas, monospace; }
 .mk-key { color: var(--steppe); }
 .mk-law { font-weight: 400; color: var(--soft); }
