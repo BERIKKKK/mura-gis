@@ -25,6 +25,7 @@
     "smoke:sync": "electron scripts/smoke-sync.js",
     "smoke:perf": "electron scripts/smoke-perf.js",
     "smoke:plugins": "electron scripts/smoke-plugins.js",
+    "smoke:wms": "electron scripts/smoke-wms.js",
     "plugins:pack": "node plugin-sdk/tools/pack.mjs plugin-sdk/examples/nipd-exporter && node plugin-sdk/tools/pack.mjs plugin-sdk/examples/decree-matcher && node plugin-sdk/tools/pack.mjs plugin-sdk/template"
   },
   "dependencies": {

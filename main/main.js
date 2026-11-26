@@ -21,6 +21,7 @@ const gpkgRead = require('./gpkg-read');
 const updates = require('./updates');
 const lang = require('./lang');
 const prefs = require('./prefs');
+const wms = require('./wms');
 const { tx } = lang;
 
 const SRC = path.join(__dirname, '..', 'src');
@@ -115,6 +116,8 @@ ipcMain.on('mura:project-info', e => { e.returnValue = projects ? projects.info(
 const fromApp = e => String(e.senderFrame && e.senderFrame.url || '').startsWith('mura://app/');
 ipcMain.handle('mura:clip-read', e => (fromApp(e) ? clipboard.readText() : ''));
 ipcMain.handle('mura:clip-write', (e, text) => { if (fromApp(e) && typeof text === 'string' && text.length < 1e6) clipboard.writeText(text); });
+/* WMS үстіңгі қабаттары: GetCapabilities / GetFeatureInfo мәтіндік сұраулары (main/wms.js) — тек бағдарламаның өз бетінен */
+wms.register(ipcMain, fromApp, UA);
 
 /* Ескерткіштер тізімін PDF-ке айналдыру: бет дайын HTML-ді жібереді, ол жасырын терезеде (JavaScript-сіз)
    ашылып, Chromium-ның өз баспа қозғалтқышымен A4 PDF болады. Файлды сақтау — беттің өзінде (жүктеу терезесі). */
