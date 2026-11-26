@@ -54,6 +54,8 @@
     <string name="f_name">Атауы</string>
     <string name="f_period">Мерзімі</string>
     <string name="f_oblast">Облыс</string>
+    <string name="f_project">Жоба</string>
+    <string name="f_project_none">Жобасыз</string>
     <string name="f_district">Аудан</string>
     <string name="f_place">Орналасқан жері</string>
     <string name="f_note">Ескертпе</string>

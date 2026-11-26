@@ -152,12 +152,15 @@ data class MonumentFilter(
     /** Облыс / аудан — [placeKey] мәндері; "" — көрсетілмеген. */
     val oblasts: Set<String> = emptySet(),
     val districts: Set<String> = emptySet(),
+    /** Жобалар — [Monument.projectId] мәндері; "" — жобасыз. Бос жиын — барлығы. */
+    val projects: Set<String> = emptySet(),
 ) {
-    val active get() = query.isNotBlank() || types.isNotEmpty() || categories.isNotEmpty() || statuses.isNotEmpty() || oblasts.isNotEmpty() || districts.isNotEmpty()
+    val active get() = query.isNotBlank() || types.isNotEmpty() || categories.isNotEmpty() || statuses.isNotEmpty() || oblasts.isNotEmpty() || districts.isNotEmpty() || projects.isNotEmpty()
     fun matches(m: Monument): Boolean =
         (query.isBlank() || m.name.matches(query) || m.period.matches(query) || m.place.matches(query) || m.district.matches(query) || m.oblast.matches(query) || m.note.matches(query)) &&
             (types.isEmpty() || m.type in types) && (categories.isEmpty() || m.category in categories) && (statuses.isEmpty() || m.status in statuses) &&
-            (oblasts.isEmpty() || placeKey(m.oblast) in oblasts) && (districts.isEmpty() || placeKey(m.district) in districts)
+            (oblasts.isEmpty() || placeKey(m.oblast) in oblasts) && (districts.isEmpty() || placeKey(m.district) in districts) &&
+            (projects.isEmpty() || m.projectId in projects)
 
     companion object {
         /** Облыс/аудан атауының тілге тәуелсіз кілті (жұмыс үстеліндегідей — қазақша мәні негізгі). */
@@ -165,10 +168,10 @@ data class MonumentFilter(
     }
 }
 
-/** Өзге нысандар сүзгісі: іздеу және түрі (тізім мен картаға ортақ). */
-data class PlaceFilter(val query: String = "", val kind: PlaceKind? = null) {
-    val active get() = query.isNotBlank() || kind != null
-    fun matches(p: Place): Boolean = (kind == null || p.kind == kind) &&
+/** Өзге нысандар сүзгісі: іздеу, түрі және жобасы ("" — жобасыз; бос жиын — барлығы) — тізім мен картаға ортақ. */
+data class PlaceFilter(val query: String = "", val kind: PlaceKind? = null, val projects: Set<String> = emptySet()) {
+    val active get() = query.isNotBlank() || kind != null || projects.isNotEmpty()
+    fun matches(p: Place): Boolean = (kind == null || p.kind == kind) && (projects.isEmpty() || p.projectId in projects) &&
         (query.isBlank() || p.name.matches(query) || p.kind.label(Lang.KK).contains(query, true) || p.kind.label(Lang.RU).contains(query, true))
 }
 
@@ -237,6 +240,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val filteredMonuments: StateFlow<List<Monument>> = combine(_monuments, _filter, prefs) { list, f, p ->
         Sorting.sortMonuments(list.filter { f.matches(it) }, p.dataLang)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** Жоба id → атауы (синхрондау жобалары; сүзгідегі атаулар үшін). */
+    val projectNames: StateFlow<Map<String, String>> = g.sync.ui.map { u -> (u.localOnly + u.projects).associate { it.id to it.name } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
 
     val filteredPlaces: StateFlow<List<Place>> = combine(_places, _placeFilter, prefs) { list, f, p ->
         Sorting.sortPlaces(list.filter { f.matches(it) }, p.dataLang)

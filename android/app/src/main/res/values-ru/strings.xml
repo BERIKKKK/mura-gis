@@ -54,6 +54,8 @@
     <string name="f_name">Название</string>
     <string name="f_period">Датировка</string>
     <string name="f_oblast">Область</string>
+    <string name="f_project">Проект</string>
+    <string name="f_project_none">Без проекта</string>
     <string name="f_district">Район</string>
     <string name="f_place">Местоположение</string>
     <string name="f_note">Примечание</string>

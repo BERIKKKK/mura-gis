@@ -151,6 +151,8 @@ data class Place(
     val updatedAt: String = "",
     val updatedBy: String = "",
     val extra: String = "",
+    /** Жобаның id-і (ескерткіштегідей; бос — жобасыз). Жоба бойынша іріктеу үшін; синхрондалмайды. */
+    val projectId: String = "",
 ) {
     /** Көрсетілетін атау: атауы бос болса — түрінің атауы. */
     fun title(lang: Lang): String = name.display(lang).ifBlank { kind.label(lang) }
