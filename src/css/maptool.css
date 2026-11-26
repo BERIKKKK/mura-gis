@@ -43,6 +43,8 @@ html.qa-full,html.qa-full body{height:100%;overflow:hidden}
 .qa-map{position:absolute;inset:0;z-index:0;background:var(--paper2)}
 
 .qa-map .leaflet-pane,.qa-map .leaflet-top,.qa-map .leaflet-bottom{z-index:1!important}
+/* «Карта қабаттары» мәзірі ашық кезде жоғарғы бұрыш төменгі бұрыштағы аңыздың (легенданың) үстінде тұрады */
+.qa-map .leaflet-top:has(.bm-layers.is-open){z-index:2!important}
 .qa-map .leaflet-control{z-index:2!important}
 /* Карта басқару элементтері қалқымалы панельдердің астында қалмауы үшін ығысады */
 .qa-map .leaflet-top{top:var(--qa-top)}
