@@ -257,6 +257,27 @@ ok(pdfHtml(['<svg/>'], 't', { w: 297, h: 420 }).includes('@page{size:297mm 420mm
   ok(JSON.stringify(cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, surface: ['pit', 'zzz', 'stones'] }).surface) === '["stones","pit"]' &&
     cleanObject({ mark_id: mark.id, num: '1', kind: 'kesene', lat: 50, lon: 57, surface: ['pit'] }).surface === null && cleanObject({ mark_id: mark.id, num: '1', lat: 50, lon: 57 }).surface === null,
     'қорғанның беті: тек белгілі кодтар, тек қорғанда; ескі жазбада — null');
+  // Қазылған қорған: тек қорғанда сақталады, жоспарда қиғаш штрих, шартты белгілерде түсіндіріледі
+  ok(cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, dug: true }).dug === true &&
+    cleanObject({ mark_id: mark.id, num: '1', kind: 'kesene', lat: 50, lon: 57, dug: true }).dug === null && cleanObject({ mark_id: mark.id, num: '1', lat: 50, lon: 57 }).dug === null,
+    'қазылған қорған: тек қорғанда; ескі жазбада — null');
+  // Қорғанның түрі (жер, тас, топырақ-тасты): тек қорғанда; экспликацияның «Түрі» бағанында
+  ok(cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, ktype: 'stone' }).ktype === 'stone' && cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, ktype: 'ditch' }).ktype === 'ditch' &&
+    cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, ktype: 'zzz' }).ktype === '' &&
+    cleanObject({ mark_id: mark.id, num: '1', kind: 'kesene', lat: 50, lon: 57, ktype: 'stone' }).ktype === '' && cleanObject({ mark_id: mark.id, num: '1', lat: 50, lon: 57 }).ktype === '',
+    'қорғанның түрі: тек белгілі код, тек қорғанда; ескі жазбада — бос');
+  ok(explRow({ num: '1', kind: 'kurgan', ktype: 'earth' }, 'kk').kind === 'Жер (топырақ) қорған' && explRow({ num: '1', kind: 'kurgan', ktype: 'earth_stone' }, 'ru').kind === 'Земляно-каменный курган' &&
+    explRow({ num: '1', kind: 'kurgan' }, 'kk').kind === 'Қорған', 'қорғанның түрі экспликацияда');
+  const kd = { ...k2, dug: true };
+  const sd = renderPage({ ...ctx2, objects: [k1, kd] }, 'general', null, 500).svg;
+  ok(sd.includes('<pattern id="pj-dug"') && (sd.match(/fill="url\(#pj-dug\)"/g) || []).length === 1 && renderPage(ctx2, 'general', null, 500).svg.indexOf('fill="url(#pj-dug)"') < 0,
+    'қазылған қорған: жалпы жоспарда тек сол контур штрихталады');
+  ok(renderPage({ ...ctx2, objects: [k1, kd] }, 'detail', kd, 200).svg.includes('fill="url(#pj-dug)"'), 'қазылған қорған: жеке жоспарда да штрих');
+  const sl = renderPage({ ...ctx2, objects: [k1, kd, kes] }, 'general', null, 0).svg;
+  ok(sl.includes('>қазылған қорған<') && renderPage({ ...ctx2, objects: [k1, kd, kes], lang: 'ru' }, 'general', null, 0).svg.includes('>раскопанный курган<') &&
+    !s2.includes('>қазылған қорған<'), 'қазылған қорған: шартты белгілерде (тек бар болса)');
+  const kdp = { id: 'a'.repeat(16), num: '4', kind: 'kurgan', shape: '', dug: true, ...at(-30, 5) };
+  ok(/<circle [^>]*r="1.6" fill="url\(#pj-dug\)"/.test(renderPage({ ...ctx2, objects: [k1, kdp, kes] }, 'general', null, 500).svg), 'контурсыз қазылған қорған: штрихталған белгі');
   const cp = cleanPlan({ mark_id: mark.id, places: [well.id, 'x', well.id], place_lbl: { [well.id]: [1, 2], ['8'.repeat(16)]: [3, 4] } });
   ok(JSON.stringify(cp.places) === '["' + well.id + '"]' && JSON.stringify(cp.place_lbl) === '{"' + well.id + '":[1,2]}' && JSON.stringify(cleanPlan({ mark_id: mark.id }).places) === '[]', 'жоспардың өзге нысандары: тек id, ығысу тек солардікі');
 }

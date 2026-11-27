@@ -5,7 +5,10 @@
      dim [i, j] (еркін контурдың өлшем сызығы — төбелердің нөмірі), dim_az (шеңбердің диаметр сызығының бағыты),
      lbl [dx, dy] (жалпы жоспардағы белгінің ығысуы, мм), dimlbl [dx, dy] (жеке жоспардағы өлшем жазуының ығысуы, мм),
      surface [код…] (қорғанның бетіндегі белгі: stones — тас үйінді, pit — ойық / тонау шұңқыры; бос болса — null),
-     mus [[[lat, lon]…]…] (мұртты қорғанның «мұрттары» — тас жалдар, әрқайсысы сынық сызық; тек kurgan-да; жоқ болса — null) }.
+     mus [[[lat, lon]…]…] (мұртты қорғанның «мұрттары» — тас жалдар, әрқайсысы сынық сызық; тек kurgan-да; жоқ болса — null),
+     ktype (қорғанның түрі: earth — жер (топырақ), stone — тас, earth_stone — топырақ-тасты, krepida — етегі тас белдеулі,
+       fenced — қоршаулы, ditch — орлы (ровикті); тек kurgan-да; белгісіз — ''),
+     dug (қазылған / зерттелген қорған: true; тек kurgan-да; әйтпесе — null; ескі жазбаларда жоқ) }.
    Биіктік пен өлшемдер метрмен; бос (null) — «өлшенбеген», 0 — енгізілген нөл.
    Жоспар: { id, mark_id, lang, scale_general, scale_detail (0 — автоматты), ptr (елді мекен: { lat, lon, place_id }), ptr_name/ptr_name_ru,
      ptr_name_man, ptr_from ('' — ескерткіштің негізгі координатасы, не нысанның id-і), ptr_o_lat/ptr_o_lon (бастапқы нүкте),
@@ -30,6 +33,7 @@ const ID = /^[0-9a-f]{16}$/;
 const KINDS = ['kurgan', 'other', 'kesene', 'sagana', 'korshau', 'koitas', 'kulpytas', 'sandyktas', 'ushtas', 'bestas'];
 const SHAPES = ['', 'circle', 'ellipse', 'free', 'rect'];
 const MATERIALS = ['brick_fired', 'brick_raw', 'stone'];
+const KTYPES = ['earth', 'stone', 'earth_stone', 'krepida', 'fenced', 'ditch'];   // қорғанның түрі (жаңасы тек соңына)
 const SUBTYPES = ['block', 'classic', 'fert', 'anthropo', 'unique'];          // құлпытастың типі (Ажигали)
 const STATES = ['good', 'fair', 'poor', 'emergency'];                        // паспорттың 9-тармағы
 /** Жағдаят белгілерінің түрлері → геометриясы (src/plan/sheet.js FEAT_KINDS-пен бірдей; жаңасы тек соңына): нүкте, сызық, жазу, аудан. */
@@ -131,12 +135,14 @@ function cleanObject(d) {
   f.dim_az = shape === 'circle' && Number.isFinite(da) ? r3(normAz(da)) : null;
   f.material = oneOf(MATERIALS, d.material);
   f.subtype = f.kind === 'kulpytas' ? oneOf(SUBTYPES, d.subtype) : '';
+  f.ktype = f.kind === 'kurgan' ? oneOf(KTYPES, d.ktype) : '';
   f.state = oneOf(STATES, d.state);
   f.lbl = pair(d.lbl);
   f.dimlbl = pair(d.dimlbl);
   const sf = f.kind === 'kurgan' && Array.isArray(d.surface) ? SURFACES.filter(x => d.surface.includes(x)) : [];
   f.surface = sf.length ? sf : null;
   f.mus = f.kind === 'kurgan' ? cleanMus(d.mus) : null;
+  f.dug = f.kind === 'kurgan' && (d.dug === true || d.dug === 'true' || d.dug === 1) ? true : null;
   return f;
 }
 
@@ -394,4 +400,4 @@ class PlansStore {
   }
 }
 
-module.exports = { PlansStore, cleanObject, cleanMus, cleanPlan, cleanExpl, cleanFeature, selfIntersects, KINDS, MATERIALS, SUBTYPES, STATES, FEAT_KINDS, SURFACES };
+module.exports = { PlansStore, cleanObject, cleanMus, cleanPlan, cleanExpl, cleanFeature, selfIntersects, KINDS, MATERIALS, SUBTYPES, KTYPES, STATES, FEAT_KINDS, SURFACES };

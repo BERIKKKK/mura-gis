@@ -243,8 +243,14 @@ async function run(win) {
     MuraPlan.openObjDialog(o1); await wait(100);
     out.surfShown = !document.querySelector('.pj-objdlg .pj-surf').closest('[data-kind]').hidden;
     document.querySelector('.pj-objdlg input[name="surface"][value="stones"]').checked = true;
+    document.querySelector('.pj-objdlg input[name="dug"]').checked = true;
+    out.ktypeUi = !document.getElementById('pjKtype').closest('[data-kind]').hidden + ' / ' + document.getElementById('pjMat').closest('[data-nokind]').hidden;
+    document.getElementById('pjKtype').value = 'stone';
     document.querySelector('.pj-objdlg [type=submit]').click(); await wait(400);
     out.surface = JSON.stringify(MuraPlan.objects.find(o => o.num === '1').surface);
+    out.ktype = MuraPlan.objects.find(o => o.num === '1').ktype;
+    out.dug = MuraPlan.objects.find(o => o.num === '1').dug + ' / ' + !!document.querySelector('.leaflet-overlay-pane path.pj-dug') + ' / ' +
+      getComputedStyle(document.querySelector('.leaflet-overlay-pane path.pj-dug') || document.body).fill.includes('pj-map-dug');
     // Мұртты қорған: терезеден мұрт сызу (үш төбе, Enter) → терезе қайта ашылады → сақтау; «Сызу» мәзірінен екінші мұрт
     MuraPlan.openObjDialog(MuraPlan.objects.find(o => o.num === '1')); await wait(100);
     $('pjMusDraw').click(); await wait(100);
@@ -456,6 +462,8 @@ async function run(win) {
   check(/^fedit \/ тұтқа: 3$/.test(r.feditMode), 'картада түзету: әр төбеде тұтқа');
   check(r.areaDlg === 'true / true' && r.area === '4 төбе / ЕГІСТІК', 'егістік ауданы картада сызылды (' + r.area + ')');
   check(r.surfShown && r.surface === '["stones"]', 'қорғанның беті: тас үйінді сақталды');
+  check(r.ktypeUi === 'true / true' && r.ktype === 'stone', 'қорғанда материалдың орнына түрі: тас қорған сақталды (' + r.ktypeUi + ' | ' + r.ktype + ')');
+  check(r.dug === 'true / true / true', 'қазылған қорған: белгі сақталды, картада штрихпен (' + r.dug + ')');
   check(r.musMode === 'mus' && r.musDlg === 'true / Мұрттары: 1' && r.mus === '3,3', 'мұртты қорған: терезеден және мәзірден екі мұрт сызылды (' + r.musDlg + ' | ' + r.mus + ')');
   check(r.musSheet === 'true / true', 'мұрттар жалпы және жеке жоспарда салынады');
   check(r.musEdit === 'edit / 6', 'редакциялауда мұрттың әр төбесінде тұтқа (' + r.musEdit + ')');
