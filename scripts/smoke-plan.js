@@ -216,7 +216,8 @@ async function run(win) {
     // Жалпы жоспар: жағдаят белгілері, жазуын сүйреу (flbl)
     MuraPlan.openPreview({ kind: 'general' }); await wait(300);
     const svg = document.querySelector('#pjSheet svg').innerHTML;
-    out.sheetFeats = svg.includes('pj-feats') + ' / ' + />427</.test(svg) + ' / ' + />ЕГІСТІК</.test(svg) + ' / ' + (svg.match(/fill="#6b9a34"/g) || []).length;
+    out.sheetFeats = svg.includes('pj-feats') + ' / ' + />427</.test(svg) + ' / ' + />ЕГІСТІК</.test(svg) + ' / ' + (svg.split('<g class="pj-legend">')[0].match(/fill="#6b9a34"/g) || []).length + ' / ' +
+      svg.split('<g class="pj-legend">')[1].includes('>жеке ағаш<');
     const g = document.querySelector('#pjSheet [data-drag^="flbl:"]');
     const rc = g.getBoundingClientRect(), x = rc.left + rc.width / 2, y = rc.top + rc.height / 2;
     g.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
@@ -243,8 +244,14 @@ async function run(win) {
     MuraPlan.openObjDialog(o1); await wait(100);
     out.surfShown = !document.querySelector('.pj-objdlg .pj-surf').closest('[data-kind]').hidden;
     document.querySelector('.pj-objdlg input[name="surface"][value="stones"]').checked = true;
+    document.querySelector('.pj-objdlg input[name="dug"]').checked = true;
+    out.ktypeUi = !document.getElementById('pjKtype').closest('[data-kind]').hidden + ' / ' + document.getElementById('pjMat').closest('[data-nokind]').hidden;
+    document.getElementById('pjKtype').value = 'stone';
     document.querySelector('.pj-objdlg [type=submit]').click(); await wait(400);
     out.surface = JSON.stringify(MuraPlan.objects.find(o => o.num === '1').surface);
+    out.ktype = MuraPlan.objects.find(o => o.num === '1').ktype;
+    out.dug = MuraPlan.objects.find(o => o.num === '1').dug + ' / ' + !!document.querySelector('.leaflet-overlay-pane path.pj-dug') + ' / ' +
+      getComputedStyle(document.querySelector('.leaflet-overlay-pane path.pj-dug') || document.body).fill.includes('pj-map-dug');
     // Мұртты қорған: терезеден мұрт сызу (үш төбе, Enter) → терезе қайта ашылады → сақтау; «Сызу» мәзірінен екінші мұрт
     MuraPlan.openObjDialog(MuraPlan.objects.find(o => o.num === '1')); await wait(100);
     $('pjMusDraw').click(); await wait(100);
@@ -451,11 +458,13 @@ async function run(win) {
   check(r.treeMode === 'null' && /Жазудың мәтінін/.test(r.textErr), 'ағаштар қатарынан қойылады, Esc аяқтайды; жазусыз мәтін — қате');
   check(r.feats === 'contour:427:3, tree, tree, text', 'белгілер сақталды (' + r.feats + ')');
   check(r.mapFeats === '2 / 1' && /^4 \/ Жағдаят белгілері: 4$/.test(r.featList), 'картада және панельде көрінеді');
-  check(r.sheetFeats === 'true / true / true / 2', 'жалпы жоспарда: горизонталь (427), жазу, ағаштар');
+  check(r.sheetFeats === 'true / true / true / 2 / true', 'жалпы жоспарда: горизонталь (427), жазу, ағаштар; шартты белгілерде ағаш (' + r.sheetFeats + ')');
   check(r.flbl && r.flbl !== 'null', 'жағдаят жазуын сүйреу сақталды');
   check(/^fedit \/ тұтқа: 3$/.test(r.feditMode), 'картада түзету: әр төбеде тұтқа');
   check(r.areaDlg === 'true / true' && r.area === '4 төбе / ЕГІСТІК', 'егістік ауданы картада сызылды (' + r.area + ')');
   check(r.surfShown && r.surface === '["stones"]', 'қорғанның беті: тас үйінді сақталды');
+  check(r.ktypeUi === 'true / true' && r.ktype === 'stone', 'қорғанда материалдың орнына түрі: тас қорған сақталды (' + r.ktypeUi + ' | ' + r.ktype + ')');
+  check(r.dug === 'true / true / true', 'қазылған қорған: белгі сақталды, картада штрихпен (' + r.dug + ')');
   check(r.musMode === 'mus' && r.musDlg === 'true / Мұрттары: 1' && r.mus === '3,3', 'мұртты қорған: терезеден және мәзірден екі мұрт сызылды (' + r.musDlg + ' | ' + r.mus + ')');
   check(r.musSheet === 'true / true', 'мұрттар жалпы және жеке жоспарда салынады');
   check(r.musEdit === 'edit / 6', 'редакциялауда мұрттың әр төбесінде тұтқа (' + r.musEdit + ')');

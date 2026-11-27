@@ -82,6 +82,7 @@
 .pj-glyph { background: rgba(255, 255, 255, .85); border-radius: 4px; box-shadow: 0 0 0 1px rgba(34, 29, 22, .35); }
 .pj-glyph.is-sel { box-shadow: 0 0 0 2px #e8178a; }
 .pj-glyph svg { display: block; }
+.leaflet-overlay-pane path.pj-dug { fill: url(#pj-map-dug); fill-opacity: 1; }     /* қазылған қорған — қиғаш штрих */
 .pj-expl-set { margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; background: #fff; }
 .pj-expl-set > summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .pj-excols { width: 100%; font-size: 12.5px; border-collapse: collapse; margin: 6px 0; }

@@ -12,6 +12,8 @@ import { contours, delaunay } from '../src/plan/tin.js';
 let fails = 0, n = 0;
 const ok = (c, msg) => { n++; if (!c) { fails++; console.error('✗ ' + msg); } else console.log('✓ ' + msg); };
 const near = (a, b, eps) => Math.abs(a - b) <= eps;
+/** Шартты белгілер блогынсыз SVG (үлгі белгілері сызбадағы санауға қосылмасын). */
+const noLeg = svg => svg.replace(/<g class="pj-legend">[\s\S]*?<\/g><\/g>/, '');
 
 /* ---------- Геодезия ---------- */
 // Винсентидің классикалық тексеру мысалы (Flinders Peak → Buninyong)
@@ -119,7 +121,13 @@ const leg = (pg.svg.match(/<g class="pj-legend">[\s\S]*?<\/g><\/g>/) || [''])[0]
 ok(leg.includes('шикі кірпіш') && leg.includes('url(#pj-m-brick_raw)') && leg.includes('сағана там'), 'шартты белгі түсіндірмеде де бар');
 ok(leg.includes('кесене') && leg.includes('құлпытас') && !leg.includes('қойтас') && !leg.includes('табиғи тас'), 'шартты белгілерде тек сызбада бар түрлер мен материалдар');
 ok(rowText(pg.svg, '2')[2] === '—', 'материалы белгісіз құлпытас — «—»');
-ok(!renderPage({ mark, objects: [k13], plan: null, lang: 'kk', names }, 'general', null, 500).svg.includes('pj-legend'), '1-кезеңнің беті өзгерген жоқ (шартты белгілер мен экспликациясыз)');
+{
+  // Археологиялық жоспар (тек қорғандар): шартты белгілер аймағы бар, экспликация жоқ
+  const g1 = renderPage({ mark, objects: [k13], plan: null, lang: 'kk', names }, 'general', null, 500);
+  const lg1 = (g1.svg.match(/<g class="pj-legend">[\s\S]*?<\/g><\/g>/) || [''])[0];
+  ok(lg1.includes('>Шартты белгілер<') && lg1.includes('>қорған<') && !g1.svg.includes('pj-expl') && !g1.more.length, 'археологиялық жоспар: шартты белгілер аймағы, экспликациясыз');
+  ok(renderPage({ mark, objects: [k13], plan: null, lang: 'ru', names }, 'general', null, 500).svg.includes('>Условные обозначения<'), 'археологиялық жоспар: орысша шартты белгілер');
+}
 // Бетке сыймайтын экспликация: келесі бетте жалғасады, масштаб сақталады
 const many = [k4];
 for (let i = 5; i <= 70; i++) many.push(qo(i, i % 3 ? 'kulpytas' : 'koitas', (i % 10) * 4 - 20, Math.floor(i / 10) * 4 - 14));
@@ -182,7 +190,7 @@ ok(pdfHtml(['<svg/>'], 't', { w: 297, h: 420 }).includes('@page{size:297mm 420mm
   const base = { mark, objects: [o1, o2], plan: null, lang: 'kk', names };
   const withF = { ...base, features: feats };
   ok(autoScale(withF, 'general', null) === autoScale(base, 'general', null), 'жағдаят белгілері автоматты масштабқа әсер етпейді (1:' + autoScale(base, 'general', null) + ')');
-  const s = renderPage(withF, 'general', null, 500).svg;
+  const sFull = renderPage(withF, 'general', null, 500).svg, s = noLeg(sFull);
   ok(s.includes('<clipPath id="pj-fclip">') && s.includes('clip-path="url(#pj-fclip)"'), 'жағдаят сызба аймағымен қиылады');
   ok(s.indexOf('class="pj-feats"') < s.indexOf('r="0.9" fill="#111"') && s.indexOf('class="pj-feats-over"') > s.lastIndexOf('r="0.9" fill="#111"'), 'сызықтар нысандардың астында, нүктелік белгілер мен жазулар — үстінде');
   const cc = nums(s);
@@ -196,7 +204,8 @@ ok(pdfHtml(['<svg/>'], 't', { w: 297, h: 420 }).includes('@page{size:297mm 420mm
   ok(s.includes('data-drag') === false && renderPage(withF, 'general', null, 500, { editor: true }).svg.includes('data-drag="flbl:' + tower.id + '"'), 'жазуларды тек редакторда сүйреуге болады');
   ok(/stroke="#1f5f99" stroke-width="0.15"/.test(s), 'ығысқан жазуға сілтеме сызығы');
   ok(renderPage({ ...withF, lang: 'ru' }, 'general', null, 500).svg.includes('>ПАШНЯ<') && renderPage({ ...withF, lang: 'ru' }, 'general', null, 500).svg.includes('>ЛЭП<'), 'орысша: жазулар мен «ЛЭП»');
-  ok(!s.includes('pj-legend'), '1-кезең жоспары (тек қорғандар): шартты белгілер блогы шықпайды');
+  const lgF = (sFull.match(/<g class="pj-legend">[\s\S]*?<\/g><\/g>/) || [''])[0];
+  ok(lgF.includes('>асфальт жол<') && lgF.includes('>жеке ағаш<') && !lgF.includes('>жазу<') && !sFull.includes('pj-expl'), 'археологиялық жоспар: жағдаят белгілері шартты белгілерде, экспликациясыз');
   const kes = { id: '9'.repeat(16), num: '3', kind: 'kesene', shape: '', ...at(-15, 5) };
   const s2 = renderPage({ ...withF, objects: [o1, o2, kes] }, 'general', null, 0).svg;
   ok(s2.includes('pj-legend') && s2.includes('>горизонталь<') && s2.includes('>жеке ағаш<') && s2.includes('>электр беру желісі (ЭБЖ)<') && !s2.includes('>жазу<'), 'шартты белгілерде — кездесетін жағдаят түрлері (жазудан басқа)');
@@ -227,7 +236,7 @@ ok(pdfHtml(['<svg/>'], 't', { w: 297, h: 420 }).includes('@page{size:297mm 420mm
   const well = { id: '7'.repeat(16), kind: 'well', name: 'Ескі құдық', name_ru: 'Старый колодец', ...at(-20, -15) };
   const plan2 = { places: [well.id], place_lbl: { [well.id]: [5, -3] } };
   const ctx2 = { mark, objects: [k1, k2], features: [arable, fence, river, ravine], places: [well], plan: plan2, lang: 'kk', names };
-  const s = renderPage(ctx2, 'general', null, 500).svg;
+  const s = noLeg(renderPage(ctx2, 'general', null, 500).svg);
   ok(/<polygon points="[^"]+" fill="url\(#pj-f-arable\)"/.test(s) && s.includes('<pattern id="pj-f-arable"') && s.includes('>ЕГІСТІК<'), 'егістік: «═» штрихы, ортасында жазуы');
   const fenceTicks = (s.match(/stroke="#111" stroke-width="0.18"/g) || []).length;
   ok(fenceTicks >= 63 && fenceTicks <= 65, 'шарбақ: әр 2,5 мм сайын штрих (80 м → 1:500-де 160 мм → ' + fenceTicks + ')');
@@ -257,6 +266,27 @@ ok(pdfHtml(['<svg/>'], 't', { w: 297, h: 420 }).includes('@page{size:297mm 420mm
   ok(JSON.stringify(cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, surface: ['pit', 'zzz', 'stones'] }).surface) === '["stones","pit"]' &&
     cleanObject({ mark_id: mark.id, num: '1', kind: 'kesene', lat: 50, lon: 57, surface: ['pit'] }).surface === null && cleanObject({ mark_id: mark.id, num: '1', lat: 50, lon: 57 }).surface === null,
     'қорғанның беті: тек белгілі кодтар, тек қорғанда; ескі жазбада — null');
+  // Қазылған қорған: тек қорғанда сақталады, жоспарда қиғаш штрих, шартты белгілерде түсіндіріледі
+  ok(cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, dug: true }).dug === true &&
+    cleanObject({ mark_id: mark.id, num: '1', kind: 'kesene', lat: 50, lon: 57, dug: true }).dug === null && cleanObject({ mark_id: mark.id, num: '1', lat: 50, lon: 57 }).dug === null,
+    'қазылған қорған: тек қорғанда; ескі жазбада — null');
+  // Қорғанның түрі (жер, тас, топырақ-тасты): тек қорғанда; экспликацияның «Түрі» бағанында
+  ok(cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, ktype: 'stone' }).ktype === 'stone' && cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, ktype: 'ditch' }).ktype === 'ditch' &&
+    cleanObject({ mark_id: mark.id, num: '1', kind: 'kurgan', lat: 50, lon: 57, ktype: 'zzz' }).ktype === '' &&
+    cleanObject({ mark_id: mark.id, num: '1', kind: 'kesene', lat: 50, lon: 57, ktype: 'stone' }).ktype === '' && cleanObject({ mark_id: mark.id, num: '1', lat: 50, lon: 57 }).ktype === '',
+    'қорғанның түрі: тек белгілі код, тек қорғанда; ескі жазбада — бос');
+  ok(explRow({ num: '1', kind: 'kurgan', ktype: 'earth' }, 'kk').kind === 'Жер (топырақ) қорған' && explRow({ num: '1', kind: 'kurgan', ktype: 'earth_stone' }, 'ru').kind === 'Земляно-каменный курган' &&
+    explRow({ num: '1', kind: 'kurgan' }, 'kk').kind === 'Қорған', 'қорғанның түрі экспликацияда');
+  const kd = { ...k2, dug: true };
+  const sd = noLeg(renderPage({ ...ctx2, objects: [k1, kd] }, 'general', null, 500).svg);
+  ok(sd.includes('<pattern id="pj-dug"') && (sd.match(/fill="url\(#pj-dug\)"/g) || []).length === 1 && renderPage(ctx2, 'general', null, 500).svg.indexOf('fill="url(#pj-dug)"') < 0,
+    'қазылған қорған: жалпы жоспарда тек сол контур штрихталады');
+  ok(renderPage({ ...ctx2, objects: [k1, kd] }, 'detail', kd, 200).svg.includes('fill="url(#pj-dug)"'), 'қазылған қорған: жеке жоспарда да штрих');
+  const sl = renderPage({ ...ctx2, objects: [k1, kd, kes] }, 'general', null, 0).svg;
+  ok(sl.includes('>қазылған қорған<') && renderPage({ ...ctx2, objects: [k1, kd, kes], lang: 'ru' }, 'general', null, 0).svg.includes('>раскопанный курган<') &&
+    !s2.includes('>қазылған қорған<'), 'қазылған қорған: шартты белгілерде (тек бар болса)');
+  const kdp = { id: 'a'.repeat(16), num: '4', kind: 'kurgan', shape: '', dug: true, ...at(-30, 5) };
+  ok(/<circle [^>]*r="1.6" fill="url\(#pj-dug\)"/.test(renderPage({ ...ctx2, objects: [k1, kdp, kes] }, 'general', null, 500).svg), 'контурсыз қазылған қорған: штрихталған белгі');
   const cp = cleanPlan({ mark_id: mark.id, places: [well.id, 'x', well.id], place_lbl: { [well.id]: [1, 2], ['8'.repeat(16)]: [3, 4] } });
   ok(JSON.stringify(cp.places) === '["' + well.id + '"]' && JSON.stringify(cp.place_lbl) === '{"' + well.id + '":[1,2]}' && JSON.stringify(cleanPlan({ mark_id: mark.id }).places) === '[]', 'жоспардың өзге нысандары: тек id, ығысу тек солардікі');
 }

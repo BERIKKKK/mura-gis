@@ -4,10 +4,12 @@
    өлшем бірлігі — миллиметр (A4-те viewBox 0 0 210 297), сондықтан PDF-те 1 бірлік = 1 мм (масштаб сақталады).
    Контурлар, өлшем сызықтары, белгішелер — вектор, жазулар — мәтін (PDF-те ізделеді).
    2-кезең (қорым, docs/PLAN-STAGE2.md): нысан түрлері мен материалдары, шартты белгілер блогы және экспликация кестесі —
-   жоспарда қорғаннан басқа түр не материал болса ғана шығады; тек қорғандары бар жоспар 1-кезеңдегідей қалады.
+   жоспарда қорғаннан басқа түр не материал болса ғана шығады. Тек қорғандары бар (археологиялық) жоспарда — экспликациясыз,
+   беттің төменгі жағында шартты белгілер аймағы ғана (белгілер бірнеше бағанмен, legendWide).
    3-кезең (docs/PLAN-STAGE3.md): жағдаят белгілері (ctx.features) — жол, ЭБЖ, горизонталь, ағаш, егістік, жазу т.б., жоспарға қосылған
    «Өзге нысандар» (ctx.places — шақырушы places қабатынан береді) және қорғанның беті (o.surface). Аудандар мен сызықтар нысандардың
    астында, белгілер мен жазулар үстінде; сызба аймағымен қиылады; масштабты автоматты таңдауға әсер етпейді.
+   Қазылған (зерттелген) қорған (o.dug) — контуры қиғаш штрихпен толтырылады (қоңыр түстің орнына).
    Мұртты қорғанның мұрттары (o.mus) — нысанның бөлігі: контурлардың астында үшбұрыштар тізбегімен салынады, масштабқа әсер етеді.
    DOM-сыз модуль: scripts/test-plan.mjs тексереді. */
 import { plane, contourXY, hasContour, toMm, SCALES, scaleBarStep, fmtNum, fmtMeasure, fmtDist, inverse, dist2, cmpNum } from './geo.js';
@@ -69,6 +71,15 @@ export const MATERIALS = [
   { v: 'brick_raw', kk: 'Шикі кірпіш', ru: 'Сырцовый кирпич', kkS: 'Шикі кірпіш', ruS: 'Сырц. кирпич' },
   { v: 'stone', kk: 'Табиғи тас', ru: 'Природный камень', kkS: 'Табиғи тас', ruS: 'Прир. камень' },
 ];
+/** Қорғанның түрі — үйіндісінің құрамы мен құрылысы (main/plans.js KTYPES; жаңасы тек соңына). */
+export const KTYPES = [
+  { v: 'earth', kk: 'Жер (топырақ) қорған', ru: 'Земляной курган' },
+  { v: 'stone', kk: 'Тас қорған', ru: 'Каменный курган' },
+  { v: 'earth_stone', kk: 'Топырақ-тасты (аралас) қорған', ru: 'Земляно-каменный курган' },
+  { v: 'krepida', kk: 'Етегі тас белдеулі қорған', ru: 'Курган с каменной обкладкой (крепидой)' },
+  { v: 'fenced', kk: 'Қоршаулы қорған', ru: 'Курган с оградой' },
+  { v: 'ditch', kk: 'Орлы (ровикті) қорған', ru: 'Курган с ровиком' },
+];
 /** Құлпытастың типі (С. Е. Ажигали). */
 export const SUBTYPES = [
   { v: 'block', kk: 'аз өңделген блок', ru: 'слабообработанный блок' },
@@ -88,6 +99,7 @@ const label = (list, v, lang, short) => { const x = list.find(k => k.v === v); r
 export const kindLabel = (v, lang) => label(KINDS, v, lang) || label(KINDS, 'other', lang);
 export const materialLabel = (v, lang, short) => label(MATERIALS, v, lang, short);
 export const subtypeLabel = (v, lang) => label(SUBTYPES, v, lang);
+export const ktypeLabel = (v, lang) => label(KTYPES, v, lang);
 export const stateLabel = (v, lang) => label(STATES, v, lang);
 /** 2-кезеңнің түрі (қорған мен «басқадан» өзге) не материалы бар ма — шартты белгілер мен экспликация шығады. */
 export const isStage2 = objs => objs.some(o => (o.kind && o.kind !== 'kurgan' && o.kind !== 'other') || o.material);
@@ -133,6 +145,8 @@ export const SURFACES = [
 ];
 /** Мұртты қорғанның «мұрттары» — тас жалдар (o.mus: сынық сызықтар тізімі). */
 export const MUS = { kk: 'Мұрт (тас жал)', ru: 'Усы (каменные гряды)' };
+/** Қазылған (зерттелген) қорған (o.dug: true). */
+export const DUG = { kk: 'Қазылған қорған', ru: 'Раскопанный курган' };
 export const featCat = v => (FEAT_KINDS.find(k => k.v === v) || {}).cat || '';
 export const featLabel = (v, lang) => label(FEAT_KINDS, v, lang);
 
@@ -180,6 +194,8 @@ const dirOf = az => [Math.sin(az * DEG), -Math.cos(az * DEG)];
 const DEFS = '<defs>' +
   '<pattern id="pj-m-brick_fired" patternUnits="userSpaceOnUse" width="1.2" height="1.2" patternTransform="rotate(45)"><rect width="1.2" height="1.2" fill="#fff"/><line x1="0" y1="0" x2="0" y2="1.2" stroke="#111" stroke-width="0.2"/></pattern>' +
   '<pattern id="pj-m-brick_raw" patternUnits="userSpaceOnUse" width="2.4" height="2.4" patternTransform="rotate(45)"><rect width="2.4" height="2.4" fill="#fff"/><line x1="0" y1="0" x2="0" y2="2.4" stroke="#111" stroke-width="0.2" stroke-dasharray="0.9 0.6"/></pattern>' +
+  // Қазылған қорған — қиғаш штрих (дала есептеріндегі «раскопанный объект»)
+  '<pattern id="pj-dug" patternUnits="userSpaceOnUse" width="0.9" height="0.9" patternTransform="rotate(45)"><rect width="0.9" height="0.9" fill="#fff"/><line x1="0" y1="0" x2="0" y2="0.9" stroke="#111" stroke-width="0.15"/></pattern>' +
   '<pattern id="pj-m-stone" patternUnits="userSpaceOnUse" width="1.6" height="1.6"><rect width="1.6" height="1.6" fill="#fff"/><path d="M0 0L1.6 1.6M1.6 0L0 1.6" stroke="#111" stroke-width="0.16"/></pattern>' +
   // Жағдаят аудандары (3-кезең): егістік — «═» қатарлары, орман, бұта, батпақ, құм
   '<pattern id="pj-f-arable" patternUnits="userSpaceOnUse" width="6" height="4"><path d="M0.6 0.9H3.4M0.6 1.6H3.4M3.6 2.9H6M3.6 3.6H6" stroke="#111" stroke-width="0.15"/></pattern>' +
@@ -207,8 +223,12 @@ export function glyph(kind, x, y) {
     default: return '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="0.9" fill="#111"/>';
   }
 }
-/** Контурдың толтыруы: материал — штрих; материалсыз қорған — 1-кезеңнің қоңыр түсі; қоршау — толтырусыз (ішіндегілері көрінеді). */
-const fillOf = (o, stage2) => (o.kind === 'korshau' ? 'none' : o.material ? 'url(#pj-m-' + o.material + ')' : (!o.kind || o.kind === 'kurgan') ? COL.fill : stage2 ? '#fff' : COL.fill);
+/** Қазылған қорған: түрі — қорған, белгісі қойылған. */
+export const isDug = o => !!o.dug && (o.kind || 'kurgan') === 'kurgan';
+/** Контурсыз қазылған қорғанның белгісі — штрихталған шеңбер (glyph('kurgan')-мен бірдей өлшемде). */
+export const dugGlyph = (x, y, r = 1.6) => '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="' + r + '" fill="url(#pj-dug)" stroke="#111" stroke-width="0.25"/>';
+/** Контурдың толтыруы: қазылған қорған — қиғаш штрих; материал — штрих; материалсыз қорған — 1-кезеңнің қоңыр түсі; қоршау — толтырусыз (ішіндегілері көрінеді). */
+const fillOf = (o, stage2) => (o.kind === 'korshau' ? 'none' : isDug(o) ? 'url(#pj-dug)' : o.material ? 'url(#pj-m-' + o.material + ')' : (!o.kind || o.kind === 'kurgan') ? COL.fill : stage2 ? '#fff' : COL.fill);
 /** Контурдың жиегі түріне қарай: кесене — жуан, сағанатам — қос сызық, қоршау — үзік сызық. */
 function contourSvg(pts, o, stage2, attrs = '') {
   const f = fillOf(o, stage2);
@@ -475,7 +495,13 @@ export function explOf(plan) {
 }
 /** Жалпы жоспар бетіндегі сызба аймағы: экспликация не шартты белгілер болса — төменгі бөлігі соларға беріледі. */
 function areaFor(ctx) {
-  if (!isStage2(ctx.objects)) return { ...AREA, zone: 0 };
+  if (!isStage2(ctx.objects)) {
+    // Археологиялық жоспар: экспликациясыз, тек шартты белгілер (түсіндіретін белгі болса)
+    const zh = legendWideHeight(ctx);
+    if (!zh) return { ...AREA, zone: 0 };
+    const zt = ZONE_BOTTOM - zh;
+    return { ...AREA, y1: zt - 4, zone: zh, zt };
+  }
   const e = explOf(ctx.plan);
   const zh = e.place === 'separate' ? legendHeight(ctx) : Math.max(e.zone_h, legendHeight(ctx));
   const zt = ZONE_BOTTOM - zh;
@@ -612,6 +638,7 @@ function legendItems(ctx) {
       .map(k => ({ svg: (x, y) => '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="1.6" fill="' + COL.fill + '" stroke="#111" stroke-width="0.25"/>' +
         (k.v === 'pit' ? '<circle cx="' + n2(x) + '" cy="' + n2(y) + '" r="0.6" fill="#d9822b" stroke="#111" stroke-width="0.15"/>'
           : [[-0.6, -0.5], [0.6, -0.5], [0, 0.55]].map(d => '<circle cx="' + n2(x + d[0]) + '" cy="' + n2(y + d[1]) + '" r="0.25" fill="#111"/>').join('')), t: lower(k[ctx.lang], ctx.lang) })),
+    ...(objs.some(isDug) ? [{ svg: (x, y) => dugGlyph(x, y), t: lower(DUG[ctx.lang], ctx.lang) }] : []),
     ...(objs.some(o => Array.isArray(o.mus) && o.mus.length) ? [{ svg: musSample, t: lower(MUS[ctx.lang], ctx.lang) }] : []),
     ...FEAT_KINDS.filter(k => k.cat !== 'text' && (ctx.features || []).some(f => f.kind === k.v)).map(k => ({ svg: (x, y) => featSample(k.v, x, y), t: lower(k[ctx.lang], ctx.lang) })),
     ...PLACE_KINDS.filter(k => (ctx.places || []).some(p => (p.kind || 'other') === k.v)).map(k => ({ svg: (x, y) => placeGlyph(k.v, x, y), t: lower(k[ctx.lang], ctx.lang) })),
@@ -636,6 +663,32 @@ function legendSvg(ctx, x, y) {
   return s + '</g></g>';
 }
 
+/* Экспликациясыз жоспардың шартты белгілері: бүкіл ені бойынша бағандармен (жоғарыдан төмен, сосын келесі баған). */
+function legendWideItems(ctx) {
+  const L = legendItems(ctx), lc = ctx.lang === 'ru' ? 'ru' : 'kk';
+  const items = L.kinds.map(k => ({ svg: (x, y) => glyph(k.v, x, y), t: k[ctx.lang].toLocaleLowerCase(lc) })).concat(L.feats);
+  const rows = L.mats.map(m => ({ fill: 'url(#pj-m-' + m.v + ')', t: m[ctx.lang].toLocaleLowerCase(lc) }));
+  if (L.noMat) rows.push({ fill: '#fff', t: TXT[ctx.lang].noMat });
+  for (const r of rows) items.push({ svg: (x, y) => rectE(x - 2, y - 1.5, 4, 3, 'fill="' + r.fill + '" stroke="#111" stroke-width="0.25"'), t: r.t });
+  const width = AREA.x1 - AREA.x0;
+  const colW = Math.max(42, ...items.map(it => textW(it.t, 3) + 10));
+  const ncol = Math.max(1, Math.min(items.length, Math.floor(width / colW)));
+  return { items, ncol, nrow: Math.ceil(items.length / ncol), colW: width / ncol };
+}
+function legendWideHeight(ctx) {
+  const W = legendWideItems(ctx);
+  return W.items.length ? 9 + 5 * W.nrow + 1 : 0;
+}
+function legendWideSvg(ctx, x, y) {
+  const W = legendWideItems(ctx);
+  let s = '<g class="pj-legend">' + text(x, y + 5, TXT[ctx.lang].legend, 3.8, { weight: 'bold' }) + '<g font-size="3">';
+  W.items.forEach((it, i) => {
+    const cx = x + Math.floor(i / W.nrow) * W.colW, yy = y + 10.5 + (i % W.nrow) * 5;
+    s += it.svg(cx + 2, yy) + text(cx + 6, yy + 1, it.t, 3);
+  });
+  return s + '</g></g>';
+}
+
 /* ======================= Экспликация кестесі ======================= */
 /** Өлшемі: шеңбер — «Ø 6», эллипс пен тіктөртбұрыш — «6,2 × 4», биіктігі бар болса — «; h 1,2»; өлшенбеген — «—». */
 export function sizeText(o) {
@@ -649,7 +702,7 @@ export function sizeText(o) {
 const noteOf = (o, lang) => String((lang === 'ru' ? o.note_ru || o.note : o.note || o.note_ru) || '').trim();
 /** Экспликацияның бір жолының мәндері (бағанның кілті бойынша). */
 export function explRow(o, lang, e = EXPL_DEF) {
-  const kind = kindLabel(o.kind || 'kurgan', lang) + (e.subtype && o.kind === 'kulpytas' && o.subtype ? ' (' + subtypeLabel(o.subtype, lang) + ')' : '');
+  const kind = ((o.kind || 'kurgan') === 'kurgan' && ktypeLabel(o.ktype, lang)) || kindLabel(o.kind || 'kurgan', lang) + (e.subtype && o.kind === 'kulpytas' && o.subtype ? ' (' + subtypeLabel(o.subtype, lang) + ')' : '');
   return { num: String(o.num), kind, material: materialLabel(o.material, lang, e.short) || '—', size: sizeText(o), state: stateLabel(o.state, lang) || '—', note: noteOf(o, lang).replace(/\s+/g, ' ') || '—' };
 }
 /** Бағандар мен ені (мм): «авто» бағандар қалған енді мазмұнының ұзындығына қарай бөледі (ең ұзын сөз бөлінбейтіндей); бәрі сыймаса — ескерту. */
@@ -758,7 +811,8 @@ function renderGeneral(ctx, scale, editor) {
   body += musSvg(L.items.flatMap(it => it.mus.map(ln => ln.map(tr))));
   for (const it of order) {
     if (it.ring) body += contourSvg(it.ring.map(tr), it.o, L.stage2, dataObj(it.o)) + surfaceSvg(it.o, it.ring.map(tr));
-    else if (L.stage2) body += '<g' + dataObj(it.o) + '>' + glyph(it.o.kind || 'kurgan', it.c[0] + sx, it.c[1] + sy) + '</g>';
+    else if (L.stage2) body += '<g' + dataObj(it.o) + '>' + (isDug(it.o) ? dugGlyph(it.c[0] + sx, it.c[1] + sy) : glyph(it.o.kind || 'kurgan', it.c[0] + sx, it.c[1] + sy)) + '</g>';
+    else if (isDug(it.o)) body += '<circle cx="' + n2(it.c[0] + sx) + '" cy="' + n2(it.c[1] + sy) + '" r="0.9" fill="#fff" stroke="' + COL.line + '" stroke-width="0.25"' + dataObj(it.o) + '/>';
     else body += '<circle cx="' + n2(it.c[0] + sx) + '" cy="' + n2(it.c[1] + sy) + '" r="0.9" fill="' + COL.line + '"' + dataObj(it.o) + '/>';
   }
   for (const it of L.items) {
@@ -770,6 +824,10 @@ function renderGeneral(ctx, scale, editor) {
   const ar = arrowSvg(ctx, L, editor);
   const fe = featuresSvg(ctx, L, editor);
   let zone = '', more = [], warn = '';
+  if (!L.stage2 && L.area.zone) {
+    // Археологиялық жоспар: төменгі аймақта тек шартты белгілер (экспликациясыз)
+    zone += line([AREA.x0, L.area.zt], [AREA.x1, L.area.zt], 'stroke="#111" stroke-width="0.2"') + legendWideSvg(ctx, AREA.x0, L.area.zt + 1);
+  }
   if (L.stage2) {
     // Төменгі аймақ: сол жақта — шартты белгілер, оң жақта — экспликацияның басы (не бәрі бөлек беттерде)
     const e = explOf(ctx.plan), A = L.area, T = TXT[ctx.lang];

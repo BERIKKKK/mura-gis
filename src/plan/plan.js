@@ -7,8 +7,8 @@
    • Жағдаят белгілері (жол, ЭБЖ, горизонталь, ағаш, жазу т.б.; docs/PLAN-STAGE3.md) — жобаның plan_features қабаты.
    Интерфейс бөліктері — plan/plan-dom.js, есептер — plan/geo.js, бет үлгісі — plan/sheet.js. */
 import { plane, contourLL, hasContour, inverse, dist2, azXY, selfIntersects, fmtNum, fmtDist, parseNum, cmpNum, SCALES } from './geo.js';
-import { renderPage, pdfHtml, objTitle, pointerValues, KINDS, MATERIALS, SUBTYPES, STATES, materialLabel, subtypeLabel, stateLabel, glyph, isStage2, explOf, PAPERS, paperSize,
-  FEAT_KINDS, featCat, featLabel, featGlyph, featSample, SURFACES, PLACE_KINDS } from './sheet.js';
+import { renderPage, pdfHtml, objTitle, pointerValues, KINDS, MATERIALS, SUBTYPES, KTYPES, STATES, materialLabel, subtypeLabel, ktypeLabel, stateLabel, glyph, isStage2, explOf, PAPERS, paperSize,
+  FEAT_KINDS, featCat, featLabel, featGlyph, featSample, SURFACES, PLACE_KINDS, isDug } from './sheet.js';
 const MUS_LINE = { weight: 4, dashArray: '1 6', lineCap: 'round', interactive: false };     // мұрт картада: нүктелі жуан сызық
 import { parseDxf, decodeDxf, parseCsv, guessColumns, csvItems, parseGeojson, parseKml, parseKmz, parseGpx, groupsOf, kindsFor, toRecords, allXY, thin as thinPts } from './importer.js';
 import { CRS_LIST, makeTransform, guessCrs, utmZone, gkZone } from './crs.js';
@@ -94,6 +94,10 @@ async function savePlan(patch) {
 const layer = L.featureGroup();
 const tempLayer = L.layerGroup();
 const ST = { fill: '#9c4f1c', line: '#221d16', sel: '#e8178a' };
+// Картадағы қазылған қорғанның штрихы (CSS .pj-dug → fill: url(#pj-map-dug)); анықтамасы құжатқа бір рет қосылады
+document.body.insertAdjacentHTML('beforeend', '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>' +
+  '<pattern id="pj-map-dug" patternUnits="userSpaceOnUse" width="6" height="6" patternTransform="rotate(45)"><rect width="6" height="6" fill="#fff" fill-opacity="0.7"/>' +
+  '<line x1="0" y1="0" x2="0" y2="6" stroke="' + ST.line + '" stroke-width="1.5"/></pattern></defs></svg>');
 function drawLayer() {
   layer.clearLayers();
   if (!markId) return;
@@ -111,12 +115,13 @@ function drawLayer() {
     const sel = o.id === selId;
     const ll = hasContour(o) ? contourLL(o) : null;
     const kurgan = !o.kind || o.kind === 'kurgan' || o.kind === 'other';
-    // Контур: қорған — қоңыр, қорымның құрылыстары — сұр, қоршау — толтырусыз; контурсыз қорым нысаны — жоспардағы белгісі
+    const dug = isDug(o);
+    // Контур: қорған — қоңыр, қазылған қорған — қиғаш штрих, қорымның құрылыстары — сұр, қоршау — толтырусыз; контурсыз қорым нысаны — жоспардағы белгісі
     const shape = ll
       ? L.polygon(ll, { color: sel ? ST.sel : ST.line, weight: sel ? 3 : 1.5, fillColor: kurgan ? ST.fill : '#8a8070', fillOpacity: o.kind === 'korshau' ? 0 : 0.55,
-        dashArray: o.kind === 'korshau' ? '6 4' : null, className: 'pj-shape' })
+        dashArray: o.kind === 'korshau' ? '6 4' : null, className: 'pj-shape' + (dug ? ' pj-dug' : '') })
       : kurgan
-        ? L.circleMarker([o.lat, o.lon], { radius: sel ? 6 : 4.5, color: sel ? ST.sel : '#fff', weight: 2, fillColor: ST.line, fillOpacity: 1, className: 'pj-shape' })
+        ? L.circleMarker([o.lat, o.lon], { radius: sel ? 6 : 4.5, color: sel ? ST.sel : dug ? ST.line : '#fff', weight: 2, fillColor: dug ? '#fff' : ST.line, fillOpacity: 1, className: 'pj-shape' })
         : L.marker([o.lat, o.lon], { keyboard: false, icon: L.divIcon({ className: 'pj-shape pj-glyph' + (sel ? ' is-sel' : ''), iconSize: [18, 18], iconAnchor: [9, 9],
           html: '<svg viewBox="-2.6 -2.6 5.2 5.2" width="18" height="18" aria-hidden="true">' + glyph(o.kind, 0, 0) + '</svg>' }) });
     shape.bindTooltip(esc(o.num), { permanent: true, direction: 'right', offset: [ll ? 0 : 6, 0], className: 'pj-num' + (sel ? ' is-sel' : '') });
@@ -229,9 +234,11 @@ function objMeta(o) {
   if (o.height != null || !o.kind || o.kind === 'kurgan') parts.push(tx('биіктігі ', 'высота ') + (o.height == null ? '—' : fmtNum(o.height) + ' м'));
   if (o.material) parts.push(materialLabel(o.material, UI).toLocaleLowerCase());
   if (o.subtype) parts.push(subtypeLabel(o.subtype, UI));
+  if (o.ktype && (o.kind || 'kurgan') === 'kurgan') parts.push(ktypeLabel(o.ktype, UI).toLocaleLowerCase(UI));
   if (o.state) parts.push(stateLabel(o.state, UI));
   if (Array.isArray(o.surface)) for (const k of o.surface) { const x = SURFACES.find(s => s.v === k); if (x) parts.push((UI === 'ru' ? x.ru : x.kk).toLocaleLowerCase(UI)); }
   if (Array.isArray(o.mus) && o.mus.length) parts.push(tx('мұрттары: ', 'усов: ') + o.mus.length);
+  if (isDug(o)) parts.push(tx('қазылған', 'раскопан'));
   return parts.join(' · ');
 }
 function renderPanel(m, list) {
@@ -1169,9 +1176,12 @@ function openObjDialog(o, opts = {}) {
     '<h3>' + svgIc(IC.add) + esc(isNew ? tx('Жаңа нысан', 'Новый объект') : objTitle(v, UI)) + '<small class="pj-dlgsub">' + esc(markName(m)) + '</small></h3>' +
     '<div class="qa-row2"><div class="qa-f"><label for="pjNum">№ <span class="mk-req">*</span></label><input type="text" id="pjNum" name="num" maxlength="12" value="' + esc(v.num) + '"><p class="pj-ferr" data-for="num"></p></div>' +
       '<div class="qa-f"><label for="pjKind">' + tx('Түрі', 'Тип') + '</label><select id="pjKind" name="kind">' + optList(KINDS, v.kind) + '</select></div></div>' +
-    '<div class="qa-row2"><div class="qa-f"><label for="pjMat">' + tx('Материалы', 'Материал') + '</label><select id="pjMat" name="material">' + optList(MATERIALS, v.material, tx('— белгісіз —', '— неизвестен —')) + '</select></div>' +
+    '<div class="qa-row2"><div class="qa-f" data-kind="kurgan"><label for="pjKtype">' + tx('Қорғанның түрі', 'Тип кургана') + '</label><select id="pjKtype" name="ktype">' + optList(KTYPES, v.ktype, tx('— анықталмаған —', '— не определён —')) + '</select></div>' +
+      '<div class="qa-f" data-nokind="kurgan"><label for="pjMat">' + tx('Материалы', 'Материал') + '</label><select id="pjMat" name="material">' + optList(MATERIALS, v.material, tx('— белгісіз —', '— неизвестен —')) + '</select></div>' +
       '<div class="qa-f" data-kind="kulpytas"><label for="pjSub">' + tx('Құлпытастың типі', 'Тип кулпытаса') + '</label><select id="pjSub" name="subtype">' + optList(SUBTYPES, v.subtype, tx('— анықталмаған —', '— не определён —')) + '</select></div>' +
       '<div class="qa-f"><label for="pjState">' + tx('Техникалық жай-күйі', 'Техническое состояние') + '</label><select id="pjState" name="state">' + optList(STATES, v.state, '—') + '</select></div></div>' +
+    '<div class="qa-f" data-kind="kurgan"><label class="qa-check"><input type="checkbox" name="dug"' + (v.dug ? ' checked' : '') + '> ' +
+      tx('Қазылған (зерттелген) қорған — жоспарда қиғаш штрихпен көрсетіледі', 'Раскопанный (исследованный) курган — на плане показывается косой штриховкой') + '</label></div>' +
     '<div class="qa-f" data-kind="kurgan"><label>' + tx('Бетінде (жоспарда контурдың ішінде көрсетіледі)', 'На поверхности (показывается внутри контура на плане)') + '</label><div class="pj-surf">' +
       SURFACES.map(x => '<label class="qa-check"><input type="checkbox" name="surface" value="' + x.v + '"' + (Array.isArray(v.surface) && v.surface.includes(x.v) ? ' checked' : '') + '> ' + esc(UI === 'ru' ? x.ru : x.kk) + '</label>').join('') + '</div></div>' +
     '<div class="qa-f" data-kind="kurgan"><label>' + tx('Мұрттары (мұртты қорғанның тас жалдары)', 'Усы (каменные гряды кургана с усами)') + '</label>' +
@@ -1222,6 +1232,8 @@ function openObjDialog(o, opts = {}) {
     const s = F.shape.value;
     back.querySelectorAll('label[data-rect]').forEach(l => { l.textContent = s === 'rect' ? l.dataset.rect : l.dataset.ell; });
     back.querySelectorAll('[data-kind]').forEach(el => { el.hidden = F.kind.value !== el.dataset.kind; });
+    // Қорғанда материалдың орнына түрі; бұрын материал берілген қорғанда өріс көрінеді (деректі өшіру мүмкін болсын)
+    back.querySelectorAll('[data-nokind]').forEach(el => { el.hidden = F.kind.value === el.dataset.nokind && !F.material.value; });
     back.querySelectorAll('[data-sh]').forEach(el => { el.hidden = !el.dataset.sh.split(' ').includes(s) && !(el.dataset.sh === '' && s === ''); });
     const info = back.querySelector('#pjPtsInfo');
     info.textContent = pts && pts.length >= 3 ? tx('Контурдың төбелері: ', 'Вершин контура: ') + pts.length : tx('Контур әлі сызылмаған — «Картада сызу».', 'Контур ещё не начерчен — «Начертить на карте».');
@@ -1251,8 +1263,9 @@ function openObjDialog(o, opts = {}) {
       ...v, id: v.id, mark_id: markId, num: F.num.value.trim(), kind: F.kind.value, shape: F.shape.value,
       name: F.name ? F.name.value : v.name, name_ru: F.name_ru ? F.name_ru.value : v.name_ru, note: F.note ? F.note.value : v.note, note_ru: F.note_ru ? F.note_ru.value : v.note_ru,
       lat: ll ? ll.lat : F.lat.value, lon: ll ? ll.lon : F.lon.value, latText: F.lat.value, lonText: F.lon.value,
-      material: F.material.value, subtype: F.kind.value === 'kulpytas' ? F.subtype.value : '', state: F.state.value,
+      material: F.material.value, subtype: F.kind.value === 'kulpytas' ? F.subtype.value : '', ktype: F.kind.value === 'kurgan' ? F.ktype.value : '', state: F.state.value,
       surface: F.kind.value === 'kurgan' ? [...back.querySelectorAll('input[name="surface"]:checked')].map(x => x.value) : null,
+      dug: F.kind.value === 'kurgan' && back.querySelector('input[name="dug"]').checked ? true : null,
       height: parseNum(F.height.value), diam: parseNum(F.diam.value), ax_a: parseNum(F.ax_a.value), ax_b: parseNum(F.ax_b.value), ax_az: parseNum(F.ax_az.value), dim_az: parseNum(F.dim_az.value),
       pts, dim: di !== '' && dj !== '' && di !== dj ? [+di, +dj] : null, mus,
     };
