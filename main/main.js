@@ -274,6 +274,7 @@ function createWindow() {
   win.once('ready-to-show', () => { win.maximize(); win.show(); });
   // Авто сақтау өшік болса — жабу алдында сақталмаған өзгерістер туралы сұраймыз
   win.on('close', e => { if (!confirmPending()) e.preventDefault(); });
+  win.on('closed', () => { win = null; });
   win.loadURL('mura://app/index.html');
 
   // Сыртқы сілтемелер — жүйенің браузерінде
@@ -528,9 +529,18 @@ ipcMain.handle('mura:sync-relink', guard(async pid => {
 /** Командалық жолда берілген .gpkg файлы (жобаны «Ашу» арқылы не файлды бағдарламаға сүйреп әкелгенде). */
 const argProject = argv => argv.slice(1).find(a => /\.gpkg$/i.test(a) && fs.existsSync(a)) || '';
 
+// Бағдарлама жабылып жатқанда (мысалы, жаңарту орнатылып жатыр) терезе жойылған, бірақ процесс әлі тірі болуы мүмкін.
+// before-quit емес: оны «Сақталмаған өзгерістер» сұрағы тоқтатуы мүмкін; терезелер жабылған соң ғана белгілейміз.
+let quitting = false;
+app.on('will-quit', () => { quitting = true; });
+
 app.on('second-instance', (_e, argv) => {
-  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
   const f = argProject(argv);
+  // Ескі процесс жабылып жатыр — жаңа нұсқа ол толық жабылған соң өздігінен қайта іске қосылады
+  if (quitting) { app.relaunch({ args: f ? [f] : [] }); return; }
+  if (!app.isReady()) return;
+  if (!win || win.isDestroyed()) createWindow();
+  else { if (win.isMinimized()) win.restore(); win.focus(); }
   if (f) openFromMenu(f);
 });
 
@@ -592,6 +602,6 @@ app.whenReady().then(() => {
   if (sync.account) { sync.start(); setTimeout(() => sync.syncAll('start').catch(() => {}), 6000); }
 });
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') { quitting = true; app.quit(); } });
 app.on('will-quit', () => { if (sync) sync.stop(); if (projects) projects.close(); });   // жоба файлы (SQLite) дұрыс жабылады
 app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); });
