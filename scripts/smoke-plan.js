@@ -216,7 +216,8 @@ async function run(win) {
     // Жалпы жоспар: жағдаят белгілері, жазуын сүйреу (flbl)
     MuraPlan.openPreview({ kind: 'general' }); await wait(300);
     const svg = document.querySelector('#pjSheet svg').innerHTML;
-    out.sheetFeats = svg.includes('pj-feats') + ' / ' + />427</.test(svg) + ' / ' + />ЕГІСТІК</.test(svg) + ' / ' + (svg.match(/fill="#6b9a34"/g) || []).length;
+    out.sheetFeats = svg.includes('pj-feats') + ' / ' + />427</.test(svg) + ' / ' + />ЕГІСТІК</.test(svg) + ' / ' + (svg.split('<g class="pj-legend">')[0].match(/fill="#6b9a34"/g) || []).length + ' / ' +
+      svg.split('<g class="pj-legend">')[1].includes('>жеке ағаш<');
     const g = document.querySelector('#pjSheet [data-drag^="flbl:"]');
     const rc = g.getBoundingClientRect(), x = rc.left + rc.width / 2, y = rc.top + rc.height / 2;
     g.dispatchEvent(new PointerEvent('pointerdown', { clientX: x, clientY: y, pointerId: 1, bubbles: true }));
@@ -457,7 +458,7 @@ async function run(win) {
   check(r.treeMode === 'null' && /Жазудың мәтінін/.test(r.textErr), 'ағаштар қатарынан қойылады, Esc аяқтайды; жазусыз мәтін — қате');
   check(r.feats === 'contour:427:3, tree, tree, text', 'белгілер сақталды (' + r.feats + ')');
   check(r.mapFeats === '2 / 1' && /^4 \/ Жағдаят белгілері: 4$/.test(r.featList), 'картада және панельде көрінеді');
-  check(r.sheetFeats === 'true / true / true / 2', 'жалпы жоспарда: горизонталь (427), жазу, ағаштар');
+  check(r.sheetFeats === 'true / true / true / 2 / true', 'жалпы жоспарда: горизонталь (427), жазу, ағаштар; шартты белгілерде ағаш (' + r.sheetFeats + ')');
   check(r.flbl && r.flbl !== 'null', 'жағдаят жазуын сүйреу сақталды');
   check(/^fedit \/ тұтқа: 3$/.test(r.feditMode), 'картада түзету: әр төбеде тұтқа');
   check(r.areaDlg === 'true / true' && r.area === '4 төбе / ЕГІСТІК', 'егістік ауданы картада сызылды (' + r.area + ')');

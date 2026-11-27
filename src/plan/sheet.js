@@ -4,7 +4,8 @@
    өлшем бірлігі — миллиметр (A4-те viewBox 0 0 210 297), сондықтан PDF-те 1 бірлік = 1 мм (масштаб сақталады).
    Контурлар, өлшем сызықтары, белгішелер — вектор, жазулар — мәтін (PDF-те ізделеді).
    2-кезең (қорым, docs/PLAN-STAGE2.md): нысан түрлері мен материалдары, шартты белгілер блогы және экспликация кестесі —
-   жоспарда қорғаннан басқа түр не материал болса ғана шығады; тек қорғандары бар жоспар 1-кезеңдегідей қалады.
+   жоспарда қорғаннан басқа түр не материал болса ғана шығады. Тек қорғандары бар (археологиялық) жоспарда — экспликациясыз,
+   беттің төменгі жағында шартты белгілер аймағы ғана (белгілер бірнеше бағанмен, legendWide).
    3-кезең (docs/PLAN-STAGE3.md): жағдаят белгілері (ctx.features) — жол, ЭБЖ, горизонталь, ағаш, егістік, жазу т.б., жоспарға қосылған
    «Өзге нысандар» (ctx.places — шақырушы places қабатынан береді) және қорғанның беті (o.surface). Аудандар мен сызықтар нысандардың
    астында, белгілер мен жазулар үстінде; сызба аймағымен қиылады; масштабты автоматты таңдауға әсер етпейді.
@@ -494,7 +495,13 @@ export function explOf(plan) {
 }
 /** Жалпы жоспар бетіндегі сызба аймағы: экспликация не шартты белгілер болса — төменгі бөлігі соларға беріледі. */
 function areaFor(ctx) {
-  if (!isStage2(ctx.objects)) return { ...AREA, zone: 0 };
+  if (!isStage2(ctx.objects)) {
+    // Археологиялық жоспар: экспликациясыз, тек шартты белгілер (түсіндіретін белгі болса)
+    const zh = legendWideHeight(ctx);
+    if (!zh) return { ...AREA, zone: 0 };
+    const zt = ZONE_BOTTOM - zh;
+    return { ...AREA, y1: zt - 4, zone: zh, zt };
+  }
   const e = explOf(ctx.plan);
   const zh = e.place === 'separate' ? legendHeight(ctx) : Math.max(e.zone_h, legendHeight(ctx));
   const zt = ZONE_BOTTOM - zh;
@@ -656,6 +663,32 @@ function legendSvg(ctx, x, y) {
   return s + '</g></g>';
 }
 
+/* Экспликациясыз жоспардың шартты белгілері: бүкіл ені бойынша бағандармен (жоғарыдан төмен, сосын келесі баған). */
+function legendWideItems(ctx) {
+  const L = legendItems(ctx), lc = ctx.lang === 'ru' ? 'ru' : 'kk';
+  const items = L.kinds.map(k => ({ svg: (x, y) => glyph(k.v, x, y), t: k[ctx.lang].toLocaleLowerCase(lc) })).concat(L.feats);
+  const rows = L.mats.map(m => ({ fill: 'url(#pj-m-' + m.v + ')', t: m[ctx.lang].toLocaleLowerCase(lc) }));
+  if (L.noMat) rows.push({ fill: '#fff', t: TXT[ctx.lang].noMat });
+  for (const r of rows) items.push({ svg: (x, y) => rectE(x - 2, y - 1.5, 4, 3, 'fill="' + r.fill + '" stroke="#111" stroke-width="0.25"'), t: r.t });
+  const width = AREA.x1 - AREA.x0;
+  const colW = Math.max(42, ...items.map(it => textW(it.t, 3) + 10));
+  const ncol = Math.max(1, Math.min(items.length, Math.floor(width / colW)));
+  return { items, ncol, nrow: Math.ceil(items.length / ncol), colW: width / ncol };
+}
+function legendWideHeight(ctx) {
+  const W = legendWideItems(ctx);
+  return W.items.length ? 9 + 5 * W.nrow + 1 : 0;
+}
+function legendWideSvg(ctx, x, y) {
+  const W = legendWideItems(ctx);
+  let s = '<g class="pj-legend">' + text(x, y + 5, TXT[ctx.lang].legend, 3.8, { weight: 'bold' }) + '<g font-size="3">';
+  W.items.forEach((it, i) => {
+    const cx = x + Math.floor(i / W.nrow) * W.colW, yy = y + 10.5 + (i % W.nrow) * 5;
+    s += it.svg(cx + 2, yy) + text(cx + 6, yy + 1, it.t, 3);
+  });
+  return s + '</g></g>';
+}
+
 /* ======================= Экспликация кестесі ======================= */
 /** Өлшемі: шеңбер — «Ø 6», эллипс пен тіктөртбұрыш — «6,2 × 4», биіктігі бар болса — «; h 1,2»; өлшенбеген — «—». */
 export function sizeText(o) {
@@ -791,6 +824,10 @@ function renderGeneral(ctx, scale, editor) {
   const ar = arrowSvg(ctx, L, editor);
   const fe = featuresSvg(ctx, L, editor);
   let zone = '', more = [], warn = '';
+  if (!L.stage2 && L.area.zone) {
+    // Археологиялық жоспар: төменгі аймақта тек шартты белгілер (экспликациясыз)
+    zone += line([AREA.x0, L.area.zt], [AREA.x1, L.area.zt], 'stroke="#111" stroke-width="0.2"') + legendWideSvg(ctx, AREA.x0, L.area.zt + 1);
+  }
   if (L.stage2) {
     // Төменгі аймақ: сол жақта — шартты белгілер, оң жақта — экспликацияның басы (не бәрі бөлек беттерде)
     const e = explOf(ctx.plan), A = L.area, T = TXT[ctx.lang];
